@@ -98,7 +98,7 @@ export default function ArenaPage() {
           .lte("fecha_hora", addMinutes(fechaHora, 15));
 
         if (dsps) {
-          despachosTon   = dsps.reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          despachosTon   = (dsps as { ton_final: number | null }[]).reduce((s, d) => s + (d.ton_final ?? 0), 0);
           despachosViajes = dsps.length;
         }
       }
