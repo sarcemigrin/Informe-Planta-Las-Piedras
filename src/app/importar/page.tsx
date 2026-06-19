@@ -205,8 +205,17 @@ export default function ImportarPage() {
       if (lote.length >= 100) {
         const { error } = await supabase.from("registros_cuarzo")
           .upsert(lote as never[], { onConflict: "fecha_hora" });
-        if (error) err += lote.length;
-        else       ok  += lote.length;
+        if (error) {
+          err += lote.length;
+          addLog(`  ⚠ Cuarzo error: ${error.message} | code: ${error.code}`);
+          // Intentar fila por fila para identificar cuál falla
+          if (err <= 100) {
+            for (const fila of lote) {
+              const { error: ef } = await supabase.from("registros_cuarzo").upsert([fila as never], { onConflict: "fecha_hora" });
+              if (ef) { addLog(`  ❌ Fila fecha=${fila.fecha} hora=${fila.hora}: ${ef.message}`); break; }
+            }
+          }
+        } else ok += lote.length;
         lote.length = 0;
         setProgreso({ etapa:"Cuarzo", ok, err, total: rows.length });
       }
@@ -215,7 +224,7 @@ export default function ImportarPage() {
     if (lote.length > 0) {
       const { error } = await supabase.from("registros_cuarzo")
         .upsert(lote as never[], { onConflict: "fecha_hora" });
-      if (error) err += lote.length;
+      if (error) { err += lote.length; addLog(`  ⚠ Último lote cuarzo: ${error.message}`); }
       else       ok  += lote.length;
     }
     addLog(`  ✅ Cuarzo: ${ok} importados, ${err} errores`);
