@@ -3,7 +3,9 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { AdminGuard } from "@/components/AdminGuard";
+import { EditCuarzoModal } from "@/components/EditCuarzoModal";
 import { supabase } from "@/lib/supabase";
 import {
   calcularCuarzo, fmt, ARTICULO_CUARZO,
@@ -27,11 +29,13 @@ export default function CuarzoPage() {
     notas:    "",
   });
 
+  const { data: session }         = useSession();
   const [historial, setHistorial] = useState<RegistroCuarzo[]>([]);
   const [prevRow, setPrevRow]     = useState<RegistroCuarzo | null>(null);
   const [preview, setPreview]     = useState<ReturnType<typeof calcularCuarzo> | null>(null);
   const [saving, setSaving]       = useState(false);
   const [msg, setMsg]             = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [editRow, setEditRow]     = useState<RegistroCuarzo | null>(null);
 
   useEffect(() => { loadHistorial(); }, []);
 
@@ -231,6 +235,7 @@ export default function CuarzoPage() {
               <th className="table-th">Prod. Drone</th>
               <th className="table-th">Despachos</th>
               <th className="table-th">Productividad</th>
+              <th className="table-th"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -242,12 +247,28 @@ export default function CuarzoPage() {
                 <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
                 <td className="table-td">{fmt(r.despachos_ton)}</td>
                 <td className="table-td">{fmt(r.productividad_drone)} t/h</td>
+                <td className="table-td">
+                  <button
+                    onClick={() => setEditRow(r)}
+                    className="text-gray-400 hover:text-orange-500 transition-colors"
+                    title="Editar registro"
+                  >✏️</button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
     </div>
+
+    {editRow && (
+      <EditCuarzoModal
+        registro={editRow}
+        userEmail={session?.user?.email ?? ""}
+        onClose={() => setEditRow(null)}
+        onSaved={() => { setEditRow(null); loadHistorial(); }}
+      />
+    )}
     </AdminGuard>
   );
 }
