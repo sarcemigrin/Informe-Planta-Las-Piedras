@@ -9,6 +9,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        migrin: {
+          DEFAULT: "#6BCF7F",
+          dark:    "#3D3D3D",
+          hover:   "#52b96a",
+        },
         brand: {
           50:  "#fff7ed",
           100: "#ffedd5",
