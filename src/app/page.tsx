@@ -15,31 +15,16 @@ import {
 import { format, differenceInDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
 
-// ── Productividad: umbrales y colores ─────────────────────
+// Productividad
 const PROD_TARGET = 32;
-const PROD_CRIT   = PROD_TARGET * 0.90; // 28.8 t/h
+const PROD_CRIT   = PROD_TARGET * 0.90;
 
-// ── Inventario: meta de control ───────────────────────────
+// Inventario
 const INV_TARGET = 7500;
 const INV_WARN   = 6500;
 
-function invText(v?: number | null) {
-  if (!v || v === 0) return "text-gray-600";
-  if (v >= INV_TARGET) return "text-green-600";
-  if (v >= INV_WARN)   return "text-yellow-500";
-  return "text-red-500";
-}
-function invBg(v?: number | null) {
-  if (!v || v === 0) return "bg-gray-50";
-  if (v >= INV_TARGET) return "bg-green-50";
-  if (v >= INV_WARN)   return "bg-yellow-50";
-  return "bg-red-50";
-}
-
 const DENSIDAD = 1.4;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-
-// Paleta profesional compatible con migrin green
 const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
 function prodText(v?: number | null) {
@@ -60,8 +45,19 @@ function prodHex(v?: number | null) {
   if (v >= PROD_CRIT)   return "#eab308";
   return "#ef4444";
 }
+function invText(v?: number | null) {
+  if (!v || v === 0) return "text-gray-600";
+  if (v >= INV_TARGET) return "text-green-600";
+  if (v >= INV_WARN)   return "text-yellow-500";
+  return "text-red-500";
+}
+function invBg(v?: number | null) {
+  if (!v || v === 0) return "bg-gray-50";
+  if (v >= INV_TARGET) return "bg-green-50";
+  if (v >= INV_WARN)   return "bg-yellow-50";
+  return "bg-red-50";
+}
 
-// ── Dashboard ──────────────────────────────────────────────
 export default function Dashboard() {
   const [arenaRows,      setArenaRows]      = useState<RegistroArena[]>([]);
   const [arenaHistorico, setArenaHistorico] = useState<Pick<RegistroArena,"fecha"|"produccion_drone"|"productividad_drone">[]>([]);
@@ -71,6 +67,7 @@ export default function Dashboard() {
   const [periodoComp,    setPeriodoComp]    = useState<"S1"|"S2"|"anual">("anual");
   const [selectedYears,  setSelectedYears]  = useState<number[]>([]);
   const [showYrFilter,   setShowYrFilter]   = useState(false);
+  const [vistaComp,      setVistaComp]      = useState<"ambas"|"produccion"|"productividad">("ambas");
 
   useEffect(() => {
     async function load() {
@@ -95,7 +92,6 @@ export default function Dashboard() {
   const ultimoCuarzo = cuarzoRows[0];
   const diasDesde    = sel ? differenceInDays(new Date(), new Date(sel.fecha)) : null;
 
-  // Tendencia semanal
   const now       = new Date();
   const startThis = startOfWeek(now,{weekStartsOn:1});
   const startLast = startOfWeek(subWeeks(now,1),{weekStartsOn:1});
@@ -106,7 +102,6 @@ export default function Dashboard() {
   const avgLast   = lastWk.length ? lastWk.reduce((s,r)=>s+(r.produccion_drone??0),0)/lastWk.length : 0;
   const tendencia = avgLast > 0 ? ((avgThis-avgLast)/avgLast)*100 : null;
 
-  // Chart productividad (últimas 15)
   const chartData = useMemo(() =>
     [...arenaRows].reverse().slice(-15).map(r => ({
       fecha:     format(new Date(r.fecha),"dd/MM",{locale:es}),
@@ -115,7 +110,6 @@ export default function Dashboard() {
     }))
   , [arenaRows]);
 
-  // Comparativa anual
   const { compChart, allYears, currentYear } = useMemo(() => {
     const cy = new Date().getFullYear();
     const meses = periodoComp==="S1"?[0,1,2,3,4,5]:periodoComp==="S2"?[6,7,8,9,10,11]:[0,1,2,3,4,5,6,7,8,9,10,11];
@@ -133,7 +127,7 @@ export default function Dashboard() {
       const row: Record<string,unknown> = { mes: MESES[m] };
       ys.forEach(y => {
         const d = byYM[y]?.[m];
-        row[`ton_${y}`]  = d?.ton.length  ? d.ton.reduce((a,b)=>a+b,0)             : null;
+        row[`ton_${y}`]  = d?.ton.length  ? d.ton.reduce((a,b)=>a+b,0)               : null;
         row[`prod_${y}`] = d?.prod.length ? d.prod.reduce((a,b)=>a+b,0)/d.prod.length : null;
       });
       return row;
@@ -141,23 +135,22 @@ export default function Dashboard() {
     return { compChart: data, allYears: ys, currentYear: cy };
   }, [arenaHistorico, periodoComp]);
 
-  // Init selected years once allYears loads
   useEffect(() => {
-    if (allYears.length > 0 && selectedYears.length === 0) {
-      setSelectedYears(allYears);
-    }
+    if (allYears.length > 0 && selectedYears.length === 0) setSelectedYears(allYears);
   }, [allYears]);
 
   const visibleYears = allYears.filter(y => selectedYears.includes(y));
 
-  function trend(cur?:number|null,prv?:number|null){ if(!cur||!prv||prv===0) return null; return ((cur-prv)/prv)*100; }
+  function trend(cur?:number|null,prv?:number|null){
+    if(!cur||!prv||prv===0) return null;
+    return ((cur-prv)/prv)*100;
+  }
 
-  // Acopios
   const conosTon = [(sel?.cono_1??0),(sel?.cono_2??0),(sel?.cono_3??0)].map(v=>v*DENSIDAD);
   const pilasTon = [(sel?.pila_1??0),(sel?.pila_2??0),(sel?.pila_3??0),(sel?.pila_4??0),(sel?.pila_5??0),(sel?.pila_6??0),(sel?.pila_7??0)].map(v=>v*DENSIDAD);
   const canchaViejaTon = conosTon.reduce((a,b)=>a+b,0);
   const canchaNuevaTon = pilasTon.slice(0,4).reduce((a,b)=>a+b,0);
-  const riñonesTon     = pilasTon.slice(4).reduce((a,b)=>a+b,0);
+  const rinoesTon      = pilasTon.slice(4).reduce((a,b)=>a+b,0);
 
   if(loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
@@ -168,7 +161,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500">Planta Las Piedras – Producción Arena &amp; Cuarzo</p>
+          <p className="text-sm text-gray-500">Control de inventarios y productividad - Planta de Arenas</p>
         </div>
         <div className="flex gap-2">
           <Link href="/arena"  className="btn-primary">+ Arena</Link>
@@ -176,10 +169,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Arena KPIs ── */}
+      {/* Arena KPIs */}
       <section>
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">⛏ Arena</h2>
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Arena</h2>
           <select
             className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-migrin"
             value={selectedIdx}
@@ -187,7 +180,7 @@ export default function Dashboard() {
           >
             {arenaRows.map((r,i)=>(
               <option key={r.id} value={i}>
-                {i===0?"★ ":""}{format(new Date(r.fecha),"dd/MM/yyyy")} {r.hora?.slice(0,5)}
+                {i===0?"* ":""}{format(new Date(r.fecha),"dd/MM/yyyy")} {r.hora?.slice(0,5)}
               </option>
             ))}
           </select>
@@ -202,43 +195,41 @@ export default function Dashboard() {
             </span>
           )}
         </div>
-        {/* Orden: Productividad → Prod.Drone → Inventario → Despachos → Prod.Pesóm. */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}     unit="ton/h" color="prod"   icon="⚡"
-            info="Toneladas producidas por hora de horómetro. Meta: ≥32 t/h · Amarillo: 28.8–32 (dentro del 10%) · Rojo: <28.8 t/h."
+          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon="bolt"
+            info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
             trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
-          <KpiCard label="Prod. Drone"   value={fmt(sel?.produccion_drone)}        unit="ton"   color="green"  icon="🚁"
-            info="Producción por diferencia de inventario entre droneos consecutivos + despachos del período."
+          <KpiCard label="Prod. Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon="drone"
+            info="Produccion por diferencia de inventario entre droneos consecutivos + despachos del periodo."
             trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
-          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}           unit="ton"   color="inv"   icon="📦"
-            info="Suma de acopios Cancha Vieja + Cancha Nueva × densidad 1.4 ton/m³. Meta de control: 7.500 ton · Amarillo: 6.500–7.500 · Rojo: <6.500 ton."
+          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon="box"
+            info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
             trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
-          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}            unit="ton"   color="gray"   icon="🚛"
-            info="Total toneladas despachadas entre el droneo anterior y este, según datos SAP."
+          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon="truck"
+            info="Total toneladas despachadas entre el droneo anterior y este, segun datos SAP."
             trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
-          <KpiCard label="Prod. Pesóm."  value={fmt(sel?.produccion_pesometro)}    unit="ton"   color="migrin" icon="⚖️"
-            info="Producción según diferencia de lecturas del pesómetro × factor de humedad 0.85. Referencia complementaria al cálculo por drone."
+          <KpiCard label="Prod. Pesom."  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon="scale"
+            info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
         </div>
       </section>
 
-      {/* ── Cuarzo + Canchas ── */}
+      {/* Cuarzo + Canchas */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">🪨 Cuarzo &amp; Canchas Arena</h2>
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Cuarzo &amp; Canchas Arena</h2>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
-          {/* Cuarzo inventario */}
-          <KpiCard label="Inv. Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon="🪨"
-            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"–"}. Calculado como volumen de conos × 1.65 ton/m³.`}/>
+          <KpiCard label="Inv. Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon="rock"
+            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
 
           {/* Cancha Vieja */}
-          <div className="card space-y-2 relative">
+          <div className="card space-y-2 relative pb-6">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cancha Vieja</span>
               <span className="text-sm font-bold text-gray-800">{fmt(canchaViejaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             <div className="grid grid-cols-3 gap-1">
-              {["Cono 1","Cono 2","Cono 3"].map((lbl,n)=>(
+              {["Acopio 1","Acopio 2","Acopio 3"].map((lbl,n)=>(
                 <div key={n} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
                   <p className="text-xs text-gray-400">{lbl}</p>
                   <p className="text-sm font-semibold text-gray-700">{fmt(conosTon[n],0)}</p>
@@ -247,18 +238,18 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Desglose de los acopios en Cancha Vieja: 3 conos medidos por drone × 1.4 ton/m³."/>
+              <KpiInfoTooltip text="Desglose de los acopios en Cancha Vieja: 3 acopios medidos por drone x 1.4 ton/m3."/>
             </div>
           </div>
 
           {/* Cancha Nueva */}
-          <div className="card space-y-2 relative">
+          <div className="card space-y-2 relative pb-6">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cancha Nueva</span>
               <span className="text-sm font-bold text-gray-800">{fmt(canchaNuevaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             <div className="grid grid-cols-4 gap-1">
-              {["Pila 1","Pila 2","Pila 3","Pila 4"].map((lbl,n)=>(
+              {["Acopio 1","Acopio 2","Acopio 3","Acopio 4"].map((lbl,n)=>(
                 <div key={n} className="bg-gray-50 rounded-lg px-1 py-1.5 text-center">
                   <p className="text-xs text-gray-400">{lbl}</p>
                   <p className="text-sm font-semibold text-gray-700">{fmt(pilasTon[n],0)}</p>
@@ -267,55 +258,62 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Desglose de los acopios en Cancha Nueva: 4 pilas medidas por drone × 1.4 ton/m³."/>
+              <KpiInfoTooltip text="Desglose de los acopios en Cancha Nueva: 4 acopios medidos por drone x 1.4 ton/m3."/>
             </div>
           </div>
 
-          {/* Riñones */}
-          <div className="card space-y-2 relative">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Riñones</span>
-            <p className="text-2xl font-bold text-gray-800">{fmt(riñonesTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></p>
+          {/* Rinones */}
+          <div className="card space-y-2 relative pb-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rinones</span>
+              <span className="text-sm font-bold text-gray-800">{fmt(rinoesTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+            </div>
             <div className="grid grid-cols-3 gap-1">
-              {["P5","P6","P7"].map((lbl,n)=>(
-                <div key={n} className="bg-gray-50 rounded-lg px-1 py-1.5 text-center">
+              {["R1","R2","R3"].map((lbl,n)=>(
+                <div key={n} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
                   <p className="text-xs text-gray-400">{lbl}</p>
-                  <p className="text-xs font-semibold text-gray-700">{fmt(pilasTon[n+4],0)}</p>
+                  <p className="text-sm font-semibold text-gray-700">{fmt(pilasTon[n+4],0)}</p>
+                  <p className="text-xs text-gray-400">ton</p>
                 </div>
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Acopios pequeños consolidados (pilas 5–7). Material acumulado en zonas secundarias de la cancha."/>
+              <KpiInfoTooltip text="Desglose de acopios Rinones (R1, R2, R3): material acumulado en zonas secundarias de la cancha x 1.4 ton/m3."/>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Gráfico 1: Productividad ── */}
+      {/* Grafico 1: Productividad */}
       {chartData.length > 0 && (
         <section className="card">
           <div className="mb-3">
-            <h2 className="font-semibold text-gray-800">Productividad Arena — últimas {chartData.length} mediciones</h2>
+            <h2 className="font-semibold text-gray-800">Productividad Arena</h2>
             <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-              <span><span className="text-green-600 font-bold">●</span> ≥32 t/h (meta)</span>
-              <span><span className="text-yellow-500 font-bold">●</span> 28.8–32 t/h</span>
-              <span><span className="text-red-500 font-bold">●</span> &lt;28.8 t/h</span>
-              <span className="text-migrin font-semibold">— Drone &nbsp; <span className="text-gray-400">- - Pesóm.</span></span>
+              <span><span className="text-green-600 font-bold">o</span> &gt;=32 t/h</span>
+              <span><span className="text-yellow-500 font-bold">o</span> 28.8-32 t/h</span>
+              <span><span className="text-red-500 font-bold">o</span> &lt;28.8 t/h</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={chartData} margin={{top:16,right:16,left:0,bottom:5}}>
+            <LineChart data={chartData} margin={{top:8,right:16,left:0,bottom:5}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
               <XAxis dataKey="fecha" tick={{fontSize:10}} tickLine={false}/>
               <YAxis tick={{fontSize:10}} width={48} domain={["auto","auto"]} tickLine={false}/>
               <Tooltip
-                formatter={(v,n)=>[`${fmt(v as number,1)} t/h`, n==="prodDrone"?"Productiv. Drone":"Productiv. Pesóm."]}
+                formatter={(v,n)=>[`${fmt(v as number,1)} t/h`, n==="prodDrone"?"Productiv. Drone":n==="prodPeso"?"Productiv. Pesom.":"Meta"]}
                 contentStyle={{fontSize:12,borderRadius:10,border:"1px solid #e5e7eb",boxShadow:"0 4px 12px rgba(0,0,0,.08)"}}
               />
-              <Legend formatter={n=>n==="prodDrone"?"Productiv. Drone":"Productiv. Pesóm."}/>
-              {/* Línea de control 32 t/h */}
-              <ReferenceLine y={32} stroke="#6BCF7F" strokeDasharray="6 3" strokeWidth={1.5}
-                label={{value:"Meta 32 t/h", position:"insideTopRight", fontSize:10, fill:"#6BCF7F", fontWeight:"600"}}/>
-              {/* Productividad Drone */}
+              <Legend formatter={n=>{
+                if(n==="prodDrone") return "Productiv. Drone";
+                if(n==="prodPeso")  return "Productiv. Pesom.";
+                if(n==="metaRef")   return "Meta 32 t/h";
+                return n;
+              }}/>
+              <ReferenceLine y={32} stroke="#6BCF7F" strokeDasharray="6 3" strokeWidth={1.5}/>
+              <Line dataKey="__meta__" name="metaRef" legendType="line"
+                stroke="#6BCF7F" strokeDasharray="6 3" strokeWidth={1.5}
+                dot={false} activeDot={false}/>
               <Line type="monotone" dataKey="prodDrone" name="prodDrone" strokeWidth={2.5}
                 stroke="#6BCF7F"
                 dot={(props:Record<string,unknown>)=>{
@@ -326,7 +324,6 @@ export default function Dashboard() {
                 }}
                 activeDot={{r:7}}
               />
-              {/* Productividad Pesómetro */}
               <Line type="monotone" dataKey="prodPeso" name="prodPeso" strokeWidth={1.5} strokeDasharray="5 4"
                 stroke="#94a3b8"
                 dot={(props:Record<string,unknown>)=>{
@@ -341,19 +338,17 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ── Gráfico 2: Comparativa Anual ── */}
+      {/* Grafico 2: Comparativa Anual */}
       {compChart.length > 0 && allYears.length > 0 && (
         <section className="card">
-          {/* Controles */}
           <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
-              <h2 className="font-semibold text-gray-800 text-sm sm:text-base">Comparativa Anual — Producción &amp; Productividad</h2>
-              <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Barras: producción total mes · Línea: productividad promedio</p>
+              <h2 className="font-semibold text-gray-800 text-sm sm:text-base">Comparativa Anual</h2>
+              <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Barras: produccion total mes · Linea: productividad promedio</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Selector periodo */}
               <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
-                {([["S1","S1"],["S2","S2"],["anual","Año"]] as const).map(([v,label])=>(
+                {([["S1","S1"],["S2","S2"],["anual","Ano"]] as const).map(([v,label])=>(
                   <button key={v} onClick={()=>setPeriodoComp(v)}
                     className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors"
                     style={periodoComp===v?{backgroundColor:"#6BCF7F",color:"#fff"}:{color:"#6b7280"}}>
@@ -361,15 +356,22 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
-              {/* Toggle año filter */}
-              <button onClick={()=>setShowYrFilter(v=>!v)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 font-medium hover:border-migrin transition-colors flex items-center gap-1">
-                Años {showYrFilter?"▲":"▼"}
+              <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                {([["ambas","Ambas"],["produccion","Produccion"],["productividad","Productividad"]] as const).map(([v,label])=>(
+                  <button key={v} onClick={()=>setVistaComp(v)}
+                    className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors"
+                    style={vistaComp===v?{backgroundColor:"#6BCF7F",color:"#fff"}:{color:"#6b7280"}}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={()=>setShowYrFilter(f=>!f)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 font-medium hover:border-migrin transition-colors">
+                Anos {showYrFilter?"^":"v"}
               </button>
             </div>
           </div>
 
-          {/* Panel años (colapsable) */}
           {showYrFilter && (
             <div className="mb-3 p-2 bg-gray-50 rounded-lg flex flex-wrap gap-2">
               {allYears.map((y,i)=>(
@@ -394,14 +396,22 @@ export default function Dashboard() {
             <ComposedChart data={compChart} margin={{top:5,right:44,left:0,bottom:5}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
               <XAxis dataKey="mes" tick={{fontSize:10}} tickLine={false}/>
-              <YAxis yAxisId="ton"  orientation="left"  tick={{fontSize:9}} width={52} tickLine={false}
-                tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:String(v)}/>
-              <YAxis yAxisId="prod" orientation="right" tick={{fontSize:9}} width={36} tickLine={false}
-                tickFormatter={v=>`${v}`}/>
+              {(vistaComp==="ambas"||vistaComp==="produccion") ? (
+                <YAxis yAxisId="ton" orientation="left" tick={{fontSize:9}} width={52} tickLine={false}
+                  tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:String(v)}/>
+              ) : (
+                <YAxis yAxisId="ton" hide/>
+              )}
+              {(vistaComp==="ambas"||vistaComp==="productividad") ? (
+                <YAxis yAxisId="prod" orientation="right" tick={{fontSize:9}} width={36} tickLine={false}
+                  tickFormatter={v=>`${v}`}/>
+              ) : (
+                <YAxis yAxisId="prod" hide/>
+              )}
               <Tooltip
                 formatter={(v,n)=>{
                   const s=String(n);
-                  if(s.startsWith("ton_"))  return [`${fmt(v as number,0)} ton`,  `Producción ${s.slice(4)}`];
+                  if(s.startsWith("ton_"))  return [`${fmt(v as number,0)} ton`,  `Produccion ${s.slice(4)}`];
                   if(s.startsWith("prod_")) return [`${fmt(v as number,1)} t/h`,  `Productividad ${s.slice(5)}`];
                   return [v,n];
                 }}
@@ -416,7 +426,7 @@ export default function Dashboard() {
                   return n;
                 }}
               />
-              {visibleYears.map((y,i)=>{
+              {(vistaComp==="ambas"||vistaComp==="produccion") && visibleYears.map((y)=>{
                 const ci = allYears.indexOf(y);
                 return (
                   <Bar key={`ton_${y}`} yAxisId="ton" dataKey={`ton_${y}`} name={`ton_${y}`}
@@ -425,7 +435,7 @@ export default function Dashboard() {
                     radius={[3,3,0,0]}/>
                 );
               })}
-              {visibleYears.map((y)=>{
+              {(vistaComp==="ambas"||vistaComp==="productividad") && visibleYears.map((y)=>{
                 const ci = allYears.indexOf(y);
                 return (
                   <Line key={`prod_${y}`} yAxisId="prod" dataKey={`prod_${y}`} name={`prod_${y}`}
@@ -440,11 +450,11 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ── Tabla ── */}
+      {/* Tabla */}
       <section className="card overflow-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-gray-800">Registros Arena recientes</h2>
-          <Link href="/informe" className="text-sm font-medium hover:underline" style={{color:"#6BCF7F"}}>Ver informe →</Link>
+          <Link href="/informe" className="text-sm font-medium hover:underline" style={{color:"#6BCF7F"}}>Ver informe</Link>
         </div>
         <table className="w-full min-w-[680px] text-sm">
           <thead className="border-b border-gray-100">
@@ -454,8 +464,8 @@ export default function Dashboard() {
               <th className="table-th">Prod. Drone</th>
               <th className="table-th">Inventario</th>
               <th className="table-th">Despachos</th>
-              <th className="table-th">Prod. Pesóm.</th>
-              <th className="table-th">Productiv. Pesóm.</th>
+              <th className="table-th">Prod. Pesom.</th>
+              <th className="table-th">Productiv. Pesom.</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -466,15 +476,13 @@ export default function Dashboard() {
                 <td className="table-td-left">
                   <div className="font-medium">{format(new Date(r.fecha),"dd/MM/yyyy")} {r.hora.slice(0,5)}</div>
                   {i===0
-                    ? <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">último</span>
+                    ? <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">ultimo</span>
                     : <span className="text-xs text-gray-300">hace {differenceInDays(new Date(),new Date(r.fecha))}d</span>
                   }
                 </td>
-                <td className={`table-td font-bold ${prodText(r.productividad_drone)}`}>
-                  {fmt(r.productividad_drone)} t/h
-                </td>
+                <td className={`table-td font-bold ${prodText(r.productividad_drone)}`}>{fmt(r.productividad_drone)} t/h</td>
                 <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
-                <td className="table-td text-blue-700">{fmt(r.inventario_ton)}</td>
+                <td className={`table-td font-semibold ${invText(r.inventario_ton)}`}>{fmt(r.inventario_ton)}</td>
                 <td className="table-td">{fmt(r.despachos_ton)}</td>
                 <td className="table-td text-migrin">{fmt(r.produccion_pesometro)}</td>
                 <td className={`table-td ${prodText(r.productividad_pesometro)}`}>{fmt(r.productividad_pesometro)} t/h</td>
@@ -482,13 +490,11 @@ export default function Dashboard() {
             ))}
           </tbody>
         </table>
-        <p className="text-xs text-gray-400 mt-2">💡 Haz clic en una fila para ver sus KPIs arriba</p>
+        <p className="text-xs text-gray-400 mt-2">Haz clic en una fila para ver sus KPIs arriba</p>
       </section>
     </div>
   );
 }
-
-// ── Subcomponents ──────────────────────────────────────────
 
 function KpiInfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false);
@@ -518,11 +524,11 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
   const isInv  = color === "inv";
   const colorClass = isProd ? prodText(prodVal) : isInv ? invText(invVal) : ({
     blue:"text-blue-600", green:"text-green-600", migrin:"text-migrin",
-    purple:"text-purple-600", gray:"text-gray-700", yellow:"text-yellow-600",
+    purple:"text-purple-600", gray:"text-gray-700",
   }[color]??"text-gray-900");
   const bgClass = isProd ? prodBg(prodVal) : isInv ? invBg(invVal) : ({
     blue:"bg-blue-50", green:"bg-green-50", migrin:"bg-green-50",
-    purple:"bg-purple-50", gray:"bg-gray-50", yellow:"bg-yellow-50",
+    purple:"bg-purple-50", gray:"bg-gray-50",
   }[color]??"bg-gray-50");
 
   return (
