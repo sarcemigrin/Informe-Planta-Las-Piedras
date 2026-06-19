@@ -1,6 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
+import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
   calcularCuarzo, fmt, ARTICULO_CUARZO,
@@ -134,6 +137,7 @@ export default function CuarzoPage() {
   }
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">🪨 Ingreso Datos Cuarzo</h1>
@@ -244,6 +248,7 @@ export default function CuarzoPage() {
         </table>
       </section>
     </div>
+    </AdminGuard>
   );
 }
 

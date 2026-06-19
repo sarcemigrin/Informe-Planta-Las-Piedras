@@ -5,7 +5,13 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
 
-const links = [
+const linksViewer = [
+  { href: "/",        label: "Dashboard" },
+  { href: "/diario",  label: "📅 Diario" },
+  { href: "/informe", label: "📊 Informe" },
+];
+
+const linksAdmin = [
   { href: "/",          label: "Dashboard" },
   { href: "/arena",     label: "⛏ Arena" },
   { href: "/cuarzo",    label: "🪨 Cuarzo" },
@@ -16,12 +22,14 @@ const links = [
 ];
 
 export function Navigation() {
-  const pathname    = usePathname();
-  const { data: session } = useSession();
-  const [open, setOpen]   = useState(false);
+  const pathname              = usePathname();
+  const { data: session }     = useSession();
+  const [open, setOpen]       = useState(false);
 
-  // No mostrar nav en la página de login
   if (pathname === "/login") return null;
+
+  const isAdmin = session?.user?.rol === "admin";
+  const links   = isAdmin ? linksAdmin : linksViewer;
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
@@ -50,13 +58,18 @@ export function Navigation() {
             ))}
           </div>
 
-          {/* Usuario + logout (desktop) */}
+          {/* Usuario + rol + logout */}
           <div className="hidden md:flex items-center gap-3">
             {session?.user && (
               <>
                 <span className="text-xs text-gray-500 max-w-[160px] truncate">
                   {session.user.name ?? session.user.email}
                 </span>
+                {!isAdmin && (
+                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                    Solo lectura
+                  </span>
+                )}
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="text-xs text-gray-400 hover:text-red-500 transition-colors"
@@ -97,9 +110,14 @@ export function Navigation() {
           ))}
           {session?.user && (
             <div className="mt-2 border-t border-gray-100 pt-2 flex items-center justify-between">
-              <span className="text-xs text-gray-500 truncate">
-                {session.user.name ?? session.user.email}
-              </span>
+              <div>
+                <span className="text-xs text-gray-500 truncate block">
+                  {session.user.name ?? session.user.email}
+                </span>
+                {!isAdmin && (
+                  <span className="text-xs text-gray-400">Solo lectura</span>
+                )}
+              </div>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="text-xs text-red-500 font-medium"

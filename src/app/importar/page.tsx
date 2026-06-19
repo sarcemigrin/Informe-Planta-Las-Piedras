@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { useRef, useState } from "react";
+import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
@@ -311,6 +312,7 @@ export default function ImportarPage() {
   }
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">⬆ Importar Excel histórico</h1>
@@ -380,6 +382,7 @@ export default function ImportarPage() {
         </ol>
       </div>
     </div>
+    </AdminGuard>
   );
 }
 

@@ -1,6 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
+import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
   calcularArena, fmt, ARTICULO_ARENA,
@@ -178,6 +181,7 @@ export default function ArenaPage() {
   }
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">⛏ Ingreso Datos Arena</h1>
@@ -339,6 +343,7 @@ export default function ArenaPage() {
         </table>
       </section>
     </div>
+    </AdminGuard>
   );
 }
 

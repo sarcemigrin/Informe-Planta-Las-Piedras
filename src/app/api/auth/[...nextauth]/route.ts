@@ -1,5 +1,14 @@
 import NextAuth from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import { createClient } from "@supabase/supabase-js";
+
+// Cliente Supabase server-side (con service role o anon key)
+function getSupabaseServer() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 const handler = NextAuth({
   providers: [
@@ -11,42 +20,57 @@ const handler = NextAuth({
   ],
 
   callbacks: {
-    // Solo permitir usuarios del tenant de la empresa
     async signIn({ account }) {
-      // El tenant está fijado en el provider, Azure rechaza automáticamente
-      // cuentas externas. Esta capa adicional verifica el tid del token.
-      if (account?.provider === "azure-ad") {
-        return true; // Azure AD tenant-id ya filtra al nivel del proveedor
-      }
+      if (account?.provider === "azure-ad") return true;
       return false;
-    },
-
-    async session({ session, token }) {
-      // Exponer el email y nombre en la sesión
-      if (session.user) {
-        session.user.email = token.email as string;
-        session.user.name  = token.name  as string;
-      }
-      return session;
     },
 
     async jwt({ token, account, profile }) {
       if (account) {
-        token.accessToken = account.access_token;
-        token.email       = profile?.email ?? token.email;
+        // Primer login: obtener email y consultar rol en Supabase
+        token.email = profile?.email ?? token.email;
+
+        const email = token.email as string | undefined;
+        if (email) {
+          try {
+            const sb = getSupabaseServer();
+            const { data } = await sb
+              .from("usuarios")
+              .select("rol, activo")
+              .eq("email", email.toLowerCase())
+              .single();
+
+            if (data && data.activo) {
+              token.rol = data.rol as "admin" | "viewer";
+            } else {
+              token.rol = "sin_acceso";
+            }
+          } catch {
+            token.rol = "sin_acceso";
+          }
+        }
       }
       return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.email = token.email as string;
+        session.user.name  = token.name  as string;
+        session.user.rol   = token.rol   ?? "sin_acceso";
+      }
+      return session;
     },
   },
 
   pages: {
-    signIn: "/login",      // página de login personalizada
+    signIn: "/login",
     error:  "/login",
   },
 
   session: {
     strategy: "jwt",
-    maxAge:   8 * 60 * 60, // 8 horas (jornada laboral)
+    maxAge:   8 * 60 * 60,
   },
 });
 

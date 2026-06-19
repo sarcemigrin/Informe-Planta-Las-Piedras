@@ -1,6 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useRef, useState } from "react";
+import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import type { Despacho } from "@/types/database";
 import { format } from "date-fns";
@@ -127,6 +130,7 @@ export default function DespachosPage() {
   const paginated  = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">🚛 Despachos</h1>
@@ -245,6 +249,7 @@ export default function DespachosPage() {
         )}
       </div>
     </div>
+    </AdminGuard>
   );
 }
 
