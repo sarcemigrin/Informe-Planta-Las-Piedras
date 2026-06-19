@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { createClient } from "@supabase/supabase-js";
 
-// Cliente Supabase server-side (con service role o anon key)
 function getSupabaseServer() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,25 +26,33 @@ const handler = NextAuth({
 
     async jwt({ token, account, profile }) {
       if (account) {
-        // Primer login: obtener email y consultar rol en Supabase
-        token.email = profile?.email ?? token.email;
+        // Azure AD puede devolver el email en distintos campos
+        const p = profile as Record<string, unknown> | undefined;
+        const email =
+          (p?.["email"] as string | undefined) ??
+          (p?.["preferred_username"] as string | undefined) ??
+          (p?.["upn"] as string | undefined) ??
+          (token.email as string | undefined);
 
-        const email = token.email as string | undefined;
         if (email) {
+          token.email = email;
           try {
             const sb = getSupabaseServer();
-            const { data } = await sb
+            const { data, error } = await sb
               .from("usuarios")
               .select("rol, activo")
               .eq("email", email.toLowerCase())
-              .single();
+              .maybeSingle();
+
+            console.log("[auth] email:", email, "data:", data, "error:", error);
 
             if (data && data.activo) {
               token.rol = data.rol as "admin" | "viewer";
             } else {
               token.rol = "sin_acceso";
             }
-          } catch {
+          } catch (e) {
+            console.error("[auth] supabase error:", e);
             token.rol = "sin_acceso";
           }
         }
