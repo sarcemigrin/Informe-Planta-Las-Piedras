@@ -271,8 +271,10 @@ export default function ImportarPage() {
 
       if (lote.length >= 500) {
         const { error } = await supabase.from("despachos").insert(lote);
-        if (error) { err += lote.length; addLog(`  ⚠ Lote error: ${error.message}`); }
-        else       ok  += lote.length;
+        if (error) {
+          err += lote.length;
+          if (err <= 500) addLog(`  ⚠ Error (lote): ${error.message}`);
+        } else ok += lote.length;
         lote.length = 0;
         setProgreso({ etapa:"Despachos", ok, err, total: data.length });
       }
@@ -280,9 +282,30 @@ export default function ImportarPage() {
 
     if (lote.length > 0) {
       const { error } = await supabase.from("despachos").insert(lote);
-      if (error) { err += lote.length; addLog(`  ⚠ Lote error: ${error.message}`); }
+      if (error) { err += lote.length; addLog(`  ⚠ Error (último lote): ${error.message}`); }
       else       ok  += lote.length;
     }
+
+    // --- Diagnóstico: si todo falla, intenta insertar solo 1 fila ---
+    if (ok === 0 && err > 0 && data.length > 0) {
+      addLog("  🔍 Diagnóstico: intentando insertar 1 fila...");
+      const firstRow = data[0] as unknown[];
+      const rowObj: Record<string,unknown> = {};
+      headers.forEach((h, i) => { rowObj[h] = firstRow[i]; });
+      addLog(`  📋 Headers del Excel: ${headers.slice(0,10).join(" | ")}`);
+      const fecha0 = parseDate(rowObj["Fecha"]);
+      const hora0  = parseTime(rowObj["Hora"]);
+      addLog(`  📋 Fecha: ${fecha0}, Hora: ${hora0}`);
+      const { error: e1 } = await supabase.from("despachos").insert([{
+        fecha: fecha0,
+        hora: (hora0 ?? "00:00") + ":00",
+        fecha_hora: `${fecha0}T${hora0 ?? "00:00"}:00+00:00`,
+        tipo: String(rowObj["Tipo"] ?? ""),
+      }]);
+      if (e1) addLog(`  ❌ Error 1 fila: ${e1.message} | code: ${e1.code} | details: ${e1.details}`);
+      else addLog("  ✅ 1 fila insertada OK");
+    }
+
     addLog(`  ✅ Despachos: ${ok} importados, ${err} errores`);
     setProgreso({ etapa:"Despachos", ok, err, total: data.length });
   }
