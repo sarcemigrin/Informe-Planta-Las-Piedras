@@ -19,6 +19,23 @@ import { es } from "date-fns/locale";
 const PROD_TARGET = 32;
 const PROD_CRIT   = PROD_TARGET * 0.90; // 28.8 t/h
 
+// ── Inventario: meta de control ───────────────────────────
+const INV_TARGET = 7500;
+const INV_WARN   = 6500;
+
+function invText(v?: number | null) {
+  if (!v || v === 0) return "text-gray-600";
+  if (v >= INV_TARGET) return "text-green-600";
+  if (v >= INV_WARN)   return "text-yellow-500";
+  return "text-red-500";
+}
+function invBg(v?: number | null) {
+  if (!v || v === 0) return "bg-gray-50";
+  if (v >= INV_TARGET) return "bg-green-50";
+  if (v >= INV_WARN)   return "bg-yellow-50";
+  return "bg-red-50";
+}
+
 const DENSIDAD = 1.4;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -193,9 +210,9 @@ export default function Dashboard() {
           <KpiCard label="Prod. Drone"   value={fmt(sel?.produccion_drone)}        unit="ton"   color="green"  icon="🚁"
             info="Producción por diferencia de inventario entre droneos consecutivos + despachos del período."
             trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
-          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}           unit="ton"   color="blue"   icon="📦"
-            info="Suma de acopios Cancha Vieja + Cancha Nueva × densidad 1.4 ton/m³. Refleja el stock total disponible en cancha al momento del droneo."
-            trend={trend(sel?.inventario_ton, prev?.inventario_ton)}/>
+          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}           unit="ton"   color="inv"   icon="📦"
+            info="Suma de acopios Cancha Vieja + Cancha Nueva × densidad 1.4 ton/m³. Meta de control: 7.500 ton · Amarillo: 6.500–7.500 · Rojo: <6.500 ton."
+            trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
           <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}            unit="ton"   color="gray"   icon="🚛"
             info="Total toneladas despachadas entre el droneo anterior y este, según datos SAP."
             trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
@@ -230,7 +247,7 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Volumen de los 3 conos medidos por drone × 1.4 ton/m³. Corresponde al stock apilado en cancha histórica."/>
+              <KpiInfoTooltip text="Desglose de los acopios en Cancha Vieja: 3 conos medidos por drone × 1.4 ton/m³."/>
             </div>
           </div>
 
@@ -250,7 +267,7 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Volumen de los 4 acopios principales (pilas 1–4) medidos por drone × 1.4 ton/m³."/>
+              <KpiInfoTooltip text="Desglose de los acopios en Cancha Nueva: 4 pilas medidas por drone × 1.4 ton/m³."/>
             </div>
           </div>
 
@@ -285,56 +302,36 @@ export default function Dashboard() {
               <span className="text-migrin font-semibold">— Drone &nbsp; <span className="text-gray-400">- - Pesóm.</span></span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={chartData} margin={{top:24,right:16,left:0,bottom:5}}>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={chartData} margin={{top:16,right:16,left:0,bottom:5}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
               <XAxis dataKey="fecha" tick={{fontSize:10}} tickLine={false}/>
-              <YAxis tick={{fontSize:10}} width={48} domain={["auto","auto"]} tickLine={false}
-                tickFormatter={v=>`${v}`}/>
+              <YAxis tick={{fontSize:10}} width={48} domain={["auto","auto"]} tickLine={false}/>
               <Tooltip
-                formatter={(v,n)=>[`${fmt(v as number)} t/h`, n==="prodDrone"?"Productiv. Drone":"Productiv. Pesóm."]}
+                formatter={(v,n)=>[`${fmt(v as number,1)} t/h`, n==="prodDrone"?"Productiv. Drone":"Productiv. Pesóm."]}
                 contentStyle={{fontSize:12,borderRadius:10,border:"1px solid #e5e7eb",boxShadow:"0 4px 12px rgba(0,0,0,.08)"}}
               />
-              {/* Línea de control meta 32 t/h */}
+              <Legend formatter={n=>n==="prodDrone"?"Productiv. Drone":"Productiv. Pesóm."}/>
+              {/* Línea de control 32 t/h */}
               <ReferenceLine y={32} stroke="#6BCF7F" strokeDasharray="6 3" strokeWidth={1.5}
-                label={{value:"32 t/h", position:"insideTopRight", fontSize:10, fill:"#6BCF7F", fontWeight:"600"}}/>
-              {/* Línea Drone */}
+                label={{value:"Meta 32 t/h", position:"insideTopRight", fontSize:10, fill:"#6BCF7F", fontWeight:"600"}}/>
+              {/* Productividad Drone */}
               <Line type="monotone" dataKey="prodDrone" name="prodDrone" strokeWidth={2.5}
-                stroke="#6BCF7F" dot={false} activeDot={{r:6}}
-                label={(props:Record<string,unknown>)=>{
-                  const {x,y,index,value}=props as {x:number;y:number;index:number;value:number|null};
-                  if(value==null) return <text key={`e-${index}`}/>;
-                  const isLast = index===chartData.length-1;
-                  // Alternar arriba/abajo para evitar solapamiento
-                  const offset = index % 2 === 0 ? -14 : 16;
-                  if(isLast) return (
-                    <text key="last-d" x={x as number} y={(y as number)+offset} textAnchor="middle"
-                      fontSize={11} fontWeight="bold" fill={prodHex(value)}>{fmt(value,1)}</text>
-                  );
-                  if(index % 4 === 0) return (
-                    <text key={`lbl-${index}`} x={x as number} y={(y as number)+offset} textAnchor="middle"
-                      fontSize={9} fill="#b0b8c4">{fmt(value,1)}</text>
-                  );
-                  return <text key={`e-${index}`}/>;
-                }}
-              />
-              {/* Puntos Drone separados para control de color */}
-              <Line type="monotone" dataKey="prodDrone" name="_dotsDrone" strokeWidth={0} legendType="none"
+                stroke="#6BCF7F"
                 dot={(props:Record<string,unknown>)=>{
                   const {cx,cy,index,value}=props as {cx:number;cy:number;index:number;value:number};
                   const isLast = index===chartData.length-1;
                   return <circle key={`dd-${index}`} cx={cx} cy={cy} r={isLast?7:4}
                     fill={prodHex(value)} stroke="#fff" strokeWidth={isLast?2:1.5}/>;
                 }}
-                activeDot={false}
+                activeDot={{r:7}}
               />
-              {/* Línea Pesómetro */}
+              {/* Productividad Pesómetro */}
               <Line type="monotone" dataKey="prodPeso" name="prodPeso" strokeWidth={1.5} strokeDasharray="5 4"
                 stroke="#94a3b8"
                 dot={(props:Record<string,unknown>)=>{
                   const {cx,cy,index,value}=props as {cx:number;cy:number;index:number;value:number};
-                  const isLast = index===chartData.length-1;
-                  return <circle key={`dp-${index}`} cx={cx} cy={cy} r={isLast?5:3}
+                  return <circle key={`dp-${index}`} cx={cx} cy={cy} r={3}
                     fill={prodHex(value)} stroke="#fff" strokeWidth={1}/>;
                 }}
                 activeDot={{r:5}}
@@ -513,16 +510,17 @@ function KpiInfoTooltip({ text }: { text: string }) {
   );
 }
 
-function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodVal }: {
+function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodVal, invVal }: {
   label:string; value:string; unit:string; color:string; icon:string;
-  trend?:number|null; info?:string; prodVal?:number|null;
+  trend?:number|null; info?:string; prodVal?:number|null; invVal?:number|null;
 }) {
   const isProd = color === "prod";
-  const colorClass = isProd ? prodText(prodVal) : ({
+  const isInv  = color === "inv";
+  const colorClass = isProd ? prodText(prodVal) : isInv ? invText(invVal) : ({
     blue:"text-blue-600", green:"text-green-600", migrin:"text-migrin",
     purple:"text-purple-600", gray:"text-gray-700", yellow:"text-yellow-600",
   }[color]??"text-gray-900");
-  const bgClass = isProd ? prodBg(prodVal) : ({
+  const bgClass = isProd ? prodBg(prodVal) : isInv ? invBg(invVal) : ({
     blue:"bg-blue-50", green:"bg-green-50", migrin:"bg-green-50",
     purple:"bg-purple-50", gray:"bg-gray-50", yellow:"bg-yellow-50",
   }[color]??"bg-gray-50");
@@ -533,7 +531,7 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
         <span className="text-base">{icon}</span>
         {trendVal!=null&&(
           <span className={`text-xs font-bold ${trendVal>=0?"text-green-600":"text-red-500"}`}>
-            {trendVal>=0?"↑":"↓"} {Math.abs(trendVal).toFixed(1)}%
+            {trendVal>=0?"↑":"↓"} {Math.abs(trendVal).toFixed(1)}% <span className="font-normal text-gray-400">vs ant.</span>
           </span>
         )}
       </div>
