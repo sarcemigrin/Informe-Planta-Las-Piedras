@@ -196,19 +196,19 @@ export default function Dashboard() {
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon="bolt"
+          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon="⚡"
             info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
             trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
-          <KpiCard label="Prod. Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon="drone"
+          <KpiCard label="Producción Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon="🚁"
             info="Produccion por diferencia de inventario entre droneos consecutivos + despachos del periodo."
             trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
-          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon="box"
+          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon="📦"
             info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
             trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
-          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon="truck"
+          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon="🚛"
             info="Total toneladas despachadas entre el droneo anterior y este, segun datos SAP."
             trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
-          <KpiCard label="Prod. Pesom."  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon="scale"
+          <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon="⚖️"
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
         </div>
@@ -219,7 +219,7 @@ export default function Dashboard() {
         <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Cuarzo &amp; Canchas Arena</h2>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
-          <KpiCard label="Inv. Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon="rock"
+          <KpiCard label="Inventario Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon="🪨"
             info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
 
           {/* Cancha Vieja */}
