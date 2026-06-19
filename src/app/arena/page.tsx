@@ -353,7 +353,7 @@ function PreviewRow({ label, value, unit, highlight }: {
   return (
     <div className="flex justify-between items-center">
       <span className="text-gray-500">{label}</span>
-      <span className={`font-semibold tabular-nums ${highlight ? "text-orange-600" : "text-gray-800"}`}>
+      <span className={`font-semibold tabular-nums ${highlight ? "text-migrin" : "text-gray-800"}`}>
         {value} <span className="text-gray-400 font-normal text-xs">{unit}</span>
       </span>
     </div>
@@ -380,5 +380,4 @@ function formToInput(f: Record<string, string>): ArenaInput {
 }
 
 function addMinutes(isoStr: string, min: number): string {
-  return new Date(new Date(isoStr).getTime() + min * 60 * 1000).toISOString();
-}
+  return new Date(new Date(isoStr).getTime() +

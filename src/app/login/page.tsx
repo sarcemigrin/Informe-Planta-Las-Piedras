@@ -39,7 +39,7 @@ export default function LoginPage() {
         </div>
 
         {/* Descripción */}
-        <div className="bg-orange-50 rounded-xl p-4 text-sm text-orange-800 text-center">
+        <div className="bg-green-50 rounded-xl p-4 text-sm text-orange-800 text-center">
           Acceso exclusivo para personal de la empresa.<br />
           Inicia sesión con tu cuenta Microsoft corporativa.
         </div>

@@ -336,7 +336,7 @@ export default function ImportarPage() {
             ref={fileRef}
             type="file"
             accept=".xlsx,.xls"
-            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-migrin-dark hover:file:bg-orange-100"
           />
           <button
             className="btn-primary"
@@ -353,7 +353,7 @@ export default function ImportarPage() {
             <p className="text-sm font-semibold text-gray-700 mb-1">{progreso.etapa}</p>
             <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
               <div
-                className="bg-orange-500 h-2 rounded-full transition-all"
+                className="bg-migrin h-2 rounded-full transition-all"
                 style={{ width: `${Math.min(100, (progreso.ok / Math.max(progreso.total, 1)) * 100)}%` }}
               />
             </div>
@@ -428,6 +428,4 @@ function toNum(v: unknown): number | null {
 
 function toInt(v: unknown): number | null {
   if (v == null) return null;
-  const n = parseInt(String(v));
-  return isNaN(n) ? null : n;
-}
+  const n = parseInt(String(v)

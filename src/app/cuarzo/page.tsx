@@ -250,7 +250,7 @@ export default function CuarzoPage() {
                 <td className="table-td">
                   <button
                     onClick={() => setEditRow(r)}
-                    className="text-gray-400 hover:text-orange-500 transition-colors"
+                    className="text-gray-400 hover:text-migrin transition-colors"
                     title="Editar registro"
                   >✏️</button>
                 </td>
@@ -274,29 +274,4 @@ export default function CuarzoPage() {
 }
 
 function PreviewRow({ label, value, unit, highlight }: {
-  label:string; value:string; unit:string; highlight?:boolean;
-}) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-gray-500">{label}</span>
-      <span className={`font-semibold tabular-nums ${highlight ? "text-orange-600":"text-gray-800"}`}>
-        {value} <span className="text-gray-400 font-normal text-xs">{unit}</span>
-      </span>
-    </div>
-  );
-}
-
-function formToInput(f: Record<string,string>): CuarzoInput {
-  return {
-    fecha: f.fecha, hora: f.hora,
-    pesometro: f.pesometro ? parseFloat(f.pesometro) : null,
-    horometro: parseFloat(f.horometro) || 0,
-    cono_1: parseFloat(f.cono_1) || 0,
-    cono_2: parseFloat(f.cono_2) || 0,
-    cono_3: parseFloat(f.cono_3) || 0,
-  };
-}
-
-function addMinutes(isoStr: string, min: number): string {
-  return new Date(new Date(isoStr).getTime() + min*60*1000).toISOString();
-}
+  label:string; value:st

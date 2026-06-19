@@ -227,7 +227,7 @@ export default function InformePage() {
                   <td className="table-td text-red-500">{fmt(r.detencion, 1)}</td>
                   <td className="table-td">{r.cantidad_despachos}</td>
                   <td className="table-td">{fmt(r.despachos_ton)}</td>
-                  <td className="table-td text-orange-600">{fmt(r.produccion_pesometro)}</td>
+                  <td className="table-td text-migrin">{fmt(r.produccion_pesometro)}</td>
                   <td className="table-td">{fmt(r.productividad_pesometro)} t/h</td>
                   <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
                   <td className="table-td font-semibold">{fmt(r.productividad_drone)} t/h</td>
@@ -243,7 +243,7 @@ export default function InformePage() {
                     <td className="table-td">
                       <button
                         onClick={() => setEditRow(r)}
-                        className="text-gray-400 hover:text-orange-500 transition-colors text-base leading-none"
+                        className="text-gray-400 hover:text-migrin transition-colors text-base leading-none"
                         title="Editar registro"
                       >✏️</button>
                     </td>
@@ -300,7 +300,7 @@ export default function InformePage() {
                 <tr key={s.semana} className="hover:bg-gray-50">
                   <td className="table-td-left font-medium">{s.semana}</td>
                   <td className="table-td text-green-700 font-semibold">{fmt(s.prodDrone)}</td>
-                  <td className="table-td text-orange-600">{fmt(s.prodPeso)}</td>
+                  <td className="table-td text-migrin">{fmt(s.prodPeso)}</td>
                   <td className="table-td">{fmt(s.despachos)}</td>
                   <td className="table-td">{s.dias}</td>
                   <td className="table-td">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
@@ -309,7 +309,7 @@ export default function InformePage() {
               <tr className="bg-gray-50 font-semibold">
                 <td className="table-td-left">TOTAL</td>
                 <td className="table-td text-green-700">{fmt(semanalRows.reduce((s, r) => s + r.prodDrone, 0))}</td>
-                <td className="table-td text-orange-600">{fmt(semanalRows.reduce((s, r) => s + r.prodPeso, 0))}</td>
+                <td className="table-td text-migrin">{fmt(semanalRows.reduce((s, r) => s + r.prodPeso, 0))}</td>
                 <td className="table-td">{fmt(semanalRows.reduce((s, r) => s + r.despachos, 0))}</td>
                 <td className="table-td">{semanalRows.reduce((s, r) => s + r.dias, 0)}</td>
                 <td className="table-td">–</td>
@@ -392,7 +392,7 @@ function KpiCard({ label, value, unit, color }: {
   label: string; value: string; unit: string; color: string;
 }) {
   const colors: Record<string, string> = {
-    green: "text-green-600", orange: "text-orange-600",
+    green: "text-green-600", orange: "text-migrin",
     blue: "text-blue-600",   purple: "text-purple-600",
   };
   return (

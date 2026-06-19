@@ -124,7 +124,7 @@ export default function Dashboard() {
       <section className="card overflow-auto">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-gray-800">Registros Arena recientes</h2>
-          <Link href="/informe" className="text-sm text-orange-600 hover:underline">Ver informe →</Link>
+          <Link href="/informe" className="text-sm text-migrin hover:underline">Ver informe →</Link>
         </div>
         <table className="w-full min-w-[640px]">
           <thead className="border-b border-gray-100">
@@ -146,7 +146,7 @@ export default function Dashboard() {
                 </td>
                 <td className="table-td">{r.pesometro?.toLocaleString("es-CL")}</td>
                 <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
-                <td className="table-td text-orange-600">{fmt(r.produccion_pesometro)}</td>
+                <td className="table-td text-migrin">{fmt(r.produccion_pesometro)}</td>
                 <td className="table-td text-blue-700">{fmt(r.inventario_ton)}</td>
                 <td className="table-td">{fmt(r.despachos_ton)}</td>
                 <td className="table-td">{fmt(r.productividad_drone)} t/h</td>
@@ -167,7 +167,7 @@ function StatCard({
   const colors: Record<string, string> = {
     blue:   "text-blue-600",
     green:  "text-green-600",
-    orange: "text-orange-600",
+    orange: "text-migrin",
     purple: "text-purple-600",
     gray:   "text-gray-600",
     yellow: "text-yellow-600",

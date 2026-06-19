@@ -152,7 +152,7 @@ export default function DespachosPage() {
             ref={fileRef}
             type="file"
             accept=".xlsx,.xls,.csv"
-            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-migrin-dark hover:file:bg-orange-100"
             onChange={handleFile}
           />
           <button className="btn-primary" onClick={handleImport} disabled={uploading}>
@@ -225,7 +225,7 @@ export default function DespachosPage() {
                 <td className="table-td-left">{r.fecha} {r.hora?.slice(0,5)}</td>
                 <td className="table-td-left">
                   <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                    r.articulo==="A36LGC" ? "bg-orange-100 text-orange-700" :
+                    r.articulo==="A36LGC" ? "bg-orange-100 text-migrin-dark" :
                     r.articulo==="A37LGC" ? "bg-blue-100 text-blue-700"    :
                                             "bg-gray-100 text-gray-600"
                   }`}>{r.articulo}</span>
@@ -295,6 +295,4 @@ function toInt(v: unknown): number | null {
 
 function toNum(v: unknown): number | null {
   if (v == null) return null;
-  const n = parseFloat(String(v));
-  return isNaN(n) ? null : n;
-}
+  const n = parseFloat(String(v)

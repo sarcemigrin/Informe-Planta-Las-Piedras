@@ -125,11 +125,11 @@ export default function DiarioPage() {
             ))}
           </select>
           <button
-            className={`btn-secondary text-xs py-1.5 ${vista==="tabla" ? "bg-orange-50 text-orange-700 border-orange-300" : ""}`}
+            className={`btn-secondary text-xs py-1.5 ${vista==="tabla" ? "bg-green-50 text-migrin-dark border-green-400" : ""}`}
             onClick={() => setVista("tabla")}
           >Tabla</button>
           <button
-            className={`btn-secondary text-xs py-1.5 ${vista==="grafico" ? "bg-orange-50 text-orange-700 border-orange-300" : ""}`}
+            className={`btn-secondary text-xs py-1.5 ${vista==="grafico" ? "bg-green-50 text-migrin-dark border-green-400" : ""}`}
             onClick={() => setVista("grafico")}
           >Gráfico</button>
         </div>
@@ -171,13 +171,13 @@ export default function DiarioPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtrados.map((r, i) => (
-                <tr key={i} className={`hover:bg-gray-50 ${r.esDroneo ? "bg-orange-50" : ""}`}>
+                <tr key={i} className={`hover:bg-gray-50 ${r.esDroneo ? "bg-green-50" : ""}`}>
                   <td className="table-td-left font-medium">
                     {format(r.fecha, "EEE dd/MM/yyyy", { locale: es })}
                   </td>
                   <td className="table-td text-gray-400">S{r.semana}</td>
                   <td className="table-td text-center">
-                    {r.esDroneo ? <span className="text-orange-600 font-bold">✓</span> : ""}
+                    {r.esDroneo ? <span className="text-migrin font-bold">✓</span> : ""}
                   </td>
                   <td className="table-td text-green-700 font-semibold">{fmt(r.prodDroneDia)}</td>
                   <td className="table-td">{fmt(r.despachosDia)}</td>
