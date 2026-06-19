@@ -203,29 +203,20 @@ export default function ImportarPage() {
       });
 
       if (lote.length >= 100) {
-        const { error } = await supabase.from("registros_cuarzo")
-          .upsert(lote as never[], { onConflict: "fecha_hora" });
-        if (error) {
-          err += lote.length;
-          addLog(`  ⚠ Cuarzo error: ${error.message} | code: ${error.code}`);
-          // Intentar fila por fila para identificar cuál falla
-          if (err <= 100) {
-            for (const fila of lote) {
-              const { error: ef } = await supabase.from("registros_cuarzo").upsert([fila as never], { onConflict: "fecha_hora" });
-              if (ef) { addLog(`  ❌ Fila fecha=${fila.fecha} hora=${fila.hora}: ${ef.message}`); break; }
-            }
-          }
-        } else ok += lote.length;
+        const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
+        const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
+        if (error) { err += lote.length; addLog(`  ⚠ Cuarzo error: ${error.message}`); }
+        else ok += dedup.length;
         lote.length = 0;
         setProgreso({ etapa:"Cuarzo", ok, err, total: rows.length });
       }
     }
 
     if (lote.length > 0) {
-      const { error } = await supabase.from("registros_cuarzo")
-        .upsert(lote as never[], { onConflict: "fecha_hora" });
+      const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
+      const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
       if (error) { err += lote.length; addLog(`  ⚠ Último lote cuarzo: ${error.message}`); }
-      else       ok  += lote.length;
+      else ok += dedup.length;
     }
     addLog(`  ✅ Cuarzo: ${ok} importados, ${err} errores`);
   }
