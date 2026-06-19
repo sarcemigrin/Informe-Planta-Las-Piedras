@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
@@ -14,6 +15,17 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
+import { EditArenaModal } from "@/components/EditArenaModal";
+
+interface HistorialCambio {
+  id: string;
+  campo: string;
+  valor_anterior: string;
+  valor_nuevo: string;
+  usuario_email: string;
+  created_at: string;
+  registro_id: string;
+}
 
 interface SemanaStat {
   semana:   string;
@@ -24,8 +36,14 @@ interface SemanaStat {
 }
 
 export default function InformePage() {
+  const { data: session }     = useSession();
+  const isAdmin               = session?.user?.rol === "admin";
+
   const [rows, setRows]       = useState<RegistroArena[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editRow, setEditRow] = useState<RegistroArena | null>(null);
+  const [historial, setHistorial] = useState<HistorialCambio[]>([]);
+  const [showHistorial, setShowHistorial] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -36,6 +54,16 @@ export default function InformePage() {
       .order("fecha_hora", { ascending: true });
     setRows(data ?? []);
     setLoading(false);
+  }
+
+  async function loadHistorial() {
+    const { data } = await supabase
+      .from("historial_cambios")
+      .select("*")
+      .eq("tabla", "registros_arena")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setHistorial(data ?? []);
   }
 
   // ---- Datos gráfico cubicación: últimos 30 droneos ----
@@ -186,6 +214,7 @@ export default function InformePage() {
                 <th className="table-th">Prodvd Reales</th>
                 <th className="table-th">Inventario</th>
                 <th className="table-th">Diferencia</th>
+                {isAdmin && <th className="table-th"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -210,6 +239,15 @@ export default function InformePage() {
                   }`}>
                     {r.diferencia != null ? `${(r.diferencia * 100).toFixed(1)}%` : "–"}
                   </td>
+                  {isAdmin && (
+                    <td className="table-td">
+                      <button
+                        onClick={() => setEditRow(r)}
+                        className="text-gray-400 hover:text-orange-500 transition-colors text-base leading-none"
+                        title="Editar registro"
+                      >✏️</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -281,7 +319,72 @@ export default function InformePage() {
         </div>
       </section>
 
+      {/* ══════════════════════════════════════════
+          SECCIÓN 3 — HISTORIAL DE CAMBIOS (solo admin)
+      ══════════════════════════════════════════ */}
+      {isAdmin && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+            <h2 className="text-lg font-bold text-gray-800">
+              🕓 Historial de cambios
+            </h2>
+            <button
+              className="btn-secondary text-xs"
+              onClick={() => {
+                if (!showHistorial) loadHistorial();
+                setShowHistorial(h => !h);
+              }}
+            >
+              {showHistorial ? "Ocultar" : "Ver historial"}
+            </button>
+          </div>
+
+          {showHistorial && (
+            <div className="card overflow-auto">
+              {historial.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">Sin cambios registrados</p>
+              ) : (
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead className="border-b border-gray-100 bg-gray-50">
+                    <tr>
+                      <th className="table-th text-left">Fecha cambio</th>
+                      <th className="table-th text-left">Campo</th>
+                      <th className="table-th text-left">Valor anterior</th>
+                      <th className="table-th text-left">Valor nuevo</th>
+                      <th className="table-th text-left">Usuario</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {historial.map((h) => (
+                      <tr key={h.id} className="hover:bg-gray-50">
+                        <td className="table-td-left text-gray-500">
+                          {format(new Date(h.created_at), "dd/MM/yyyy HH:mm")}
+                        </td>
+                        <td className="table-td-left font-medium text-gray-700">{h.campo}</td>
+                        <td className="table-td-left text-red-500">{h.valor_anterior || "–"}</td>
+                        <td className="table-td-left text-green-600 font-semibold">{h.valor_nuevo || "–"}</td>
+                        <td className="table-td-left text-gray-400 text-xs">{h.usuario_email}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
     </div>
+
+    {/* Modal de edición */}
+    {editRow && (
+      <EditArenaModal
+        registro={editRow}
+        userEmail={session?.user?.email ?? ""}
+        onClose={() => setEditRow(null)}
+        onSaved={() => { setEditRow(null); loadData(); }}
+      />
+    )}
   );
 }
 
