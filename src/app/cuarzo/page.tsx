@@ -274,4 +274,18 @@ export default function CuarzoPage() {
 }
 
 function PreviewRow({ label, value, unit, highlight }: {
-  label:string; value:st
+  label: string; value: string; unit: string; highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className={"font-semibold tabular-nums " + (highlight ? "text-migrin" : "text-gray-800")}>
+        {value} <span className="text-xs font-normal text-gray-400">{unit}</span>
+      </span>
+    </div>
+  );
+}
+
+function addMinutes(isoStr: string, min: number): string {
+  return new Date(new Date(isoStr).getTime() + min * 60000).toISOString();
+}

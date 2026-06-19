@@ -380,4 +380,5 @@ function formToInput(f: Record<string, string>): ArenaInput {
 }
 
 function addMinutes(isoStr: string, min: number): string {
-  return new Date(new Date(isoStr).getTime() +
+  return new Date(new Date(isoStr).getTime() + min * 60000).toISOString();
+}
