@@ -428,4 +428,6 @@ function toNum(v: unknown): number | null {
 
 function toInt(v: unknown): number | null {
   if (v == null) return null;
-  const n = parseInt(String(v)
+  const n = parseInt(String(v));
+  return isNaN(n) ? null : n;
+}

@@ -295,4 +295,6 @@ function toInt(v: unknown): number | null {
 
 function toNum(v: unknown): number | null {
   if (v == null) return null;
-  const n = parseFloat(String(v)
+  const n = parseFloat(String(v));
+  return isNaN(n) ? null : n;
+}

@@ -144,6 +144,7 @@ export default function InformePage() {
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
   return (
+    <>
     <div className="space-y-8">
 
       {/* ── Header ── */}
@@ -385,6 +386,7 @@ export default function InformePage() {
         onSaved={() => { setEditRow(null); loadData(); }}
       />
     )}
+    </>
   );
 }
 
