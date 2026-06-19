@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Página de importación del Excel histórico.
  * Sube los datos de las hojas "Datos Arena" y "Datos Cuarzo"
@@ -268,9 +270,8 @@ export default function ImportarPage() {
       });
 
       if (lote.length >= 500) {
-        const { error } = await supabase.from("despachos")
-          .upsert(lote as never[], { onConflict: "doc_entry" });
-        if (error) err += lote.length;
+        const { error } = await supabase.from("despachos").insert(lote);
+        if (error) { err += lote.length; addLog(`  ⚠ Lote error: ${error.message}`); }
         else       ok  += lote.length;
         lote.length = 0;
         setProgreso({ etapa:"Despachos", ok, err, total: data.length });
@@ -278,9 +279,8 @@ export default function ImportarPage() {
     }
 
     if (lote.length > 0) {
-      const { error } = await supabase.from("despachos")
-        .upsert(lote as never[], { onConflict: "doc_entry" });
-      if (error) err += lote.length;
+      const { error } = await supabase.from("despachos").insert(lote);
+      if (error) { err += lote.length; addLog(`  ⚠ Lote error: ${error.message}`); }
       else       ok  += lote.length;
     }
     addLog(`  ✅ Despachos: ${ok} importados, ${err} errores`);
