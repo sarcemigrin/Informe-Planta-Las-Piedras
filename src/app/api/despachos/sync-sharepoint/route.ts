@@ -163,17 +163,45 @@ export async function POST(request: Request) {
   const sheetParam = searchParams.get("sheet") ?? "base";
 
   try {
-    // Descargar archivo desde SharePoint via Graph API
-    const fileRes = await fetch(GRAPH_FILE_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    // Paso 1: Resolver el ID del sitio
+    const siteRes = await fetch(
+      "https://graph.microsoft.com/v1.0/sites/inversioneselalto.sharepoint.com:/sites/ProgramacionTM",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!siteRes.ok) {
+      const err = await siteRes.text();
+      return NextResponse.json({ error: `No se pudo acceder al sitio SharePoint (${siteRes.status}): ${err}` }, { status: 502 });
+    }
+    const siteData = await siteRes.json() as { id: string };
+    const siteId = siteData.id;
+
+    // Paso 2: Descargar el archivo usando el ID del sitio
+    const fileRes = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/SALIDAS%20ROMANAS.xlsx:/content`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
 
     if (!fileRes.ok) {
-      const err = await fileRes.text();
-      return NextResponse.json(
-        { error: `Error al obtener archivo de SharePoint (${fileRes.status}): ${err}` },
-        { status: 502 }
+      // Intentar buscar en carpeta Documentos compartidos
+      const fileRes2 = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/Documentos%20compartidos/SALIDAS%20ROMANAS.xlsx:/content`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
+      if (!fileRes2.ok) {
+        const err = await fileRes.text();
+        return NextResponse.json(
+          { error: `Archivo no encontrado en el sitio (${fileRes.status}). Verifica que SALIDAS ROMANAS.xlsx esté en la raíz o en Documentos compartidos. Detalle: ${err}` },
+          { status: 502 }
+        );
+      }
+      const buffer = await fileRes2.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+      const ws = workbook.Sheets[sheetParam] ?? workbook.Sheets[workbook.SheetNames[0]];
+      if (!ws) return NextResponse.json({ error: `Hoja "${sheetParam}" no encontrada. Hojas: ${workbook.SheetNames.join(", ")}` }, { status: 400 });
+      const { despachos, skipped } = parseRows(ws);
+      if (despachos.length === 0) return NextResponse.json({ synced: 0, skipped: skipped.length, message: "Sin filas válidas" });
+      const { total, errors } = await upsertDespachos(despachos);
+      return NextResponse.json({ synced: total, total_rows: despachos.length, skipped: skipped.length, sheets: workbook.SheetNames, errors: errors.length ? errors : undefined, message: `${total} despachos sincronizados` });
     }
 
     const buffer   = await fileRes.arrayBuffer();
