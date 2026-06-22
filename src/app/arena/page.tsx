@@ -35,6 +35,7 @@ export default function ArenaPage() {
   const [prevRow, setPrevRow]     = useState<(RegistroArena) | null>(null);
   const [preview, setPreview]     = useState<ReturnType<typeof calcularArena> | null>(null);
   const [saving, setSaving]       = useState(false);
+  const [syncing, setSyncing]     = useState(false);
   const [msg, setMsg]             = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // ---- Cargar historial ----
@@ -175,6 +176,28 @@ export default function ArenaPage() {
     }
   }
 
+  // ---- Sincronizar Despachos desde SharePoint ----
+  async function handleSyncDespachos() {
+    setSyncing(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/despachos/sync-sharepoint", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "err", text: json.error ?? "Error al sincronizar despachos" });
+      } else {
+        setMsg({
+          type: "ok",
+          text: `✅ ${json.message ?? "Despachos sincronizados"}${json.skipped > 0 ? ` (${json.skipped} filas omitidas sin fecha)` : ""}`,
+        });
+      }
+    } catch (e: unknown) {
+      setMsg({ type: "err", text: `Error: ${(e as Error).message}` });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   function set(key: string) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -183,13 +206,28 @@ export default function ArenaPage() {
   return (
     <AdminGuard>
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">⛏ Ingreso Datos Arena</h1>
-        <p className="text-sm text-gray-500">
-          Registro anterior: {prevRow
-            ? `${prevRow.fecha} ${prevRow.hora?.slice(0,5)} — Pesómetro: ${prevRow.pesometro?.toLocaleString("es-CL")}`
-            : "Sin datos previos"}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">⛏ Ingreso Datos Arena</h1>
+          <p className="text-sm text-gray-500">
+            Registro anterior: {prevRow
+              ? `${prevRow.fecha} ${prevRow.hora?.slice(0,5)} — Pesómetro: ${prevRow.pesometro?.toLocaleString("es-CL")}`
+              : "Sin datos previos"}
+          </p>
+        </div>
+        <button
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-sm font-medium hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          onClick={handleSyncDespachos}
+          disabled={syncing}
+          title="Sincroniza los despachos desde SALIDAS ROMANAS.xlsx en SharePoint"
+        >
+          {syncing ? (
+            <span className="animate-spin text-base">⟳</span>
+          ) : (
+            <span>🔄</span>
+          )}
+          {syncing ? "Sincronizando..." : "Actualizar Despachos"}
+        </button>
       </div>
 
       {msg && (
