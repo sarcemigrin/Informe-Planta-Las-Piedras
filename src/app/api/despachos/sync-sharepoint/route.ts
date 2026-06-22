@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 
 // SALIDAS ROMANAS.xlsx en SharePoint
 const GRAPH_FILE_URL =
-  "https://graph.microsoft.com/v1.0/sites/inversioneselalto.sharepoint.com:/sites/ProgramacionTM:/drive/items/42593BDC-21BF-431E-97B3-073C611655CE/content";
+  "https://graph.microsoft.com/v1.0/sites/inversioneselalto.sharepoint.com:/sites/ProgramacionTM:/drive/root:/SALIDAS%20ROMANAS.xlsx:/content";
 
 function getSupabaseServer() {
   return createClient(
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const sheetParam = searchParams.get("sheet") ?? "Query1";
+  const sheetParam = searchParams.get("sheet") ?? "base";
 
   try {
     // Descargar archivo desde SharePoint via Graph API
