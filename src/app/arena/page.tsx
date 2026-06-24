@@ -199,12 +199,10 @@ export default function ArenaPage() {
       const res = await fetch("/api/despachos/sync-sharepoint", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
-        setMsg({ type: "err", text: json.error ?? "Error al sincronizar despachos" });
+        const detail = json.errors?.[0] ?? json.error ?? json.message ?? "Error al sincronizar despachos";
+        setMsg({ type: "err", text: detail });
       } else {
-        setMsg({
-          type: "ok",
-          text: `✅ ${json.message ?? "Despachos sincronizados"}${json.skipped > 0 ? ` (${json.skipped} filas omitidas sin fecha)` : ""}`,
-        });
+        setMsg({ type: "ok", text: `✅ ${json.message}` });
         await loadUltimosDespachos();
       }
     } catch (e: unknown) {
