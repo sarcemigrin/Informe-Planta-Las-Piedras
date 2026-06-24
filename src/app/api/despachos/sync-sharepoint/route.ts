@@ -4,9 +4,20 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// BBDD Despachos.xlsx en OneDrive personal del usuario (Files.Read — no requiere admin)
-const ONEDRIVE_FILE_PATH = "Ing Planificación y Control Gestión/Reporte_Informe_Productividad_Arenas/Drone/arena-control/BBDD Despachos.xlsx";
-const GRAPH_FILE_URL = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(ONEDRIVE_FILE_PATH).replace(/%2F/g,"/")}:/content`;
+// Nombre del archivo en OneDrive (se busca por nombre, evita problemas de ruta)
+const ONEDRIVE_FILE_NAME = "BBDD Despachos.xlsx";
+
+async function getOneDriveFileUrl(accessToken: string): Promise<string> {
+  const searchRes = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(ONEDRIVE_FILE_NAME)}')`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!searchRes.ok) throw new Error(`Búsqueda OneDrive fallida (${searchRes.status}): ${await searchRes.text()}`);
+  const { value } = await searchRes.json() as { value: { name: string; id: string }[] };
+  const item = value.find((f) => f.name === ONEDRIVE_FILE_NAME);
+  if (!item) throw new Error(`"${ONEDRIVE_FILE_NAME}" no encontrado en OneDrive. Verifica que el archivo esté guardado y sincronizado.`);
+  return `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`;
+}
 
 function getSupabaseServer() {
   return createClient(
@@ -163,8 +174,15 @@ export async function POST(request: Request) {
   const sheetParam = searchParams.get("sheet") ?? "base";
 
   try {
-    // Descargar BBDD Despachos.xlsx desde OneDrive personal (Files.Read — sin admin consent)
-    const fileRes = await fetch(GRAPH_FILE_URL, {
+    // Buscar y descargar BBDD Despachos.xlsx desde OneDrive (Files.Read — sin admin consent)
+    let fileUrl: string;
+    try {
+      fileUrl = await getOneDriveFileUrl(accessToken);
+    } catch (e: unknown) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    }
+
+    const fileRes = await fetch(fileUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
