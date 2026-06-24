@@ -144,21 +144,23 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   const BATCH = 500;
   let total = 0;
   const errors: string[] = [];
-  const withFolio    = despachos.filter((d) => d.folio !== null);
-  const withoutFolio = despachos.filter((d) => d.folio === null);
 
-  for (let i = 0; i < withFolio.length; i += BATCH) {
+  // Clave única SAP: doc_entry + articulo
+  const withDocEntry    = despachos.filter((d) => d.doc_entry !== null);
+  const withoutDocEntry = despachos.filter((d) => d.doc_entry === null);
+
+  for (let i = 0; i < withDocEntry.length; i += BATCH) {
     const { error, count } = await sb
       .from("despachos")
-      .upsert(withFolio.slice(i, i + BATCH), { onConflict: "folio", ignoreDuplicates: false })
+      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: false })
       .select("id", { count: "exact", head: true });
     if (error) errors.push(error.message);
-    else total += count ?? withFolio.slice(i, i + BATCH).length;
+    else total += count ?? withDocEntry.slice(i, i + BATCH).length;
   }
-  for (let i = 0; i < withoutFolio.length; i += BATCH) {
+  for (let i = 0; i < withoutDocEntry.length; i += BATCH) {
     const { error, count } = await sb
       .from("despachos")
-      .upsert(withoutFolio.slice(i, i + BATCH), { onConflict: "fecha_hora,articulo", ignoreDuplicates: true })
+      .insert(withoutDocEntry.slice(i, i + BATCH))
       .select("id", { count: "exact", head: true });
     if (error) errors.push(error.message);
     else total += count ?? 0;
