@@ -406,7 +406,6 @@ export default function ArenaPage() {
               <p className="text-sm text-gray-400">Ingresa Pesómetro y Horómetro para ver preview</p>
             )}
           </div>
-          </div>
         </div>
       </div>
 
