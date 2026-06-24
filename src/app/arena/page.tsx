@@ -31,17 +31,32 @@ export default function ArenaPage() {
     notas: "",
   });
 
-  const [historial, setHistorial] = useState<RegistroArena[]>([]);
-  const [prevRow, setPrevRow]     = useState<(RegistroArena) | null>(null);
-  const [preview, setPreview]     = useState<ReturnType<typeof calcularArena> | null>(null);
-  const [saving, setSaving]       = useState(false);
-  const [syncing, setSyncing]     = useState(false);
-  const [msg, setMsg]             = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [historial, setHistorial]           = useState<RegistroArena[]>([]);
+  const [prevRow, setPrevRow]               = useState<(RegistroArena) | null>(null);
+  const [preview, setPreview]               = useState<ReturnType<typeof calcularArena> | null>(null);
+  const [saving, setSaving]                 = useState(false);
+  const [syncing, setSyncing]               = useState(false);
+  const [msg, setMsg]                       = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [ultimosDespachos, setUltimosDespachos] = useState<{
+    id: number; fecha: string; hora: string; patente: string | null;
+    articulo: string | null; toneladas: number | null; ton_final: number | null;
+  }[]>([]);
 
   // ---- Cargar historial ----
   useEffect(() => {
     loadHistorial();
+    loadUltimosDespachos();
   }, []);
+
+  async function loadUltimosDespachos() {
+    const { data } = await supabase
+      .from("despachos")
+      .select("id, fecha, hora, patente, articulo, toneladas, ton_final")
+      .in("articulo", ["A36LGC", "A37LGC", "A38LGC", "A39LGC"])
+      .order("fecha_hora", { ascending: false })
+      .limit(100);
+    if (data) setUltimosDespachos(data as typeof ultimosDespachos);
+  }
 
   async function loadHistorial() {
     const { data } = await supabase
@@ -190,6 +205,7 @@ export default function ArenaPage() {
           type: "ok",
           text: `✅ ${json.message ?? "Despachos sincronizados"}${json.skipped > 0 ? ` (${json.skipped} filas omitidas sin fecha)` : ""}`,
         });
+        await loadUltimosDespachos();
       }
     } catch (e: unknown) {
       setMsg({ type: "err", text: `Error: ${(e as Error).message}` });
@@ -318,8 +334,49 @@ export default function ArenaPage() {
           </button>
         </div>
 
-        {/* Preview calculado */}
+        {/* Columna derecha */}
         <div className="space-y-4">
+          {/* Últimos despachos */}
+          <div className="card">
+            <h2 className="font-semibold text-gray-700 mb-2 text-sm">📋 Últimos despachos</h2>
+            {ultimosDespachos.length === 0 ? (
+              <p className="text-xs text-gray-400">Sin despachos cargados</p>
+            ) : (
+              <div className="overflow-y-auto max-h-52 text-xs">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="border-b border-gray-100 text-gray-400">
+                      <th className="text-left py-1 pr-2 font-medium">Fecha</th>
+                      <th className="text-left py-1 pr-2 font-medium">Patente</th>
+                      <th className="text-left py-1 pr-2 font-medium">Art.</th>
+                      <th className="text-right py-1 font-medium">Ton</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {ultimosDespachos.map((d) => (
+                      <tr key={d.id} className="hover:bg-gray-50">
+                        <td className="py-1 pr-2 text-gray-600">{d.fecha} {d.hora?.slice(0,5)}</td>
+                        <td className="py-1 pr-2 font-mono text-gray-700">{d.patente ?? "—"}</td>
+                        <td className="py-1 pr-2">
+                          <span className={`px-1 rounded text-[10px] font-semibold ${
+                            d.articulo === "A36LGC" ? "bg-blue-100 text-blue-700" :
+                            d.articulo === "A39LGC" ? "bg-green-100 text-green-700" :
+                            "bg-gray-100 text-gray-500"
+                          }`}>{d.articulo?.replace("LGC","") ?? "—"}</span>
+                        </td>
+                        <td className="py-1 text-right font-semibold text-gray-800">
+                          {(d.ton_final ?? d.toneladas ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="text-[10px] text-gray-300 mt-1">Últimos 100 · A36/A37/A38/A39</p>
+          </div>
+
+          {/* Preview calculado */}
           <div className="card sticky top-20">
             <h2 className="font-semibold text-gray-700 mb-3">📊 Preview calculado</h2>
             {preview ? (
@@ -348,6 +405,7 @@ export default function ArenaPage() {
             ) : (
               <p className="text-sm text-gray-400">Ingresa Pesómetro y Horómetro para ver preview</p>
             )}
+          </div>
           </div>
         </div>
       </div>
