@@ -4,9 +4,9 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// SALIDAS ROMANAS.xlsx en SharePoint
-const GRAPH_FILE_URL =
-  "https://graph.microsoft.com/v1.0/sites/inversioneselalto.sharepoint.com:/sites/ProgramacionTM:/drive/root:/SALIDAS%20ROMANAS.xlsx:/content";
+// BBDD Despachos.xlsx en OneDrive personal del usuario (Files.Read — no requiere admin)
+const ONEDRIVE_FILE_PATH = "Ing Planificación y Control Gestión/Reporte_Informe_Productividad_Arenas/Drone/arena-control/BBDD Despachos.xlsx";
+const GRAPH_FILE_URL = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(ONEDRIVE_FILE_PATH).replace(/%2F/g,"/")}:/content`;
 
 function getSupabaseServer() {
   return createClient(
@@ -96,24 +96,24 @@ function parseRows(ws: XLSX.WorkSheet) {
     despachos.push({
       tipo:         String(col(r,"Tipo","tipo","TIPO","Tipo Doc.","Tipo Documento") ?? "").trim() || null,
       doc_entry:    parseNum(col(r,"DocEntry","Doc. Entry","N° DocEntry","Entry")),
-      n_documento:  parseNum(col(r,"N° Documento","Nro. Documento","N° Doc.","Doc.","Documento")),
-      folio:        parseNum(col(r,"Folio","folio","FOLIO","N° Folio","Nro Folio","Folio Despacho")),
+      n_documento:  parseNum(col(r,"N° Documento","NDocumento","Nro. Documento","N° Doc.","Doc.","Documento")),
+      folio:        parseNum(col(r,"Folio","folio","FOLIO","FolioNum","N° Folio","Nro Folio","Folio Despacho")),
       fecha,
       hora:         hora + ":00",
       fecha_hora:   `${fecha}T${hora}:00`,
       cliente:      String(col(r,"Cliente","cliente","CLIENTE","Cód. Cliente","Cod. Cliente") ?? "").trim() || null,
       nombre:       String(col(r,"Nombre","nombre","NOMBRE","Nombre Cliente","Nombre BP") ?? "").trim() || null,
-      articulo:     String(col(r,"Artículo","Articulo","ARTICULO","articulo","Cód. Artículo","Cod. Articulo","Código Artículo","Art.") ?? "").trim() || null,
+      articulo:     String(col(r,"Artículo","Articulo","ARTICULO","articulo","Cód. Artículo","Cod. Articulo","Código Artículo","Art.","ItemCode") ?? "").trim() || null,
       descripcion:  String(col(r,"Descripción","Descripcion","DESCRIPCION","Nombre Artículo","Desc. Artículo") ?? "").trim() || null,
-      toneladas:    parseNum(col(r,"Toneladas","toneladas","TONELADAS","Cantidad","Cant.","Peso Neto","Ton.","Peso (Ton)","Cantidad (ton)")),
-      toneladas_confirmadas: parseNum(col(r,"Toneladas Confirmadas","Ton. Confirmadas","Peso Confirmado")),
-      ton_final:    parseNum(col(r,"Ton. Final","Ton Final","Toneladas Final","Peso Final","Toneladas Neto","Ton. Neto"))
-                    ?? parseNum(col(r,"Toneladas","toneladas","Cantidad","Peso Neto")),
+      toneladas:    parseNum(col(r,"Toneladas","toneladas","TONELADAS","Quantity","Cantidad","Cant.","Peso Neto","Ton.","Peso (Ton)","Cantidad (ton)")),
+      toneladas_confirmadas: parseNum(col(r,"Toneladas Confirmadas","ToneladasConfirmadas","Ton. Confirmadas","Peso Confirmado")),
+      ton_final:    parseNum(col(r,"Ton. Final","Ton Final","Toneladas Final","Neto","Peso Final","Toneladas Neto","Ton. Neto"))
+                    ?? parseNum(col(r,"Toneladas","toneladas","Quantity","Cantidad","Peso Neto")),
       precio:       parseNum(col(r,"Precio","precio","PRECIO","Precio Unit.","P. Unitario")),
       total:        parseNum(col(r,"Total","total","TOTAL","Monto Total","Importe")),
       patente:      String(col(r,"Patente","patente","PATENTE","N° Patente","Placa") ?? "").trim().toUpperCase() || null,
-      patente_acoplado: String(col(r,"Patente Acoplado","Acoplado","Patente Acopl.") ?? "").trim().toUpperCase() || null,
-      rut_chofer:   String(col(r,"RUT Chofer","Rut Chofer","RUT","rut_chofer") ?? "").trim() || null,
+      patente_acoplado: String(col(r,"Patente Acoplado","PatenteAcoplado","Acoplado","Patente Acopl.") ?? "").trim().toUpperCase() || null,
+      rut_chofer:   String(col(r,"RUT Chofer","RUTChofer","Rut Chofer","RUT","rut_chofer") ?? "").trim() || null,
     });
   }
   return { despachos, skipped };
@@ -163,45 +163,17 @@ export async function POST(request: Request) {
   const sheetParam = searchParams.get("sheet") ?? "base";
 
   try {
-    // Paso 1: Resolver el ID del sitio
-    const siteRes = await fetch(
-      "https://graph.microsoft.com/v1.0/sites/inversioneselalto.sharepoint.com:/sites/ProgramacionTM",
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!siteRes.ok) {
-      const err = await siteRes.text();
-      return NextResponse.json({ error: `No se pudo acceder al sitio SharePoint (${siteRes.status}): ${err}` }, { status: 502 });
-    }
-    const siteData = await siteRes.json() as { id: string };
-    const siteId = siteData.id;
-
-    // Paso 2: Descargar el archivo usando el ID del sitio
-    const fileRes = await fetch(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/SALIDAS%20ROMANAS.xlsx:/content`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    // Descargar BBDD Despachos.xlsx desde OneDrive personal (Files.Read — sin admin consent)
+    const fileRes = await fetch(GRAPH_FILE_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     if (!fileRes.ok) {
-      // Intentar buscar en carpeta Documentos compartidos
-      const fileRes2 = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/Documentos%20compartidos/SALIDAS%20ROMANAS.xlsx:/content`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+      const err = await fileRes.text();
+      return NextResponse.json(
+        { error: `No se pudo descargar el archivo desde OneDrive (${fileRes.status}): ${err}` },
+        { status: 502 }
       );
-      if (!fileRes2.ok) {
-        const err = await fileRes.text();
-        return NextResponse.json(
-          { error: `Archivo no encontrado en el sitio (${fileRes.status}). Verifica que SALIDAS ROMANAS.xlsx esté en la raíz o en Documentos compartidos. Detalle: ${err}` },
-          { status: 502 }
-        );
-      }
-      const buffer = await fileRes2.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
-      const ws = workbook.Sheets[sheetParam] ?? workbook.Sheets[workbook.SheetNames[0]];
-      if (!ws) return NextResponse.json({ error: `Hoja "${sheetParam}" no encontrada. Hojas: ${workbook.SheetNames.join(", ")}` }, { status: 400 });
-      const { despachos, skipped } = parseRows(ws);
-      if (despachos.length === 0) return NextResponse.json({ synced: 0, skipped: skipped.length, message: "Sin filas válidas" });
-      const { total, errors } = await upsertDespachos(despachos);
-      return NextResponse.json({ synced: total, total_rows: despachos.length, skipped: skipped.length, sheets: workbook.SheetNames, errors: errors.length ? errors : undefined, message: `${total} despachos sincronizados` });
     }
 
     const buffer   = await fileRes.arrayBuffer();
@@ -247,7 +219,10 @@ export async function GET(request: Request) {
     const fileRes = await fetch(GRAPH_FILE_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!fileRes.ok) return NextResponse.json({ error: `Graph API ${fileRes.status}` }, { status: 502 });
+    if (!fileRes.ok) {
+      const err = await fileRes.text();
+      return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${err}` }, { status: 502 });
+    }
 
     const buffer   = await fileRes.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
