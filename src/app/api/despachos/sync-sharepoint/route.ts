@@ -215,19 +215,28 @@ export async function POST(request: Request) {
 
     const { despachos, skipped } = parseRows(ws);
     if (despachos.length === 0) {
-      return NextResponse.json({ synced: 0, skipped: skipped.length, message: "Sin filas válidas" });
+      return NextResponse.json({
+        synced: 0, skipped: skipped.length,
+        message: `Sin filas válidas — ${skipped.length} filas omitidas. Verifica nombre de hoja y columnas.`,
+      });
     }
 
     const { total, errors } = await upsertDespachos(despachos);
 
+    const conFolio    = despachos.filter((d) => d.folio !== null).length;
+    const sinFolio    = despachos.filter((d) => d.folio === null).length;
+    const errMsg      = errors.length ? ` | Errores upsert: ${errors.slice(0,2).join("; ")}` : "";
+
     return NextResponse.json({
-      synced:     total,
-      total_rows: despachos.length,
-      skipped:    skipped.length,
-      sheets:     workbook.SheetNames,
-      errors:     errors.length ? errors : undefined,
-      message:    `${total} despachos sincronizados desde SharePoint`,
-    });
+      synced:      total,
+      total_rows:  despachos.length,
+      con_folio:   conFolio,
+      sin_folio:   sinFolio,
+      skipped:     skipped.length,
+      sheets:      workbook.SheetNames,
+      errors:      errors.length ? errors : undefined,
+      message:     `${total} despachos sincronizados (${despachos.length} leídos, ${skipped.length} omitidos)${errMsg}`,
+    }, { status: errors.length && total === 0 ? 502 : 200 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
