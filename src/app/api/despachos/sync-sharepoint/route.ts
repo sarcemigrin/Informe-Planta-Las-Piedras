@@ -206,7 +206,7 @@ export async function POST(request: Request) {
   }
 }
 
-// GET — inspeccionar encabezados del archivo (debug)
+// GET — debug: muestra drives disponibles y contenido raíz de OneDrive
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.rol !== "admin")
@@ -215,26 +215,20 @@ export async function GET(request: Request) {
   const accessToken = session.user.accessToken;
   if (!accessToken) return NextResponse.json({ error: "Sin token" }, { status: 401 });
 
-  try {
-    const fileRes = await fetch(GRAPH_FILE_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!fileRes.ok) {
-      const err = await fileRes.text();
-      return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${err}` }, { status: 502 });
-    }
+  const headers = { Authorization: `Bearer ${accessToken}` };
 
-    const buffer   = await fileRes.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
-    const info: Record<string, { headers: string[]; rows: number }> = {};
+  // 1. Drives disponibles
+  const drivesRes = await fetch("https://graph.microsoft.com/v1.0/me/drives", { headers });
+  const drives = drivesRes.ok ? await drivesRes.json() : { error: await drivesRes.text() };
 
-    for (const name of workbook.SheetNames) {
-      const ws  = workbook.Sheets[name];
-      const all = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
-      info[name] = { headers: (all[0] ?? []).map(String), rows: Math.max(0, all.length - 1) };
-    }
-    return NextResponse.json({ sheets: workbook.SheetNames, info });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
+  // 2. Contenido raíz del drive principal
+  const rootRes = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children?$select=name,id,size", { headers });
+  const root = rootRes.ok ? await rootRes.json() : { error: await rootRes.text() };
+
+  // 3. Intentar acceder directamente al archivo
+  const fileRes = await fetch(GRAPH_FILE_URL, { headers });
+  const fileStatus = fileRes.status;
+  const fileBody = fileRes.ok ? "OK" : await fileRes.text();
+
+  return NextResponse.json({ drives, root_children: root, file_url: GRAPH_FILE_URL, file_status: fileStatus, file_body: fileBody });
 }
