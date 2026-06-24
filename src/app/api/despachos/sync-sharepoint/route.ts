@@ -42,6 +42,14 @@ function col(row: Record<string, unknown>, ...names: string[]): unknown {
 
 function parseExcelDate(val: unknown): string | null {
   if (!val) return null;
+  // JS Date object (cuando se lee con cellDates: true)
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = val.getMonth() + 1;
+    const d = val.getDate();
+    if (isNaN(y)) return null;
+    return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  }
   if (typeof val === "number") {
     const d = XLSX.SSF.parse_date_code(val);
     if (!d) return null;
@@ -196,7 +204,7 @@ export async function POST(request: Request) {
     }
 
     const buffer   = await fileRes.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
 
     const ws = workbook.Sheets[sheetParam] ?? workbook.Sheets[workbook.SheetNames[0]];
     if (!ws) {
@@ -240,7 +248,7 @@ export async function GET(request: Request) {
     if (!fileRes.ok) return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${await fileRes.text()}` }, { status: 502 });
 
     const buffer   = await fileRes.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
     const info: Record<string, { headers: string[]; rows: number; sample: unknown[] }> = {};
 
     for (const name of workbook.SheetNames) {
