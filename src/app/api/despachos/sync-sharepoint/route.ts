@@ -4,9 +4,23 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// Archivo en la raíz de OneDrive — ruta directa sin carpetas anidadas
+// Busca BBDD Despachos.xlsx en todo el drive del usuario
 const ONEDRIVE_FILE_NAME = "BBDD Despachos.xlsx";
-const GRAPH_FILE_URL = `https://graph.microsoft.com/v1.0/me/drive/root:/BBDD%20Despachos.xlsx:/content`;
+
+async function getOneDriveFileUrl(accessToken: string): Promise<string> {
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error(`Error buscando archivo (${res.status}): ${await res.text()}`);
+  const { value } = await res.json() as { value: { name: string; id: string; parentReference?: { path?: string } }[] };
+  const item = value.find((f) => f.name === ONEDRIVE_FILE_NAME);
+  if (!item) {
+    const found = value.map((f) => f.name).join(", ") || "ninguno";
+    throw new Error(`"${ONEDRIVE_FILE_NAME}" no encontrado. Archivos similares encontrados: ${found}. Verifica que esté en OneDrive y sincronizado.`);
+  }
+  return `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`;
+}
 
 function getSupabaseServer() {
   return createClient(
@@ -75,45 +89,43 @@ function parseRows(ws: XLSX.WorkSheet) {
   const despachos: Record<string, unknown>[] = [];
   const skipped: number[] = [];
 
+  // Artículos Las Piedras — se importan todos, el cálculo de arena usa solo A36 y A39
+  const ARTICULOS_LP = new Set(["A36LGC", "A37LGC", "A38LGC", "A39LGC"]);
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const fechaRaw = col(r,
-      "Fecha","fecha","FECHA","Fecha Doc.","Fecha Documento",
-      "Fecha/Hora","FechaHora","Fecha Doc","F.Documento","Fecha Emisión"
-    );
+
+    // Filtrar solo artículos de Las Piedras
+    const articuloRaw = String(col(r,"Articulo","Artículo","ARTICULO","articulo","ItemCode") ?? "").trim().toUpperCase();
+    if (!ARTICULOS_LP.has(articuloRaw)) { skipped.push(i + 2); continue; }
+
+    const fechaRaw = col(r,"Fecha","fecha","FECHA");
     let fecha = parseExcelDate(fechaRaw);
     if (!fecha) { skipped.push(i + 2); continue; }
 
-    const horaRaw = col(r,"Hora","hora","HORA","Hora Doc.","Hora Documento","Hora Despacho");
-    let hora = parseExcelTime(horaRaw) ?? "00:00";
-
-    if (typeof fechaRaw === "string" && fechaRaw.includes("T")) {
-      const p = fechaRaw.split("T");
-      fecha = parseExcelDate(p[0]) ?? fecha;
-      hora  = parseExcelTime(p[1]) ?? hora;
-    }
+    const horaRaw = col(r,"Hora","hora","HORA");
+    const hora = parseExcelTime(horaRaw) ?? "00:00";
 
     despachos.push({
-      tipo:         String(col(r,"Tipo","tipo","TIPO","Tipo Doc.","Tipo Documento") ?? "").trim() || null,
-      doc_entry:    parseNum(col(r,"DocEntry","Doc. Entry","N° DocEntry","Entry")),
-      n_documento:  parseNum(col(r,"N° Documento","NDocumento","Nro. Documento","N° Doc.","Doc.","Documento")),
-      folio:        parseNum(col(r,"Folio","folio","FOLIO","FolioNum","N° Folio","Nro Folio","Folio Despacho")),
+      tipo:         String(col(r,"Tipo") ?? "").trim() || null,
+      doc_entry:    parseNum(col(r,"DocEntry")),
+      n_documento:  parseNum(col(r,"NDocumento","N° Documento")),
+      folio:        parseNum(col(r,"Folio","FolioNum")),
       fecha,
       hora:         hora + ":00",
       fecha_hora:   `${fecha}T${hora}:00`,
-      cliente:      String(col(r,"Cliente","cliente","CLIENTE","Cód. Cliente","Cod. Cliente") ?? "").trim() || null,
-      nombre:       String(col(r,"Nombre","nombre","NOMBRE","Nombre Cliente","Nombre BP") ?? "").trim() || null,
-      articulo:     String(col(r,"Artículo","Articulo","ARTICULO","articulo","Cód. Artículo","Cod. Articulo","Código Artículo","Art.","ItemCode") ?? "").trim() || null,
-      descripcion:  String(col(r,"Descripción","Descripcion","DESCRIPCION","Nombre Artículo","Desc. Artículo") ?? "").trim() || null,
-      toneladas:    parseNum(col(r,"Toneladas","toneladas","TONELADAS","Quantity","Cantidad","Cant.","Peso Neto","Ton.","Peso (Ton)","Cantidad (ton)")),
-      toneladas_confirmadas: parseNum(col(r,"Toneladas Confirmadas","ToneladasConfirmadas","Ton. Confirmadas","Peso Confirmado")),
-      ton_final:    parseNum(col(r,"Ton. Final","Ton Final","Toneladas Final","Neto","Peso Final","Toneladas Neto","Ton. Neto"))
-                    ?? parseNum(col(r,"Toneladas","toneladas","Quantity","Cantidad","Peso Neto")),
-      precio:       parseNum(col(r,"Precio","precio","PRECIO","Precio Unit.","P. Unitario")),
-      total:        parseNum(col(r,"Total","total","TOTAL","Monto Total","Importe")),
-      patente:      String(col(r,"Patente","patente","PATENTE","N° Patente","Placa") ?? "").trim().toUpperCase() || null,
-      patente_acoplado: String(col(r,"Patente Acoplado","PatenteAcoplado","Acoplado","Patente Acopl.") ?? "").trim().toUpperCase() || null,
-      rut_chofer:   String(col(r,"RUT Chofer","RUTChofer","Rut Chofer","RUT","rut_chofer") ?? "").trim() || null,
+      cliente:      String(col(r,"Cliente") ?? "").trim() || null,
+      nombre:       String(col(r,"Nombre") ?? "").trim() || null,
+      articulo:     articuloRaw || null,
+      descripcion:  String(col(r,"Descripcion","Descripción") ?? "").trim() || null,
+      toneladas:    parseNum(col(r,"Toneladas")),
+      toneladas_confirmadas: parseNum(col(r,"ToneladasConfirmadas")),
+      ton_final:    parseNum(col(r,"Neto")) ?? parseNum(col(r,"Toneladas")),
+      precio:       parseNum(col(r,"Precio")),
+      total:        parseNum(col(r,"Total")),
+      patente:      String(col(r,"Patente") ?? "").trim().toUpperCase() || null,
+      patente_acoplado: String(col(r,"PatenteAcoplado") ?? "").trim().toUpperCase() || null,
+      rut_chofer:   String(col(r,"RUTChofer") ?? "").trim() || null,
     });
   }
   return { despachos, skipped };
@@ -160,11 +172,18 @@ export async function POST(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const sheetParam = searchParams.get("sheet") ?? "base";
+  const sheetParam = searchParams.get("sheet") ?? "Consulta1";
 
   try {
-    // Descargar BBDD Despachos.xlsx desde raíz de OneDrive (Files.Read — sin admin consent)
-    const fileRes = await fetch(GRAPH_FILE_URL, {
+    // Buscar y descargar BBDD Despachos.xlsx desde OneDrive
+    let fileUrl: string;
+    try {
+      fileUrl = await getOneDriveFileUrl(accessToken);
+    } catch (e: unknown) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    }
+
+    const fileRes = await fetch(fileUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -206,7 +225,7 @@ export async function POST(request: Request) {
   }
 }
 
-// GET — debug: muestra drives disponibles y contenido raíz de OneDrive
+// GET — debug: muestra hojas y primeras filas del archivo
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.rol !== "admin")
@@ -215,20 +234,27 @@ export async function GET(request: Request) {
   const accessToken = session.user.accessToken;
   if (!accessToken) return NextResponse.json({ error: "Sin token" }, { status: 401 });
 
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  try {
+    const fileUrl = await getOneDriveFileUrl(accessToken);
+    const fileRes = await fetch(fileUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!fileRes.ok) return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${await fileRes.text()}` }, { status: 502 });
 
-  // 1. Drives disponibles
-  const drivesRes = await fetch("https://graph.microsoft.com/v1.0/me/drives", { headers });
-  const drives = drivesRes.ok ? await drivesRes.json() : { error: await drivesRes.text() };
+    const buffer   = await fileRes.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+    const info: Record<string, { headers: string[]; rows: number; sample: unknown[] }> = {};
 
-  // 2. Contenido raíz del drive principal
-  const rootRes = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/children?$select=name,id,size", { headers });
-  const root = rootRes.ok ? await rootRes.json() : { error: await rootRes.text() };
-
-  // 3. Intentar acceder directamente al archivo
-  const fileRes = await fetch(GRAPH_FILE_URL, { headers });
-  const fileStatus = fileRes.status;
-  const fileBody = fileRes.ok ? "OK" : await fileRes.text();
-
-  return NextResponse.json({ drives, root_children: root, file_url: GRAPH_FILE_URL, file_status: fileStatus, file_body: fileBody });
+    for (const name of workbook.SheetNames) {
+      const ws  = workbook.Sheets[name];
+      const all = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null, raw: true });
+      info[name] = {
+        headers: (all[0] ?? []).map(String),
+        rows:    Math.max(0, all.length - 1),
+        sample:  rows.slice(0, 2),
+      };
+    }
+    return NextResponse.json({ sheets: workbook.SheetNames, info });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }
