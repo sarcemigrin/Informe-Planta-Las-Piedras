@@ -500,38 +500,34 @@ export default function ArenaPage() {
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
-                {/* ── Bloque 2: Inventario ── */}
-                <PreviewRow label="Cancha Vieja"     value={fmt(preview.cancha_vieja_m3)} unit="m³" />
-                <PreviewRow label="Cancha Nueva"     value={fmt(preview.cancha_nueva_m3)} unit="m³" />
-                <PreviewRow label="Riñones"          value={fmt(preview.rinones_m3)} unit="m³" />
-                <PreviewRow label="Inventario M³"    value={fmt(preview.inventario_m3)} unit="m³" colorClass={desvColor(preview.diferencia)} />
-                <PreviewRow label="Inventario Ton"   value={fmt(preview.inventario_ton)} unit="ton" colorClass={desvColor(preview.diferencia)} />
-                <PreviewRow label="Diff Inventario"  value={fmt(preview.diferencia_inventario)} unit="ton" />
-
-                {/* Despachos del período */}
-                <div className="flex items-center justify-between bg-gray-50 rounded px-2 py-1.5 mt-1">
-                  <span className="text-gray-500 text-xs">Despachos período</span>
-                  <span className="text-xs font-semibold text-gray-800">
-                    {previewDespachos.viajes > 0
-                      ? `${fmt(previewDespachos.ton)} ton · ${previewDespachos.viajes} viajes`
-                      : <span className="text-gray-400 font-normal">Sin datos</span>}
-                  </span>
+                {/* ── Despachos del período ── */}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Despachos del período</p>
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-400">Viajes</p>
+                    <p className="font-bold text-gray-800 tabular-nums">{previewDespachos.viajes}</p>
+                  </div>
+                  <div className="w-px h-8 bg-gray-200" />
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-400">Toneladas</p>
+                    <p className="font-bold text-gray-800 tabular-nums">{fmt(previewDespachos.ton)}</p>
+                  </div>
                 </div>
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
-                {/* ── Bloque 3: Producción ── */}
+                {/* ── Bloque 2: Producción ── */}
                 <PreviewRow label="Prod. Drone"       value={fmt(preview.produccion_drone)} unit="ton" />
-                <PreviewRow label="Productividad"     value={fmt(preview.productividad_drone)} unit="ton/h" colorClass={desvColor(preview.diferencia)} />
-                <PreviewRow label="Prodvd Hrs Reales" value={fmt(preview.productividad_hrs_reales)} unit="ton/h" colorClass={desvColor(preview.diferencia)} />
-                <PreviewRow label="Diferencia"        value={`${fmt(preview.diferencia * 100, 1)}%`} unit="" colorClass={desvColor(preview.diferencia)} />
+                <PreviewRow label="Productividad"     value={fmt(preview.productividad_drone)} unit="ton/h" colorClass={prodColor(preview.productividad_drone)} />
+                <PreviewRow label="Prodvd Hrs Reales" value={fmt(preview.productividad_hrs_reales)} unit="ton/h" colorClass={prodColor(preview.productividad_hrs_reales)} />
+                <PreviewRow label="Diferencia"        value={`${fmt(preview.diferencia * 100, 1)}%`} unit="" />
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
                 {/* ── Tabla resumen inventario por cancha ── */}
-                <table className="w-full text-xs mt-1">
+                <table className="w-full text-xs mt-0.5">
                   <thead>
-                    <tr className="text-gray-400 border-b border-gray-100">
+                    <tr className="text-gray-400 border-b border-gray-200">
                       <th className="text-left font-medium pb-1">Cancha</th>
                       <th className="text-right font-medium pb-1">m³</th>
                       <th className="text-right font-medium pb-1">Ton</th>
@@ -556,13 +552,18 @@ export default function ArenaPage() {
                     <tr className="border-t-2 border-gray-300">
                       <td className="pt-1 font-bold text-gray-800">Total</td>
                       <td className="pt-1 text-right tabular-nums font-bold text-gray-800">{fmt(preview.inventario_m3, 0)}</td>
-                      <td className={`pt-1 text-right tabular-nums font-bold ${desvColor(preview.diferencia)}`}>{fmt(preview.inventario_ton)}</td>
+                      <td className={`pt-1 text-right tabular-nums font-bold ${invColor(preview.inventario_ton)}`}>{fmt(preview.inventario_ton)}</td>
+                    </tr>
+                    <tr>
+                      <td className="pt-0.5 text-gray-500">Diff Inventario</td>
+                      <td className="pt-0.5 text-right tabular-nums text-gray-400">—</td>
+                      <td className="pt-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.diferencia_inventario)}</td>
                     </tr>
                   </tbody>
                 </table>
 
                 <p className="text-[10px] text-gray-400 pt-1">
-                  ×1.4 t/m³ · verde ≤5% · ámbar ≤15% · rojo &gt;15% desv.
+                  Inv: meta 7.500 t · Prod: meta 32 t/h · verde ≥95% · ámbar ≥90% · rojo &lt;90%
                 </p>
               </div>
             ) : (
@@ -605,12 +606,20 @@ export default function ArenaPage() {
   );
 }
 
-// Color según desviación drone vs pesómetro
-// verde ≤5% | ámbar ≤15% | rojo >15%
-function desvColor(diferencia: number): string {
-  const abs = Math.abs(diferencia);
-  if (abs <= 0.05) return "text-green-600";
-  if (abs <= 0.15) return "text-amber-600";
+// ── Metas de control ──────────────────────────────────────
+// Inventario: meta mínima 7.500 ton
+// Productividad: meta 32 ton/h
+// Criterio: ≥95% meta → verde | ≥90% → ámbar | <90% → rojo
+function invColor(invTon: number): string {
+  const r = invTon / 7500;
+  if (r >= 0.95) return "text-green-600";
+  if (r >= 0.90) return "text-amber-600";
+  return "text-red-600";
+}
+function prodColor(prodv: number): string {
+  const r = prodv / 32;
+  if (r >= 0.95) return "text-green-600";
+  if (r >= 0.90) return "text-amber-600";
   return "text-red-600";
 }
 
