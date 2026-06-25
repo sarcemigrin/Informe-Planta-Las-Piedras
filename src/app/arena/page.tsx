@@ -40,6 +40,7 @@ export default function ArenaPage() {
     id: number; fecha: string; hora: string; patente: string | null;
     articulo: string | null; toneladas: number | null; ton_final: number | null;
   }[]>([]);
+  const [previewDespachos, setPreviewDespachos] = useState<{ ton: number; viajes: number }>({ ton: 0, viajes: 0 });
 
   // ---- Cargar historial ----
   useEffect(() => {
@@ -69,6 +70,29 @@ export default function ArenaPage() {
     }
   }
 
+  // ---- Despachos del período para el preview ----
+  useEffect(() => {
+    if (!prevRow || !form.fecha || !form.hora) {
+      setPreviewDespachos({ ton: 0, viajes: 0 });
+      return;
+    }
+    const prevFH   = prevRow.fecha_hora;
+    const currFH   = new Date(`${form.fecha}T${form.hora}:00`).toISOString();
+    supabase
+      .from("despachos")
+      .select("ton_final")
+      .eq("articulo", ARTICULO_ARENA)
+      .gte("fecha_hora", addMinutes(prevFH, 15))
+      .lte("fecha_hora", addMinutes(currFH, 15))
+      .then(({ data }) => {
+        if (data) {
+          const ton    = (data as { ton_final: number | null }[]).reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          const viajes = data.length;
+          setPreviewDespachos({ ton, viajes });
+        }
+      });
+  }, [form.fecha, form.hora, prevRow]);
+
   // ---- Preview en tiempo real ----
   useEffect(() => {
     if (!form.pesometro || !form.horometro) { setPreview(null); return; }
@@ -87,8 +111,8 @@ export default function ArenaPage() {
           inventario_ton: prevRow.inventario_ton ?? 0,
         }
       : null;
-    setPreview(calcularArena(input, prevInput, 0, 0)); // despachos se calculan al guardar
-  }, [form, prevRow]);
+    setPreview(calcularArena(input, prevInput, previewDespachos.ton, previewDespachos.viajes));
+  }, [form, prevRow, previewDespachos]);
 
   // ---- Guardar ----
   async function handleSave() {
@@ -445,7 +469,12 @@ export default function ArenaPage() {
                 <PreviewRow label="Cancha Vieja"       value={fmt(preview.cancha_vieja_ton)} unit="ton" />
                 <PreviewRow label="Cancha Nueva"       value={fmt(preview.cancha_nueva_ton)} unit="ton" />
                 <PreviewRow label="Riñones"            value={fmt(preview.rinones_ton)} unit="ton" />
-                <p className="text-xs text-gray-400 pt-2">* Densidad ×1.4 · Despachos se calculan al guardar</p>
+                <p className="text-xs text-gray-400 pt-2">
+                  * Densidad ×1.4 ·{" "}
+                  {previewDespachos.viajes > 0
+                    ? `Despachos: ${fmt(previewDespachos.ton)} ton (${previewDespachos.viajes} viajes)`
+                    : "Sin despachos en el período"}
+                </p>
               </div>
             ) : (
               <p className="text-sm text-gray-400">Ingresa Pesómetro y Horómetro para ver preview</p>
