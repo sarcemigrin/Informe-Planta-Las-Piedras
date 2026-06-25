@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
-  calcularArena, fmt, ARTICULO_ARENA,
+  calcularArena, fmt, ARTICULOS_ARENA_PROD,
   type ArenaInput,
 } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
@@ -41,6 +41,7 @@ export default function ArenaPage() {
     articulo: string | null; toneladas: number | null; ton_final: number | null;
   }[]>([]);
   const [previewDespachos, setPreviewDespachos] = useState<{ ton: number; viajes: number }>({ ton: 0, viajes: 0 });
+  const [warnings, setWarnings] = useState<{ pesometro?: string; horometro?: string }>({});
 
   // ---- Cargar historial ----
   useEffect(() => {
@@ -70,6 +71,21 @@ export default function ArenaPage() {
     }
   }
 
+  // ---- Validaciones contra registro anterior ----
+  useEffect(() => {
+    if (!prevRow) return;
+    const w: { pesometro?: string; horometro?: string } = {};
+    const peso = parseFloat(form.pesometro);
+    const horo = parseFloat(form.horometro);
+    if (!isNaN(peso) && peso < prevRow.pesometro) {
+      w.pesometro = `El pesómetro ingresado (${peso.toLocaleString("es-CL")}) es menor al registro anterior (${prevRow.pesometro.toLocaleString("es-CL")}). El pesómetro es acumulativo y no puede retroceder.`;
+    }
+    if (!isNaN(horo) && horo < prevRow.horometro) {
+      w.horometro = `El horómetro ingresado (${horo.toLocaleString("es-CL")}) es menor al registro anterior (${prevRow.horometro.toLocaleString("es-CL")}). El horómetro es acumulativo y no puede retroceder.`;
+    }
+    setWarnings(w);
+  }, [form.pesometro, form.horometro, prevRow]);
+
   // ---- Despachos del período para el preview ----
   useEffect(() => {
     if (!prevRow || !form.fecha || !form.hora) {
@@ -81,7 +97,7 @@ export default function ArenaPage() {
     supabase
       .from("despachos")
       .select("ton_final")
-      .eq("articulo", ARTICULO_ARENA)
+      .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(prevFH, 15))
       .lte("fecha_hora", addMinutes(currFH, 15))
       .then(({ data }) => {
@@ -135,7 +151,7 @@ export default function ArenaPage() {
         const { data: dsps } = await supabase
           .from("despachos")
           .select("ton_final")
-          .eq("articulo", ARTICULO_ARENA)
+          .in("articulo", ARTICULOS_ARENA_PROD)
           .gte("fecha_hora", addMinutes(prevFH, 15))
           .lte("fecha_hora", addMinutes(fechaHora, 15));
 
@@ -272,6 +288,42 @@ export default function ArenaPage() {
           msg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
         }`}>
           {msg.text}
+        </div>
+      )}
+
+      {/* Popups de advertencia de instrumentos */}
+      {(warnings.pesometro || warnings.horometro) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setWarnings({})}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h3 className="font-bold text-gray-800 mb-1">Advertencia de instrumento</h3>
+                <p className="text-xs text-gray-400">Revisa los valores antes de guardar.</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {warnings.pesometro && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                  <span className="font-semibold block mb-1">🔢 Pesómetro</span>
+                  {warnings.pesometro}
+                </div>
+              )}
+              {warnings.horometro && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                  <span className="font-semibold block mb-1">⏱ Horómetro</span>
+                  {warnings.horometro}
+                </div>
+              )}
+            </div>
+            <button
+              className="mt-4 w-full py-2 rounded-lg bg-amber-100 text-amber-800 font-semibold text-sm hover:bg-amber-200 transition-colors"
+              onClick={() => setWarnings({})}>
+              Entendido, revisar valores
+            </button>
+          </div>
         </div>
       )}
 

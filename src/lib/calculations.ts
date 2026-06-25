@@ -176,7 +176,7 @@ export function calcularArena(
   const horasReales = (fechaHora.getTime() - prevFH.getTime()) / (1000 * 60 * 60);
 
   // ---- Col J: Detención ----
-  const detencion = horasReales - difHoro;
+  const detencion = Math.max(0, horasReales - difHoro);
 
   // ---- Cols AD, AE, AF, AG ----
   const conos   = (current.cono_1 || 0) + (current.cono_2 || 0) + (current.cono_3 || 0);
@@ -436,6 +436,8 @@ export function fmt(n: number | null | undefined, decimales = 2): string {
 
 // ---- Consultar despachos para un período ----
 // Artículos: A36LGC = Arena, A37LGC = Cuarzo, A39LGC = A39
-export const ARTICULO_ARENA  = "A36LGC";
-export const ARTICULO_CUARZO = "A37LGC";
-export const ARTICULO_A39    = "A39LGC";
+export const ARTICULO_ARENA   = "A36LGC";
+export const ARTICULO_CUARZO  = "A37LGC";
+export const ARTICULO_A39     = "A39LGC";
+// Para producción de arena se suman A36LGC + A39LGC (igual que columna M del Excel)
+export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A39];
