@@ -115,20 +115,21 @@ export default function ArenaPage() {
     const currFH   = new Date(`${form.fecha}T${form.hora}:00`).toISOString();
     supabase
       .from("despachos")
-      .select("fecha, hora, articulo, ton_final, toneladas, folio")
+      .select("fecha, hora, articulo, toneladas, ton_final, folio")
       .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(prevFH, 15))
       .lte("fecha_hora", addMinutes(currFH, 15))
-      .gt("ton_final", MIN_TON_VIAJE)
+      .gt("toneladas", MIN_TON_VIAJE)
       .order("fecha_hora", { ascending: true })
       .then(({ data }) => {
         if (data) {
-          type D = { fecha: string; hora: string; articulo: string | null; ton_final: number | null; toneladas: number | null; folio: number | null };
+          type D = { fecha: string; hora: string; articulo: string | null; toneladas: number | null; ton_final: number | null; folio: number | null };
           const rows = data as D[];
           const a36 = rows.filter(d => d.articulo === "A36LGC");
           const a39 = rows.filter(d => d.articulo === "A39LGC");
-          const a36ton = a36.reduce((s, d) => s + (d.ton_final ?? 0), 0);
-          const a39ton = a39.reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          // Usar toneladas (romana) igual que Query1!O en el Excel
+          const a36ton = a36.reduce((s, d) => s + (d.toneladas ?? 0), 0);
+          const a39ton = a39.reduce((s, d) => s + (d.toneladas ?? 0), 0);
           setPreviewDespachos({
             ton: a36ton + a39ton,
             viajes: rows.length,
@@ -181,14 +182,15 @@ export default function ArenaPage() {
       if (prevFH) {
         const { data: dsps } = await supabase
           .from("despachos")
-          .select("ton_final")
+          .select("toneladas")
           .in("articulo", ARTICULOS_ARENA_PROD)
           .gte("fecha_hora", addMinutes(prevFH, 15))
           .lte("fecha_hora", addMinutes(fechaHora, 15))
-          .gt("ton_final", MIN_TON_VIAJE);
+          .gt("toneladas", MIN_TON_VIAJE);
 
         if (dsps) {
-          despachosTon   = (dsps as { ton_final: number | null }[]).reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          // Usar toneladas (romana) igual que Query1!O en el Excel
+          despachosTon   = (dsps as { toneladas: number | null }[]).reduce((s, d) => s + (d.toneladas ?? 0), 0);
           despachosViajes = dsps.length;
         }
       }
