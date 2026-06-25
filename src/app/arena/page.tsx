@@ -257,14 +257,17 @@ export default function ArenaPage() {
 
           {/* Fecha y hora */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-3">📅 Fecha y hora del droneo</h2>
+            <h2 className="font-semibold text-gray-700 mb-1">📅 Fecha y hora del droneo</h2>
+            <p className="text-xs text-blue-500 mb-3">
+              Ingresa la fecha y hora real del vuelo, aunque lo estés registrando después.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Fecha</label>
+                <label className="label">Fecha del droneo</label>
                 <input type="date" className="input" value={form.fecha} onChange={set("fecha")} />
               </div>
               <div>
-                <label className="label">Hora</label>
+                <label className="label">Hora del droneo</label>
                 <input type="time" className="input" value={form.hora}  onChange={set("hora")} />
               </div>
             </div>
@@ -391,7 +394,34 @@ export default function ArenaPage() {
 
           {/* Preview calculado */}
           <div className="card sticky top-20">
-            <h2 className="font-semibold text-gray-700 mb-3">📊 Preview calculado</h2>
+            <h2 className="font-semibold text-gray-700 mb-2">📊 Preview calculado</h2>
+
+            {/* Indicador de período */}
+            {prevRow ? (
+              <div className={`text-xs rounded-md px-3 py-2 mb-3 leading-relaxed ${
+                preview && preview.horas_reales > 48
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-gray-50 text-gray-500"
+              }`}>
+                <span className="font-semibold">Período:</span>{" "}
+                {prevRow.fecha} {prevRow.hora?.slice(0,5)}
+                {" → "}
+                {form.fecha} {form.hora}
+                {preview && (
+                  <span className="ml-1">
+                    ({fmt(preview.horas_reales, 1)} h)
+                    {preview.horas_reales > 48 && (
+                      <span className="ml-1">⚠ Verifica la fecha del droneo</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 bg-gray-50 rounded-md px-3 py-2 mb-3">
+                Sin registro anterior — primer droneo
+              </p>
+            )}
+
             {preview ? (
               <div className="space-y-2 text-sm">
                 <PreviewRow label="Diff Pesómetro"     value={fmt(preview.diferencia_pesometro)} unit="unid." />
