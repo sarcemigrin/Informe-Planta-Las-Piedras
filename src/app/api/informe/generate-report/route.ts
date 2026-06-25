@@ -24,6 +24,21 @@ function getSupabase() {
   );
 }
 
+// Lee configuración desde Supabase (tabla configuracion), con fallback a env vars
+async function getConfig(clave: string, fallback = ""): Promise<string> {
+  try {
+    const sb = getSupabase();
+    const { data } = await sb
+      .from("configuracion")
+      .select("valor")
+      .eq("clave", clave)
+      .maybeSingle();
+    return data?.valor ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export const dynamic = "force-dynamic";
 
 // ── helpers Graph API ────────────────────────────────────────────────────────
@@ -33,10 +48,11 @@ async function uploadToOneDrive(
   fileName: string,
   pdfBytes: Uint8Array,
 ): Promise<string | null> {
-  const folder = (process.env.REPORT_ONEDRIVE_PATH ?? "Informes Cubicacion").trim();
+  const folder = (await getConfig("report_onedrive_path", process.env.REPORT_ONEDRIVE_PATH ?? "Informes Cubicacion")).trim();
   const path   = encodeURIComponent(`${folder}/${fileName}`);
   const url    = `https://graph.microsoft.com/v1.0/me/drive/root:/${path}:/content`;
 
+  console.log("[generate-report] Uploading to OneDrive path:", folder, "file:", fileName);
   const res = await fetch(url, {
     method:  "PUT",
     headers: {
@@ -53,6 +69,7 @@ async function uploadToOneDrive(
   }
 
   const json = await res.json() as { webUrl?: string };
+  console.log("[generate-report] OneDrive upload OK:", json.webUrl);
   return json.webUrl ?? null;
 }
 
@@ -63,7 +80,7 @@ async function sendEmailWithPDF(
   data: InformeData,
   driveUrl: string | null,
 ): Promise<boolean> {
-  const toRaw     = process.env.REPORT_EMAIL_TO ?? "";
+  const toRaw     = await getConfig("report_email_to", process.env.REPORT_EMAIL_TO ?? "");
   const recipients = toRaw
     .split(",")
     .map(e => e.trim())
