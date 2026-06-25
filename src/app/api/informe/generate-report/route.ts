@@ -195,19 +195,68 @@ export async function POST(req: Request) {
       data.usuario_email = session.user.email;
     }
 
-    // Traer últimos 10 registros para incluir en tabla del PDF
+    // Traer registros del año actual (para gráficos) y últimos 10 (para tabla)
     try {
       const sb = getSupabase();
-      const { data: rows } = await sb
+      const year = new Date().getFullYear();
+      const yearStart = `${year}-01-01`;
+
+      const SELECT_FIELDS = "fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, diferencia_pesometro, horas_reales, detencion, despachos_ton, cantidad_despachos, inventario_ton";
+
+      // Año completo para gráficos
+      const { data: yearRows } = await sb
         .from("registros_arena")
-        .select("fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, horas_reales, detencion, despachos_ton, inventario_ton")
+        .select(SELECT_FIELDS)
+        .gte("fecha", yearStart)
+        .order("fecha_hora", { ascending: true });
+
+      // Últimos 10 para tabla de cubicación
+      const { data: last10 } = await sb
+        .from("registros_arena")
+        .select(SELECT_FIELDS)
         .order("fecha_hora", { ascending: false })
         .limit(10);
-      if (rows) {
-        data.historial = (rows as InformeData["historial"])?.reverse() ?? [];
+
+      if (last10) {
+        data.historial = (last10 as InformeData["historial"])?.reverse() ?? [];
+      }
+
+      if (yearRows && yearRows.length > 0) {
+        data.historialChart = yearRows as InformeData["historialChart"];
+
+        // Agrupar por semana ISO para semanalStats (año completo)
+        const semMap = new Map<string, { prodDrone: number; prodPeso: number; hrsProd: number; detencion: number; despachos: number; viajes: number }>();
+        for (const r of yearRows) {
+          const d = new Date(r.fecha + "T12:00:00");
+          // Semana ISO: lunes como primer día
+          const startOfYear = new Date(year, 0, 1);
+          const dayOfYear = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000);
+          const weekNum = Math.floor(dayOfYear / 7) + 1;
+          const key = `${year}-S${String(weekNum).padStart(2, "0")}`;
+          const cur = semMap.get(key) ?? { prodDrone: 0, prodPeso: 0, hrsProd: 0, detencion: 0, despachos: 0, viajes: 0 };
+          cur.prodDrone  += r.produccion_drone     ?? 0;
+          cur.prodPeso   += r.diferencia_pesometro ?? 0;
+          cur.hrsProd    += r.horas_reales      ?? 0;
+          cur.detencion  += r.detencion         ?? 0;
+          cur.despachos  += r.despachos_ton     ?? 0;
+          cur.viajes     += r.cantidad_despachos ?? 0;
+          semMap.set(key, cur);
+        }
+
+        data.semanalStats = Array.from(semMap.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([semana, s]) => ({
+            semana,
+            prodDrone: s.prodDrone,
+            prodPeso:  s.prodPeso,
+            hrsProd:   s.hrsProd,
+            detencion: s.detencion,
+            despachos: s.despachos,
+            viajes:    s.viajes,
+          }));
       }
     } catch (e) {
-      console.warn("[generate-report] historial fetch failed:", e);
+      console.warn("[generate-report] historial/semanal fetch failed:", e);
     }
 
     // 1. Generar PDF
