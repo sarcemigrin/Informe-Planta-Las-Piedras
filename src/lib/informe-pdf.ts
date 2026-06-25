@@ -222,7 +222,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   const hist = data.historial ?? [];
   const histChart = data.historialChart ?? hist; // usa historialChart si existe, sino los 10 del historial
   if (histChart.length >= 2) {
-    const chartY = 530; const chartH = 85;
+    const chartY = 370; const chartH = 230;
     const yearLabel = histChart[0]?.fecha?.slice(0, 4) ?? new Date().getFullYear();
     txt(p1, `PRODUCTIVIDAD DRONE/PESOMETRO - AÑO ${yearLabel}`, M, chartY + chartH + 10, fB, 7.5, DARK);
 
@@ -283,22 +283,22 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   }
 
   // Tabla cubicación
-  const tblTop1 = 515;
+  const tblTop1 = 345;
   txt(p1, `ULTIMOS ${hist.length} REGISTROS DE CUBICACION`, M, tblTop1, fB, 7.5, DARK);
-  line(p1, M, tblTop1 - 3, M + 120, tblTop1 - 3, GREEN, 1.2);
+  line(p1, M, tblTop1 - 3, M + 130, tblTop1 - 3, GREEN, 1.2);
 
   const cols1 = [
-    { l: "Fecha / Hora",     w: 72, r: false },
-    { l: "Prod. Drone",      w: 58, r: true  },
-    { l: "Kpi Drone t/h",   w: 58, r: true  },
-    { l: "Kpi Pesom. t/h",  w: 58, r: true  },
-    { l: "Hrs Prod.",        w: 44, r: true  },
-    { l: "Detencion",        w: 44, r: true  },
-    { l: "Inventario",       w: 60, r: true  },
-    { l: "Viajes",           w: 40, r: true  },
+    { l: "Fecha / Hora",    w: 93, r: false },
+    { l: "Prod. Drone",     w: 67, r: true  },
+    { l: "Kpi Drone t/h",  w: 67, r: true  },
+    { l: "Kpi Pesom. t/h", w: 67, r: true  },
+    { l: "Hrs Prod.",       w: 57, r: true  },
+    { l: "Detencion",       w: 57, r: true  },
+    { l: "Inventario",      w: 72, r: true  },
+    { l: "Viajes",          w: 59, r: true  },
   ];
 
-  const hdrH = 14; const rowH = 13;
+  const hdrH = 14; const rowH = 19;
   const tblY1 = tblTop1 - 10;
 
   // Header
@@ -335,9 +335,9 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       const col = cols1[ci];
       const _color = cell.color ?? DARK;
       const xPos = cell.r
-        ? M + cols1.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 7) - 3
+        ? M + cols1.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 7.5) - 3
         : cx;
-      txt(p1, cell.v, xPos, ry + 3.5, isCurr ? fB : fR, 7, cell.color ?? DARK);
+      txt(p1, cell.v, xPos, ry + 5.5, isCurr ? fB : fR, 7.5, cell.color ?? DARK);
       cx += col.w;
     });
   });
@@ -383,7 +383,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
   // Bar chart semanal (produccion año completo)
   if (sem.length >= 2) {
-    const chartY2 = 530; const chartH2 = 85;
+    const chartY2 = 517; const chartH2 = 80;
     const semYear = sem[0]?.semana?.slice(0, 4) ?? new Date().getFullYear();
     txt(p2, `PRODUCCION SEMANAL (ton) - AÑO ${semYear}`, M, chartY2 + chartH2 + 10, fB, 7.5, DARK);
     rect(p2, M, chartY2, usable, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
@@ -431,20 +431,21 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   }
 
   // Tabla semanal
-  const tblTop2 = 515;
+  const tblTop2 = 497;
+  const rowH2 = 14; // filas más compactas para caber el año completo
   txt(p2, `SEMANAS AÑO ${sem[0]?.semana?.slice(0, 4) ?? new Date().getFullYear()} (${sem.length} semanas)`, M, tblTop2, fB, 7.5, DARK);
-  line(p2, M, tblTop2 - 3, M + 90, tblTop2 - 3, GREEN, 1.2);
+  line(p2, M, tblTop2 - 3, M + 120, tblTop2 - 3, GREEN, 1.2);
 
   const cols2 = [
-    { l: "Semana",          w: 60,  r: false },
-    { l: "Prod. Drone",     w: 62,  r: true  },
-    { l: "Kpi Drone t/h",  w: 58,  r: true  },
-    { l: "Prod. Pesom.",    w: 62,  r: true  },
-    { l: "Kpi Pesom. t/h", w: 58,  r: true  },
-    { l: "Hrs Prod.",       w: 45,  r: true  },
-    { l: "Detencion",       w: 45,  r: true  },
-    { l: "Despachos",       w: 55,  r: true  },
-    { l: "Viajes",          w: 34,  r: true  },
+    { l: "Semana",          w: 73,  r: false },
+    { l: "Prod. Drone",     w: 66,  r: true  },
+    { l: "Kpi Drone t/h",  w: 62,  r: true  },
+    { l: "Prod. Pesom.",    w: 66,  r: true  },
+    { l: "Kpi Pesom. t/h", w: 62,  r: true  },
+    { l: "Hrs Prod.",       w: 52,  r: true  },
+    { l: "Detencion",       w: 52,  r: true  },
+    { l: "Despachos",       w: 62,  r: true  },
+    { l: "Viajes",          w: 44,  r: true  },
   ];
 
   const tblY2 = tblTop2 - 10;
@@ -457,20 +458,20 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
   const dispSem = [...sem].reverse();
   dispSem.forEach((s, i) => {
-    const ry = tblY2 - hdrH - (i + 1) * rowH;
+    const ry = tblY2 - hdrH - (i + 1) * rowH2;
     if (ry < 45) return;
-    rect(p2, M, ry, usable, rowH, i % 2 === 0 ? WHITE : STRIPE);
+    rect(p2, M, ry, usable, rowH2, i % 2 === 0 ? WHITE : STRIPE);
     const kD = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
     const kP = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
     const isLast = i === 0;
-    if (isLast) rect(p2, M, ry, 3, rowH, GREEN);
+    if (isLast) rect(p2, M, ry, 3, rowH2, GREEN);
 
     const cells2 = [
       { v: s.semana,                r: false },
       { v: fmtN(s.prodDrone, 0),    r: true  },
       { v: fmtN(kD),                r: true, color: kD >= 32 ? GREEN : RED },
       { v: fmtN(s.prodPeso, 0),     r: true  },
-      { v: fmtN(kP),                r: true  },
+      { v: fmtN(kP),                r: true, color: kP >= 32 ? GREEN : RED },
       { v: fmtN(s.hrsProd, 1),      r: true  },
       { v: fmtN(s.detencion, 1),    r: true, color: s.detencion > 0 ? RED : DARK },
       { v: fmtN(s.despachos, 0),    r: true  },
@@ -481,9 +482,9 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     cells2.forEach((cell, ci) => {
       const col = cols2[ci];
       const xPos = cell.r
-        ? M + cols2.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 7) - 3
+        ? M + cols2.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 6.5) - 3
         : cx;
-      txt(p2, cell.v, xPos, ry + 3.5, isLast ? fB : fR, 7, cell.color ?? DARK);
+      txt(p2, cell.v, xPos, ry + 4, isLast ? fB : fR, 6.5, cell.color ?? DARK);
       cx += col.w;
     });
   });
