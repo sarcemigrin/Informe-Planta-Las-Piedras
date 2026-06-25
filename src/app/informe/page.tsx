@@ -11,7 +11,7 @@ import { format, getISOWeek, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import {
-  LineChart, Line, BarChart, Bar,
+  ComposedChart, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
@@ -33,6 +33,7 @@ interface SemanaStat {
   prodPeso:  number;
   despachos: number;
   dias:      number;
+  hrsProd:   number;
 }
 
 // ─── helpers de color ────────────────────────────────────────────────────────
@@ -136,11 +137,12 @@ export default function InformePage() {
     const diasPeriodo = Math.max(1,
       Math.round((new Date(r.fecha).getTime() - new Date(prev.fecha).getTime()) / 86400000)
     );
-    if (!semanas[sem]) semanas[sem] = { semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0, dias: 0 };
+    if (!semanas[sem]) semanas[sem] = { semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0, dias: 0, hrsProd: 0 };
     semanas[sem].prodDrone += r.produccion_drone ?? 0;
     semanas[sem].prodPeso  += r.produccion_pesometro ?? 0;
     semanas[sem].despachos += r.despachos_ton ?? 0;
     semanas[sem].dias      += diasPeriodo;
+    semanas[sem].hrsProd   += r.diferencia_horometro ?? 0;
   }
   const semanalRows = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
 
@@ -166,10 +168,11 @@ export default function InformePage() {
   // Chart semanal: usa las filas filtradas, etiqueta = "YYYY-Sxx" o solo "Sxx" si un solo año
   const soloUnAnio = semAnios.length === 1;
   const chartSemanal = semanalFiltradas.map((s) => ({
-    semana:    soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
-    prodDrone: +s.prodDrone.toFixed(1),
-    prodPeso:  +s.prodPeso.toFixed(1),
-    despachos: +s.despachos.toFixed(1),
+    semana:       soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
+    prodDrone:    +s.prodDrone.toFixed(1),
+    prodPeso:     +s.prodPeso.toFixed(1),
+    prodDroneKpi: s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
+    prodPesoKpi:  s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
   }));
 
   // ── Totales globales ──────────────────────────────────────────────────────
@@ -334,22 +337,36 @@ export default function InformePage() {
       <section>
         <SectionHeader title="Por Cubicación" sub="últimos 30 droneos" />
 
-        {/* Gráfico */}
+        {/* Gráfico cubicación — producción en eje izq., inventario en eje der. */}
         {chartCubicacion.length > 0 && (
           <div className="card mb-4">
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartCubicacion} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <ComposedChart data={chartCubicacion} margin={{ top: 5, right: 40, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => fmt(v as number) + " ton"} />
+                <YAxis
+                  yAxisId="prod"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => `${v}`}
+                  label={{ value: "ton", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 9, fill: "#9ca3af" } }}
+                />
+                <YAxis
+                  yAxisId="inv"
+                  orientation="right"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(v) => `${v}`}
+                  label={{ value: "inv ton", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 9, fill: "#3b82f6" } }}
+                />
+                <Tooltip
+                  formatter={(v, name) => [fmt(v as number) + " ton", name]}
+                />
                 <Legend />
-                <ReferenceLine y={avgProdDrone} stroke="#22c55e" strokeDasharray="5 5"
-                  label={{ value: "Promedio", fill: "#22c55e", fontSize: 10 }} />
-                <Line type="monotone" dataKey="prodDrone"  name="Drone"      stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="prodPeso"   name="Pesómetro"  stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="inventario" name="Inventario" stroke="#3b82f6" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-              </LineChart>
+                <ReferenceLine yAxisId="prod" y={avgProdDrone} stroke="#22c55e" strokeDasharray="5 5"
+                  label={{ value: "Prom.", fill: "#22c55e", fontSize: 9 }} />
+                <Line yAxisId="prod" type="monotone" dataKey="prodDrone"  name="Prod. Drone"     stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="prod" type="monotone" dataKey="prodPeso"   name="Prod. Pesómetro" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="inv"  type="monotone" dataKey="inventario" name="Inventario"      stroke="#3b82f6" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -507,20 +524,37 @@ export default function InformePage() {
           }
         />
 
-        {/* Gráfico */}
+        {/* Gráfico semanal — producción como barras, productividad como líneas en eje der. */}
         {chartSemanal.length > 0 && (
           <div className="card mb-4">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartSemanal} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={chartSemanal} margin={{ top: 5, right: 50, left: 10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="semana" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={40} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v) => fmt(v as number) + " ton"} />
+                <XAxis dataKey="semana" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={50} />
+                <YAxis
+                  yAxisId="ton"
+                  tick={{ fontSize: 10 }}
+                  label={{ value: "ton", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 9, fill: "#9ca3af" } }}
+                />
+                <YAxis
+                  yAxisId="kpi"
+                  orientation="right"
+                  tick={{ fontSize: 10 }}
+                  domain={[0, "auto"]}
+                  label={{ value: "t/h", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 9, fill: "#9ca3af" } }}
+                />
+                <Tooltip
+                  formatter={(v, name) => {
+                    const isKpi = String(name).includes("Productividad");
+                    return [fmt(v as number) + (isKpi ? " t/h" : " ton"), name];
+                  }}
+                />
                 <Legend />
-                <Bar dataKey="prodDrone"  name="Drone"      fill="#22c55e" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="prodPeso"   name="Pesómetro"  fill="#f97316" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="despachos"  name="Despachos"  fill="#3b82f6" radius={[3, 3, 0, 0]} />
-              </BarChart>
+                <Bar yAxisId="ton" dataKey="prodDrone" name="Prod. Drone"     fill="#22c55e" radius={[3, 3, 0, 0]} />
+                <Bar yAxisId="ton" dataKey="prodPeso"  name="Prod. Pesómetro" fill="#f97316" radius={[3, 3, 0, 0]} />
+                <Line yAxisId="kpi" type="monotone" dataKey="prodDroneKpi" name="Productividad Drone"     stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line yAxisId="kpi" type="monotone" dataKey="prodPesoKpi"  name="Productividad Pesómetro" stroke="#ea580c" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
