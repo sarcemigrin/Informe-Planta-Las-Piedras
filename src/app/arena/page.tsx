@@ -18,9 +18,37 @@ const today = () => format(new Date(), "yyyy-MM-dd");
 const nowTime = () => format(new Date(), "HH:mm");
 
 // Tonelaje mínimo por viaje para incluir en cálculo
-const MIN_TON_VIAJE = 25;
-
 const FORM_KEY = "arena-form-draft";
+
+// Suma minutos a un string de fecha/hora local (sin conversión UTC).
+// Los despachos en la DB están guardados en hora local de Chile,
+// por lo que NO se debe convertir a UTC al consultar.
+function addMinutes(localStr: string, minutes: number): string {
+  // Forzar parseo como UTC para que la aritmética no dependa del timezone del browser
+  const d = new Date(localStr.endsWith("Z") ? localStr : localStr + "Z");
+  d.setTime(d.getTime() + minutes * 60_000);
+  return d.toISOString().slice(0, 19); // "2026-06-18T09:34:00" — sin Z
+}
+
+function formToInput(f: Record<string, string>): ArenaInput {
+  return {
+    fecha:     f.fecha,
+    hora:      f.hora,
+    pesometro: parseFloat(f.pesometro) || 0,
+    horometro: parseFloat(f.horometro) || 0,
+    fierrillo: parseFloat(f.fierrillo) || 0,
+    cono_1: parseFloat(f.cono_1) || 0,
+    cono_2: parseFloat(f.cono_2) || 0,
+    cono_3: parseFloat(f.cono_3) || 0,
+    pila_1: parseFloat(f.pila_1) || 0,
+    pila_2: parseFloat(f.pila_2) || 0,
+    pila_3: parseFloat(f.pila_3) || 0,
+    pila_4: parseFloat(f.pila_4) || 0,
+    pila_5: parseFloat(f.pila_5) || 0,
+    pila_6: parseFloat(f.pila_6) || 0,
+    pila_7: parseFloat(f.pila_7) || 0,
+  };
+}
 
 function loadDraft(): Record<string, string> {
   const defaults = {
@@ -111,15 +139,15 @@ export default function ArenaPage() {
       setPreviewDespachos({ ton: 0, viajes: 0 });
       return;
     }
-    const prevFH   = prevRow.fecha_hora;
-    const currFH   = new Date(`${form.fecha}T${form.hora}:00`).toISOString();
+    // Usar hora local (sin conversión UTC) — despachos en DB están en hora local
+    const prevFH = `${prevRow.fecha}T${prevRow.hora.slice(0, 5)}:00`;
+    const currFH = `${form.fecha}T${form.hora}:00`;
     supabase
       .from("despachos")
       .select("fecha, hora, articulo, toneladas, ton_final, folio")
       .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(prevFH, 15))
       .lte("fecha_hora", addMinutes(currFH, 15))
-      .gt("toneladas", MIN_TON_VIAJE)
       .order("fecha_hora", { ascending: true })
       .then(({ data }) => {
         if (data) {
@@ -172,21 +200,22 @@ export default function ArenaPage() {
     setMsg(null);
     try {
       const input = formToInput(form);
-      const fechaHora = new Date(`${input.fecha}T${input.hora}:00`).toISOString();
+
+      // Usar hora local (sin conversión UTC) — despachos en DB están en hora local
+      const currFHLocal = `${input.fecha}T${input.hora}:00`;
 
       // Consultar despachos Arena entre droneo anterior y este
-      const prevFH = prevRow?.fecha_hora;
+      const prevFHLocal = prevRow ? `${prevRow.fecha}T${prevRow.hora.slice(0, 5)}:00` : null;
       let despachosTon = 0;
       let despachosViajes = 0;
 
-      if (prevFH) {
+      if (prevFHLocal) {
         const { data: dsps } = await supabase
           .from("despachos")
           .select("toneladas")
           .in("articulo", ARTICULOS_ARENA_PROD)
-          .gte("fecha_hora", addMinutes(prevFH, 15))
-          .lte("fecha_hora", addMinutes(fechaHora, 15))
-          .gt("toneladas", MIN_TON_VIAJE);
+          .gte("fecha_hora", addMinutes(prevFHLocal, 15))
+          .lte("fecha_hora", addMinutes(currFHLocal, 15));
 
         if (dsps) {
           // Usar toneladas (romana) igual que Query1!O en el Excel
