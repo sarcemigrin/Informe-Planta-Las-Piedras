@@ -17,18 +17,28 @@ const CONOS = [1, 2, 3] as const;
 const today = () => format(new Date(), "yyyy-MM-dd");
 const nowTime = () => format(new Date(), "HH:mm");
 
-export default function ArenaPage() {
-  const [form, setForm] = useState<Record<string, string>>({
-    fecha:    today(),
-    hora:     nowTime(),
-    pesometro:"",
-    horometro:"",
-    fierrillo:"0",
+// Tonelaje mínimo por viaje para incluir en cálculo
+const MIN_TON_VIAJE = 25;
+
+const FORM_KEY = "arena-form-draft";
+
+function loadDraft(): Record<string, string> {
+  const defaults = {
+    fecha: today(), hora: nowTime(), pesometro: "", horometro: "", fierrillo: "0",
     cono_1: "", cono_2: "", cono_3: "",
     pila_1: "", pila_2: "", pila_3: "", pila_4: "",
     pila_5: "", pila_6: "", pila_7: "",
     notas: "",
-  });
+  };
+  try {
+    const saved = typeof window !== "undefined" ? localStorage.getItem(FORM_KEY) : null;
+    if (!saved) return defaults;
+    return { ...defaults, ...JSON.parse(saved) };
+  } catch { return defaults; }
+}
+
+export default function ArenaPage() {
+  const [form, setForm] = useState<Record<string, string>>(loadDraft);
 
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
   const [prevRow, setPrevRow]               = useState<(RegistroArena) | null>(null);
@@ -48,6 +58,11 @@ export default function ArenaPage() {
   }>({ ton: 0, viajes: 0, a36ton: 0, a36viajes: 0, a39ton: 0, a39viajes: 0, rows: [] });
   const [showDespDebug, setShowDespDebug] = useState(false);
   const [warnings, setWarnings] = useState<{ pesometro?: string; horometro?: string }>({});
+
+  // ---- Persistir borrador en localStorage ----
+  useEffect(() => {
+    try { localStorage.setItem(FORM_KEY, JSON.stringify(form)); } catch {}
+  }, [form]);
 
   // ---- Cargar historial ----
   useEffect(() => {
@@ -104,6 +119,7 @@ export default function ArenaPage() {
       .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(prevFH, 15))
       .lte("fecha_hora", addMinutes(currFH, 15))
+      .gt("ton_final", MIN_TON_VIAJE)
       .order("fecha_hora", { ascending: true })
       .then(({ data }) => {
         if (data) {
@@ -168,7 +184,8 @@ export default function ArenaPage() {
           .select("ton_final")
           .in("articulo", ARTICULOS_ARENA_PROD)
           .gte("fecha_hora", addMinutes(prevFH, 15))
-          .lte("fecha_hora", addMinutes(fechaHora, 15));
+          .lte("fecha_hora", addMinutes(fechaHora, 15))
+          .gt("ton_final", MIN_TON_VIAJE);
 
         if (dsps) {
           despachosTon   = (dsps as { ton_final: number | null }[]).reduce((s, d) => s + (d.ton_final ?? 0), 0);
@@ -227,16 +244,16 @@ export default function ArenaPage() {
       if (error) throw error;
 
       setMsg({ type: "ok", text: "✅ Registro guardado correctamente." });
-      // Resetear formulario con nueva fecha/hora
-      setForm((f) => ({
-        ...f,
-        fecha: today(), hora: nowTime(),
-        pesometro: "", horometro: "", fierrillo: "0",
+      // Resetear formulario y limpiar borrador
+      const reset = {
+        fecha: today(), hora: nowTime(), pesometro: "", horometro: "", fierrillo: "0",
         cono_1:"", cono_2:"", cono_3:"",
         pila_1:"", pila_2:"", pila_3:"", pila_4:"",
         pila_5:"", pila_6:"", pila_7:"",
         notas:"",
-      }));
+      };
+      setForm(reset);
+      try { localStorage.setItem(FORM_KEY, JSON.stringify(reset)); } catch {}
       await loadHistorial();
     } catch (e: unknown) {
       setMsg({ type: "err", text: `Error: ${(e as Error).message}` });
