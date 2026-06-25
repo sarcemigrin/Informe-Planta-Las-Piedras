@@ -14,7 +14,15 @@
 import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions }      from "@/lib/authOptions";
+import { createClient }     from "@supabase/supabase-js";
 import { generarInformePDF, type InformeData } from "@/lib/informe-pdf";
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -168,6 +176,21 @@ export async function POST(req: Request) {
     const data = await req.json() as InformeData;
     if (session?.user?.email) {
       data.usuario_email = session.user.email;
+    }
+
+    // Traer últimos 10 registros para incluir en tabla del PDF
+    try {
+      const sb = getSupabase();
+      const { data: rows } = await sb
+        .from("registros_arena")
+        .select("fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, horas_reales, detencion, despachos_ton, inventario_ton")
+        .order("fecha_hora", { ascending: false })
+        .limit(10);
+      if (rows) {
+        data.historial = (rows as InformeData["historial"])?.reverse() ?? [];
+      }
+    } catch (e) {
+      console.warn("[generate-report] historial fetch failed:", e);
     }
 
     // 1. Generar PDF

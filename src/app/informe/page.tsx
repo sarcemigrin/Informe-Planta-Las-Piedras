@@ -659,12 +659,12 @@ export default function InformePage() {
                 <Legend />
                 <Bar yAxisId="ton" dataKey="prodDrone" name="Producción Drone" radius={[3, 3, 0, 0]}>
                   {chartSemanal.map((entry) => (
-                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_DRONE : C_DRONE + "88"} />
+                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_DRONE : "rgba(107,207,127,0.45)"} />
                   ))}
                 </Bar>
                 <Bar yAxisId="ton" dataKey="prodPeso" name="Producción Pesóm." radius={[3, 3, 0, 0]}>
                   {chartSemanal.map((entry) => (
-                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_PESO : C_PESO + "88"} />
+                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_PESO : "rgba(55,65,81,0.4)"} />
                   ))}
                 </Bar>
                 <Line yAxisId="kpi" type="monotone" dataKey="kpiDrone" name="Productividad Drone"  stroke={C_DRONE} strokeWidth={2.5} dot={{ r: 3, fill: C_DRONE, strokeWidth: 0 }} connectNulls activeDot={{ r: 5 }} />
