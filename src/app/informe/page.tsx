@@ -85,14 +85,14 @@ function InfoCard({
   badge?: { bg: string; text: string; label: string };
 }) {
   return (
-    <div className="card py-3 px-4 flex flex-col gap-1 min-w-0">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate">{label}</p>
+    <div className="card py-4 px-4 flex flex-col items-center justify-center gap-1 min-w-0 text-center">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate w-full text-center">{label}</p>
       {badge ? (
-        <span className={`self-start mt-0.5 px-2.5 py-1 rounded-full text-base font-bold ${badge.bg} ${badge.text}`}>
+        <span className={`mt-0.5 px-2.5 py-1 rounded-full text-base font-bold ${badge.bg} ${badge.text}`}>
           {badge.label}
         </span>
       ) : (
-        <p className={`text-lg font-bold leading-tight ${color ?? "text-gray-800"}`}>{value ?? "–"}</p>
+        <p className={`text-xl font-bold leading-tight ${color ?? "text-gray-800"}`}>{value ?? "–"}</p>
       )}
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
@@ -522,10 +522,17 @@ export default function InformePage() {
         {selectedSem && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-              <InfoCard
-                label="Semana"
-                value={selectedSem.semana}
-              />
+              {/* Tarjeta semana: número grande + año pequeño */}
+              {(() => {
+                const [anioStr, semStr] = selectedSem.semana.split("-");
+                return (
+                  <div className="card py-4 px-4 flex flex-col items-center justify-center gap-1 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Semana</p>
+                    <p className="text-xl font-bold text-gray-900">{semStr}</p>
+                    <p className="text-xs text-gray-400">{anioStr}</p>
+                  </div>
+                );
+              })()}
               <InfoCard
                 label="Horas Productivas"
                 value={`${fmt(selectedSem.hrsProd, 1)} hrs`}
