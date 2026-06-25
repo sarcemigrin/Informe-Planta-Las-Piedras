@@ -74,23 +74,27 @@ function SectionHeader({ title, sub, action }: { title: string; sub?: string; ac
   );
 }
 
-function StatMini({ label, value, color }: { label: string; value: string; color?: string }) {
+// Tarjeta individual del panel de selección
+function InfoCard({
+  label, value, sub, color, badge,
+}: {
+  label: string;
+  value?: string;
+  sub?: string;
+  color?: string;
+  badge?: { bg: string; text: string; label: string };
+}) {
   return (
-    <div>
-      <p className="text-xs text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className={`text-sm font-semibold ${color ?? "text-gray-800"}`}>{value}</p>
-    </div>
-  );
-}
-
-// Panel de datos sobre el gráfico (registro seleccionado)
-function InfoPanel({ children, hint }: { children: React.ReactNode; hint?: string }) {
-  return (
-    <div className="card mb-3 py-3 border-l-4" style={{ borderLeftColor: C_DRONE }}>
-      <div className="flex flex-wrap items-end gap-x-7 gap-y-2">
-        {children}
-      </div>
-      {hint && <p className="text-xs text-gray-400 mt-2">{hint}</p>}
+    <div className="card py-3 px-4 flex flex-col gap-1 min-w-0">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate">{label}</p>
+      {badge ? (
+        <span className={`self-start mt-0.5 px-2.5 py-1 rounded-full text-base font-bold ${badge.bg} ${badge.text}`}>
+          {badge.label}
+        </span>
+      ) : (
+        <p className={`text-lg font-bold leading-tight ${color ?? "text-gray-800"}`}>{value ?? "–"}</p>
+      )}
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   );
 }
@@ -268,29 +272,58 @@ export default function InformePage() {
       <section>
         <SectionHeader title="Por Cubicación" sub={`últimos ${cubRows.length} registros`} />
 
-        {/* Panel del registro seleccionado */}
+        {/* Panel 8 tarjetas — 4+4 grid */}
         {selectedCubRow && (
-          <InfoPanel hint="Pincha un punto del gráfico o una fila de la tabla para ver su detalle">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Último droneo</p>
-              <p className="text-sm font-semibold text-gray-900">
-                {format(parseISO(selectedCubRow.fecha), "dd 'de' MMMM yyyy", { locale: es })}
-                {selectedCubRow.hora && <span className="text-gray-400 font-normal ml-1">· {selectedCubRow.hora.slice(0,5)}</span>}
-              </p>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <InfoCard
+                label="Último droneo"
+                value={format(parseISO(selectedCubRow.fecha), "dd MMM yyyy", { locale: es })}
+                sub={selectedCubRow.hora ? selectedCubRow.hora.slice(0, 5) : undefined}
+              />
+              <InfoCard
+                label="Producción Drone"
+                value={fmt(selectedCubRow.produccion_drone)}
+                sub="toneladas"
+                color={prodColor(selectedCubRow.productividad_drone)}
+              />
+              <InfoCard
+                label="Productividad Drone"
+                value={`${fmt(selectedCubRow.productividad_drone)} t/h`}
+                color={prodColor(selectedCubRow.productividad_drone)}
+              />
+              <InfoCard
+                label="Producción Pesóm."
+                value={fmt(selectedCubRow.produccion_pesometro)}
+                sub="toneladas"
+              />
             </div>
-            <StatMini label="Producción Drone"    value={`${fmt(selectedCubRow.produccion_drone)} ton`}         color={prodColor(selectedCubRow.productividad_drone)} />
-            <StatMini label="Productividad Drone" value={`${fmt(selectedCubRow.productividad_drone)} t/h`}      color={prodColor(selectedCubRow.productividad_drone)} />
-            <StatMini label="Producción Pesóm."   value={`${fmt(selectedCubRow.produccion_pesometro)} ton`} />
-            <StatMini label="Productividad Pesóm." value={`${fmt(selectedCubRow.productividad_pesometro)} t/h`} />
-            <StatMini label="Despachos"           value={`${fmt(selectedCubRow.despachos_ton)} ton · ${selectedCubRow.cantidad_despachos ?? 0} vj`} />
-            <StatMini label="Inventario"          value={`${fmt(selectedCubRow.inventario_ton)} ton`}           color={invColor(selectedCubRow.inventario_ton)} />
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Diferencia</p>
-              {(() => { const b = difBadge(selectedCubRow.diferencia); return (
-                <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${b.bg} ${b.text}`}>{b.label}</span>
-              );})()}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <InfoCard
+                label="Productividad Pesóm."
+                value={`${fmt(selectedCubRow.productividad_pesometro)} t/h`}
+              />
+              <InfoCard
+                label="Despachos (ton)"
+                value={fmt(selectedCubRow.despachos_ton)}
+                sub={`${selectedCubRow.cantidad_despachos ?? 0} viajes`}
+              />
+              <InfoCard
+                label="Inventario"
+                value={fmt(selectedCubRow.inventario_ton)}
+                sub="toneladas"
+                color={invColor(selectedCubRow.inventario_ton)}
+              />
+              <InfoCard
+                label="Diferencia"
+                badge={difBadge(selectedCubRow.diferencia)}
+                sub="vs. período anterior"
+              />
             </div>
-          </InfoPanel>
+            <p className="text-xs text-gray-400 -mt-2 mb-3">
+              Pincha un punto del gráfico o una fila de la tabla para actualizar
+            </p>
+          </>
         )}
 
         {/* Gráfico — productividad Drone + Pesóm. (izq.), inventario (der.) */}
@@ -328,8 +361,12 @@ export default function InformePage() {
                 />
                 <Legend />
                 <ReferenceLine
-                  yAxisId="kpi" y={avgProdKpi} stroke={C_DRONE} strokeDasharray="5 5"
-                  label={{ value: `Prom. ${fmt(avgProdKpi)} t/h`, fill: C_DRONE, fontSize: 9 }}
+                  yAxisId="kpi"
+                  y={PROD_TARGET}
+                  stroke="#ef4444"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 3"
+                  label={{ value: `Control · ${PROD_TARGET} t/h`, position: "insideTopLeft", fill: "#ef4444", fontSize: 10 }}
                 />
                 <Line yAxisId="kpi" type="monotone" dataKey="kpiDrone"   name="Productividad Drone"  stroke={C_DRONE} strokeWidth={2.5} dot={{ r: 3, fill: C_DRONE, strokeWidth: 0 }} connectNulls activeDot={{ r: 6, fill: C_DRONE }} />
                 <Line yAxisId="kpi" type="monotone" dataKey="kpiPeso"    name="Productividad Pesóm." stroke={C_PESO}  strokeWidth={2.5} dot={{ r: 3, fill: C_PESO,  strokeWidth: 0 }} connectNulls activeDot={{ r: 6, fill: C_PESO  }} />
