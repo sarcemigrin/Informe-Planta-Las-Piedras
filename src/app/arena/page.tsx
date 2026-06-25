@@ -762,25 +762,3 @@ function PreviewRow({ label, value, unit, colorClass }: {
   );
 }
 
-function formToInput(f: Record<string, string>): ArenaInput {
-  return {
-    fecha: f.fecha, hora: f.hora,
-    pesometro: parseFloat(f.pesometro) || 0,
-    horometro: parseFloat(f.horometro) || 0,
-    fierrillo: parseFloat(f.fierrillo) || 0,
-    cono_1: parseFloat(f.cono_1) || 0,
-    cono_2: parseFloat(f.cono_2) || 0,
-    cono_3: parseFloat(f.cono_3) || 0,
-    pila_1: parseFloat(f.pila_1) || 0,
-    pila_2: parseFloat(f.pila_2) || 0,
-    pila_3: parseFloat(f.pila_3) || 0,
-    pila_4: parseFloat(f.pila_4) || 0,
-    pila_5: parseFloat(f.pila_5) || 0,
-    pila_6: parseFloat(f.pila_6) || 0,
-    pila_7: parseFloat(f.pila_7) || 0,
-  };
-}
-
-function addMinutes(isoStr: string, min: number): string {
-  return new Date(new Date(isoStr).getTime() + min * 60000).toISOString();
-}
