@@ -125,11 +125,11 @@ export default function ArenaPage() {
     if (!prevRow) return;
     const val = parseFloat(form[campo]);
     if (isNaN(val)) return;
-    if (campo === "pesometro" && val < prevRow.pesometro) {
-      setWarnings((w) => ({ ...w, pesometro: `Pesómetro ingresado (${val.toLocaleString("es-CL")}) menor al anterior (${prevRow.pesometro.toLocaleString("es-CL")}). Es acumulativo y no puede retroceder.` }));
+    if (campo === "pesometro" && val <= prevRow.pesometro) {
+      setWarnings((w) => ({ ...w, pesometro: `Pesómetro ingresado (${val.toLocaleString("es-CL")}) es igual o menor al anterior (${prevRow.pesometro.toLocaleString("es-CL")}). Es acumulativo y debe ser mayor.` }));
     }
-    if (campo === "horometro" && val < prevRow.horometro) {
-      setWarnings((w) => ({ ...w, horometro: `Horómetro ingresado (${val.toLocaleString("es-CL")}) menor al anterior (${prevRow.horometro.toLocaleString("es-CL")}). Es acumulativo y no puede retroceder.` }));
+    if (campo === "horometro" && val <= prevRow.horometro) {
+      setWarnings((w) => ({ ...w, horometro: `Horómetro ingresado (${val.toLocaleString("es-CL")}) es igual o menor al anterior (${prevRow.horometro.toLocaleString("es-CL")}). Es acumulativo y debe ser mayor.` }));
     }
   }
 
