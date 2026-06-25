@@ -20,7 +20,7 @@ async function refreshAccessToken(token: Record<string, unknown>) {
         client_secret: process.env.AZURE_AD_CLIENT_SECRET!,
         grant_type:    "refresh_token",
         refresh_token: token.refreshToken as string,
-        scope:         "openid profile email User.Read Files.Read offline_access",
+        scope:         "openid profile email User.Read Files.ReadWrite Mail.Send offline_access",
       }),
     });
     const data = await res.json() as Record<string, unknown>;
@@ -45,7 +45,7 @@ export const authOptions: NextAuthOptions = {
       tenantId:     process.env.AZURE_AD_TENANT_ID!,
       authorization: {
         params: {
-          scope: "openid profile email User.Read Files.Read offline_access",
+          scope: "openid profile email User.Read Files.ReadWrite Mail.Send offline_access",
         },
       },
     }),

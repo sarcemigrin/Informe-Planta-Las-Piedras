@@ -274,6 +274,28 @@ export default function ArenaPage() {
 
       if (error) throw error;
 
+      // ── Generar y enviar informe PDF (fire-and-forget, no bloquea UI) ──
+      fetch("/api/informe/generate-report", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          fecha:                   input.fecha,
+          hora:                    input.hora,
+          produccion_drone:        calc.produccion_drone,
+          productividad_drone:     calc.productividad_drone,
+          productividad_pesometro: calc.productividad_pesometro,
+          diferencia_pesometro:    calc.diferencia_pesometro,
+          horas_reales:            calc.horas_reales,
+          detencion:               calc.detencion,
+          despachos_ton:           calc.despachos_ton,
+          cantidad_despachos:      calc.cantidad_despachos,
+          inventario_ton:          calc.inventario_ton,
+        }),
+      })
+        .then(r => r.json())
+        .then(j => { if (!j.ok) console.warn("[report]", j.error); })
+        .catch(e  => console.warn("[report] error:", e));
+
       setMsg({ type: "ok", text: "✅ Registro guardado correctamente." });
       // Resetear formulario y limpiar borrador
       const reset = {
