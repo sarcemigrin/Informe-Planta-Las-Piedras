@@ -111,7 +111,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   txt(page, conf, W - M - fontR.widthOfTextAtSize(conf, 7.5), 783, fontR, 7.5, rgb(0.65, 0.70, 0.76));
 
   // ── SECCIÓN: KPIs del registro ───────────────────────────────────────────
-  txt(page, "▌ INDICADORES DEL DRONEO", M, 762, fontB, 8.5, DARK);
+  txt(page, "INDICADORES DEL DRONEO", M, 762, fontB, 8.5, DARK);
 
   const gap   = 7;
   const cardW = (usable - 3 * gap) / 4;
@@ -150,7 +150,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
   // ── SECCIÓN: Tabla últimos registros ─────────────────────────────────────
   const tableTop = row2Y - 22;
-  txt(page, "▌ ÚLTIMOS REGISTROS DE CUBICACIÓN", M, tableTop, fontB, 8.5, DARK);
+  txt(page, "ÚLTIMOS REGISTROS DE CUBICACIÓN", M, tableTop, fontB, 8.5, DARK);
 
   const historial = (data.historial ?? []).slice(0, 10);
 
