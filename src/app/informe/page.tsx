@@ -454,7 +454,7 @@ export default function InformePage() {
                         <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>
                           {fmt(r.productividad_drone)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                         </td>
-                        <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>{fmt(r.produccion_drone)}</td>
+                        <td className="table-td font-semibold text-gray-700">{fmt(r.produccion_drone)}</td>
                         <td className="table-td text-gray-600">{fmt(r.diferencia_horometro, 1)}</td>
                         <td className={`table-td ${(r.detencion ?? 0) > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(r.detencion, 1)}</td>
                         <td className="table-td text-gray-600">
