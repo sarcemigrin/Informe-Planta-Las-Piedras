@@ -27,6 +27,12 @@ const DENSIDAD = 1.4;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
+// Parsear fecha-only como medianoche local (no UTC) para evitar que
+// "2026-06-22" se interprete como 21/06 en Chile (UTC-4).
+function pd(dateStr: string): Date {
+  return new Date(dateStr + "T12:00:00");
+}
+
 function prodText(v?: number | null) {
   if (!v || v === 0) return "text-gray-600";
   if (v >= PROD_TARGET) return "text-green-600";
@@ -90,21 +96,21 @@ export default function Dashboard() {
   const sel          = arenaRows[selectedIdx];
   const prev         = arenaRows[selectedIdx + 1];
   const ultimoCuarzo = cuarzoRows[0];
-  const diasDesde    = sel ? differenceInDays(new Date(), new Date(sel.fecha)) : null;
+  const diasDesde    = sel ? differenceInDays(new Date(), pd(sel.fecha)) : null;
 
   const now       = new Date();
   const startThis = startOfWeek(now,{weekStartsOn:1});
   const startLast = startOfWeek(subWeeks(now,1),{weekStartsOn:1});
   const endLast   = endOfWeek(subWeeks(now,1),{weekStartsOn:1});
-  const thisWk    = arenaRows.filter(r => new Date(r.fecha) >= startThis);
-  const lastWk    = arenaRows.filter(r => { const d=new Date(r.fecha); return d>=startLast&&d<=endLast; });
+  const thisWk    = arenaRows.filter(r => pd(r.fecha) >= startThis);
+  const lastWk    = arenaRows.filter(r => { const d=pd(r.fecha); return d>=startLast&&d<=endLast; });
   const avgThis   = thisWk.length ? thisWk.reduce((s,r)=>s+(r.produccion_drone??0),0)/thisWk.length : 0;
   const avgLast   = lastWk.length ? lastWk.reduce((s,r)=>s+(r.produccion_drone??0),0)/lastWk.length : 0;
   const tendencia = avgLast > 0 ? ((avgThis-avgLast)/avgLast)*100 : null;
 
   const chartData = useMemo(() =>
     [...arenaRows].reverse().slice(-15).map(r => ({
-      fecha:     format(new Date(r.fecha),"dd/MM",{locale:es}),
+      fecha:     format(pd(r.fecha),"dd/MM",{locale:es}),
       prodDrone: r.productividad_drone,
       prodPeso:  r.productividad_pesometro,
     }))
@@ -115,7 +121,7 @@ export default function Dashboard() {
     const meses = periodoComp==="S1"?[0,1,2,3,4,5]:periodoComp==="S2"?[6,7,8,9,10,11]:[0,1,2,3,4,5,6,7,8,9,10,11];
     const byYM: Record<number,Record<number,{ton:number[];prod:number[]}>> = {};
     arenaHistorico.forEach(r => {
-      const d=new Date(r.fecha), y=d.getFullYear(), m=d.getMonth();
+      const d=pd(r.fecha), y=d.getFullYear(), m=d.getMonth();
       if(!meses.includes(m)) return;
       if(!byYM[y]) byYM[y]={};
       if(!byYM[y][m]) byYM[y][m]={ton:[],prod:[]};
@@ -180,7 +186,7 @@ export default function Dashboard() {
           >
             {arenaRows.map((r,i)=>(
               <option key={r.id} value={i}>
-                {i===0?"* ":""}{format(new Date(r.fecha),"dd/MM/yyyy")} {r.hora?.slice(0,5)}
+                {i===0?"* ":""}{format(pd(r.fecha),"dd/MM/yyyy")} {r.hora?.slice(0,5)}
               </option>
             ))}
           </select>
@@ -474,10 +480,10 @@ export default function Dashboard() {
                 className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedIdx===i?"bg-green-50/40 ring-1 ring-inset ring-migrin/30":""}`}
                 onClick={()=>setSelectedIdx(i)}>
                 <td className="table-td-left">
-                  <div className="font-medium">{format(new Date(r.fecha),"dd/MM/yyyy")} {r.hora.slice(0,5)}</div>
+                  <div className="font-medium">{format(pd(r.fecha),"dd/MM/yyyy")} {r.hora.slice(0,5)}</div>
                   {i===0
                     ? <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">ultimo</span>
-                    : <span className="text-xs text-gray-300">hace {differenceInDays(new Date(),new Date(r.fecha))}d</span>
+                    : <span className="text-xs text-gray-300">hace {differenceInDays(new Date(),pd(r.fecha))}d</span>
                   }
                 </td>
                 <td className={`table-td font-bold ${prodText(r.productividad_drone)}`}>{fmt(r.productividad_drone)} t/h</td>
