@@ -489,33 +489,80 @@ export default function ArenaPage() {
             )}
 
             {preview ? (
-              <div className="space-y-2 text-sm">
-                <PreviewRow label="Diff Pesómetro"     value={fmt(preview.diferencia_pesometro)} unit="unid." />
-                <PreviewRow label="Prod. Pesómetro"    value={fmt(preview.produccion_pesometro)} unit="ton" highlight />
-                <PreviewRow label="Diff Horómetro"     value={fmt(preview.diferencia_horometro, 1)} unit="h" />
-                <PreviewRow label="Horas reales"       value={fmt(preview.horas_reales, 1)} unit="h" />
-                <PreviewRow label="Detención"          value={fmt(preview.detencion, 1)} unit="h" />
-                <hr className="border-gray-100" />
-                <PreviewRow label="Cancha Vieja"       value={fmt(preview.cancha_vieja_m3)} unit="m³" />
-                <PreviewRow label="Cancha Nueva"       value={fmt(preview.cancha_nueva_m3)} unit="m³" />
-                <PreviewRow label="Riñones"            value={fmt(preview.rinones_m3)} unit="m³" />
-                <PreviewRow label="Inventario M³"      value={fmt(preview.inventario_m3)} unit="m³" />
-                <PreviewRow label="Inventario Ton"     value={fmt(preview.inventario_ton)} unit="ton" highlight />
-                <PreviewRow label="Diff Inventario"    value={fmt(preview.diferencia_inventario)} unit="ton" />
-                <hr className="border-gray-100" />
-                <PreviewRow label="Prod. Drone"        value={fmt(preview.produccion_drone)} unit="ton" highlight />
-                <PreviewRow label="Productividad"      value={fmt(preview.productividad_drone)} unit="ton/h" />
-                <PreviewRow label="Prodvd Hrs Reales"  value={fmt(preview.productividad_hrs_reales)} unit="ton/h" />
-                <PreviewRow label="Diferencia"         value={`${fmt(preview.diferencia * 100, 1)}%`} unit="" />
-                <hr className="border-gray-100" />
-                <PreviewRow label="Cancha Vieja"       value={fmt(preview.cancha_vieja_ton)} unit="ton" />
-                <PreviewRow label="Cancha Nueva"       value={fmt(preview.cancha_nueva_ton)} unit="ton" />
-                <PreviewRow label="Riñones"            value={fmt(preview.rinones_ton)} unit="ton" />
-                <p className="text-xs text-gray-400 pt-2">
-                  * Densidad ×1.4 ·{" "}
-                  {previewDespachos.viajes > 0
-                    ? `Despachos: ${fmt(previewDespachos.ton)} ton (${previewDespachos.viajes} viajes)`
-                    : "Sin despachos en el período"}
+              <div className="space-y-1.5 text-sm">
+
+                {/* ── Bloque 1: Instrumentos ── */}
+                <PreviewRow label="Diff Pesómetro"  value={fmt(preview.diferencia_pesometro)} unit="unid." />
+                <PreviewRow label="Prod. Pesómetro" value={fmt(preview.produccion_pesometro)} unit="ton" />
+                <PreviewRow label="Diff Horómetro"  value={fmt(preview.diferencia_horometro, 1)} unit="h" />
+                <PreviewRow label="Horas Reales"    value={fmt(preview.horas_reales, 1)} unit="h" />
+                <PreviewRow label="Detención"       value={fmt(preview.detencion, 1)} unit="h" />
+
+                <div className="border-t-2 border-gray-300 my-1" />
+
+                {/* ── Bloque 2: Inventario ── */}
+                <PreviewRow label="Cancha Vieja"     value={fmt(preview.cancha_vieja_m3)} unit="m³" />
+                <PreviewRow label="Cancha Nueva"     value={fmt(preview.cancha_nueva_m3)} unit="m³" />
+                <PreviewRow label="Riñones"          value={fmt(preview.rinones_m3)} unit="m³" />
+                <PreviewRow label="Inventario M³"    value={fmt(preview.inventario_m3)} unit="m³" colorClass={desvColor(preview.diferencia)} />
+                <PreviewRow label="Inventario Ton"   value={fmt(preview.inventario_ton)} unit="ton" colorClass={desvColor(preview.diferencia)} />
+                <PreviewRow label="Diff Inventario"  value={fmt(preview.diferencia_inventario)} unit="ton" />
+
+                {/* Despachos del período */}
+                <div className="flex items-center justify-between bg-gray-50 rounded px-2 py-1.5 mt-1">
+                  <span className="text-gray-500 text-xs">Despachos período</span>
+                  <span className="text-xs font-semibold text-gray-800">
+                    {previewDespachos.viajes > 0
+                      ? `${fmt(previewDespachos.ton)} ton · ${previewDespachos.viajes} viajes`
+                      : <span className="text-gray-400 font-normal">Sin datos</span>}
+                  </span>
+                </div>
+
+                <div className="border-t-2 border-gray-300 my-1" />
+
+                {/* ── Bloque 3: Producción ── */}
+                <PreviewRow label="Prod. Drone"       value={fmt(preview.produccion_drone)} unit="ton" />
+                <PreviewRow label="Productividad"     value={fmt(preview.productividad_drone)} unit="ton/h" colorClass={desvColor(preview.diferencia)} />
+                <PreviewRow label="Prodvd Hrs Reales" value={fmt(preview.productividad_hrs_reales)} unit="ton/h" colorClass={desvColor(preview.diferencia)} />
+                <PreviewRow label="Diferencia"        value={`${fmt(preview.diferencia * 100, 1)}%`} unit="" colorClass={desvColor(preview.diferencia)} />
+
+                <div className="border-t-2 border-gray-300 my-1" />
+
+                {/* ── Tabla resumen inventario por cancha ── */}
+                <table className="w-full text-xs mt-1">
+                  <thead>
+                    <tr className="text-gray-400 border-b border-gray-100">
+                      <th className="text-left font-medium pb-1">Cancha</th>
+                      <th className="text-right font-medium pb-1">m³</th>
+                      <th className="text-right font-medium pb-1">Ton</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    <tr>
+                      <td className="py-0.5 text-gray-600">⛰ Vieja</td>
+                      <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.cancha_vieja_m3, 0)}</td>
+                      <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.cancha_vieja_ton)}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 text-gray-600">🏔 Nueva</td>
+                      <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.cancha_nueva_m3, 0)}</td>
+                      <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.cancha_nueva_ton)}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-0.5 text-gray-600">💎 Riñones</td>
+                      <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.rinones_m3, 0)}</td>
+                      <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.rinones_ton)}</td>
+                    </tr>
+                    <tr className="border-t-2 border-gray-300">
+                      <td className="pt-1 font-bold text-gray-800">Total</td>
+                      <td className="pt-1 text-right tabular-nums font-bold text-gray-800">{fmt(preview.inventario_m3, 0)}</td>
+                      <td className={`pt-1 text-right tabular-nums font-bold ${desvColor(preview.diferencia)}`}>{fmt(preview.inventario_ton)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="text-[10px] text-gray-400 pt-1">
+                  ×1.4 t/m³ · verde ≤5% · ámbar ≤15% · rojo &gt;15% desv.
                 </p>
               </div>
             ) : (
@@ -558,14 +605,23 @@ export default function ArenaPage() {
   );
 }
 
-function PreviewRow({ label, value, unit, highlight }: {
-  label: string; value: string; unit: string; highlight?: boolean;
+// Color según desviación drone vs pesómetro
+// verde ≤5% | ámbar ≤15% | rojo >15%
+function desvColor(diferencia: number): string {
+  const abs = Math.abs(diferencia);
+  if (abs <= 0.05) return "text-green-600";
+  if (abs <= 0.15) return "text-amber-600";
+  return "text-red-600";
+}
+
+function PreviewRow({ label, value, unit, colorClass }: {
+  label: string; value: string; unit: string; colorClass?: string;
 }) {
   return (
     <div className="flex justify-between items-center">
       <span className="text-gray-500">{label}</span>
-      <span className={`font-semibold tabular-nums ${highlight ? "text-migrin" : "text-gray-800"}`}>
-        {value} <span className="text-gray-400 font-normal text-xs">{unit}</span>
+      <span className={`font-semibold tabular-nums ${colorClass ?? "text-gray-800"}`}>
+        {value}{unit && <span className="text-gray-400 font-normal text-xs ml-1">{unit}</span>}
       </span>
     </div>
   );
