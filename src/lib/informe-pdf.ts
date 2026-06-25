@@ -388,46 +388,40 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     txt(p2, `PRODUCCION SEMANAL (ton) - AÑO ${semYear}`, M, chartY2 + chartH2 + 10, fB, 7.5, DARK);
     rect(p2, M, chartY2, usable, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
 
-    const maxP = Math.max(...sem.map(s => s.prodDrone), 1);
-    const bw = Math.max(3, (usable - (sem.length - 1) * 3) / sem.length / 2 - 1);
+    // Usar solo valores positivos para la escala
+    const validProd = sem.map(s => s.prodDrone).filter(v => v > 0);
+    const maxP = validProd.length > 0 ? Math.max(...validProd) : 1;
+
+    // Y-axis gridlines con labels
+    for (let gi = 1; gi <= 4; gi++) {
+      const gy = chartY2 + (gi / 4) * chartH2;
+      line(p2, M, gy, M + usable, gy, rgb(0.88, 0.90, 0.93));
+      if (gi < 4) txt(p2, fmtN(maxP * gi / 4, 0), M - 24, gy - 3, fR, 5.5, GRAY);
+    }
+    txt(p2, fmtN(maxP, 0), M - 24, chartY2 + chartH2 - 3, fR, 5.5, GRAY);
+
+    // Barras: grupo por semana, ancho calculado para llenar el área
+    const groupW = Math.max(13, Math.floor(usable / sem.length));
+    const bw = Math.max(3, Math.floor((groupW - 3) / 2));
+    const startX = M + Math.floor((usable - sem.length * groupW) / 2);
 
     sem.forEach((s, i) => {
-      const bh  = (s.prodDrone / maxP) * chartH2;
-      const bh2 = (s.prodPeso  / maxP) * chartH2;
-      const bx  = M + (i / (sem.length - 1)) * usable - bw;
-      rect(p2, bx,        chartY2, bw, bh,  GREEN);
-      rect(p2, bx + bw + 1, chartY2, bw, bh2, BLUE);
+      const bh  = Math.max(0, (s.prodDrone / maxP) * chartH2);
+      const bh2 = Math.max(0, (s.prodPeso  / maxP) * chartH2);
+      const bx  = startX + i * groupW;
+      if (bh > 0)  rect(p2, bx,          chartY2, bw, bh,  GREEN);
+      if (bh2 > 0) rect(p2, bx + bw + 2, chartY2, bw, bh2, BLUE);
       if (i % Math.ceil(sem.length / 8) === 0 || i === sem.length - 1) {
         const label = s.semana.includes("-") ? s.semana.split("-")[1] : s.semana;
-        txt(p2, label, bx - 3, chartY2 - 9, fR, 5.5, GRAY);
+        txt(p2, label, bx + bw / 2 - 4, chartY2 - 9, fR, 5.5, GRAY);
       }
     });
 
-    // Productividad lines overlay
-    const semKpiVals = sem.map(s => s.hrsProd > 0 ? s.prodDrone / s.hrsProd : null);
-    const allSemKpi = semKpiVals.filter((v): v is number => v !== null);
-    if (allSemKpi.length >= 2) {
-      const minK = Math.min(...allSemKpi) * 0.9;
-      const maxK = Math.max(...allSemKpi) * 1.1 || 1;
-      const rngK = maxK - minK || 1;
-      const pts = semKpiVals.map((v, i) => ({
-        px: M + (i / (sem.length - 1)) * usable,
-        py: v !== null ? chartY2 + ((v - minK) / rngK) * chartH2 : null,
-      }));
-      for (let i = 1; i < pts.length; i++) {
-        const p = pts[i - 1]; const q = pts[i];
-        if (p.py !== null && q.py !== null)
-          line(p2, p.px, p.py, q.px, q.py, DARK, 1.2);
-      }
-    }
-
-    // Legend
+    // Legend (sin línea KPI — confusa con eje secundario)
     rect(p2, M, chartY2 + chartH2 + 2, 8, 4, GREEN);
     txt(p2, "Prod. Drone (ton)", M + 11, chartY2 + chartH2 + 2, fR, 6, DARK);
-    rect(p2, M + 80, chartY2 + chartH2 + 2, 8, 4, BLUE);
-    txt(p2, "Prod. Pesom. (ton)", M + 91, chartY2 + chartH2 + 2, fR, 6, DARK);
-    rect(p2, M + 165, chartY2 + chartH2 + 2, 8, 4, DARK);
-    txt(p2, "Kpi Drone (t/h, eje secundario)", M + 176, chartY2 + chartH2 + 2, fR, 6, DARK);
+    rect(p2, M + 90, chartY2 + chartH2 + 2, 8, 4, BLUE);
+    txt(p2, "Prod. Pesometro (ton)", M + 101, chartY2 + chartH2 + 2, fR, 6, DARK);
   }
 
   // Tabla semanal
