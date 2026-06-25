@@ -683,15 +683,15 @@ export default function InformePage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="table-th text-left">Semana</th>
+                  <th className="table-th">Productividad Drone</th>
+                  <th className="table-th">Prod. Drone</th>
                   <th className="table-th">Hrs Prod.</th>
                   <th className="table-th">Detención (hrs)</th>
                   <th className="table-th">Det. Planta %</th>
-                  <th className="table-th">Despachos (ton)</th>
-                  <th className="table-th">Despachos (vj)</th>
-                  <th className="table-th">Prod. Pesóm.</th>
                   <th className="table-th">Productividad Pesóm.</th>
-                  <th className="table-th">Prod. Drone</th>
-                  <th className="table-th">Productividad Drone</th>
+                  <th className="table-th">Prod. Pesóm.</th>
+                  <th className="table-th">Despachos (vj)</th>
+                  <th className="table-th">Despachos (ton)</th>
                   <th className="table-th">Prod / día</th>
                 </tr>
               </thead>
@@ -714,34 +714,34 @@ export default function InformePage() {
                         {s.semana}
                         {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
                       </td>
-                      <td className="table-td text-gray-600">{fmt(s.hrsProd, 1)}</td>
-                      <td className="table-td text-red-400">{fmt(s.detencion, 1)}</td>
-                      <td className="table-td text-gray-500">{detPct.toFixed(1)}%</td>
-                      <td className="table-td text-gray-600">{fmt(s.despachos)}</td>
-                      <td className="table-td text-gray-600">{s.viajes}</td>
-                      <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
-                      <td className="table-td font-semibold" style={{ color: C_PESO }}>
-                        {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
-                      </td>
-                      <td className="table-td text-gray-600">{fmt(s.prodDrone)}</td>
                       <td className={`table-td font-semibold ${prodColor(kpiD)}`}>
                         {fmt(kpiD)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                       </td>
+                      <td className="table-td font-semibold text-gray-700">{fmt(s.prodDrone)}</td>
+                      <td className="table-td text-gray-600">{fmt(s.hrsProd, 1)}</td>
+                      <td className={`table-td ${s.detencion > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(s.detencion, 1)}</td>
+                      <td className="table-td text-gray-500">{detPct.toFixed(1)}%</td>
+                      <td className="table-td font-semibold text-gray-600">
+                        {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                      </td>
+                      <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
+                      <td className="table-td text-gray-600">{s.viajes}</td>
+                      <td className="table-td text-gray-600">{fmt(s.despachos)}</td>
                       <td className="table-td text-gray-500">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
                     </tr>
                   );
                 })}
                 <tr className="bg-gray-50 border-t border-gray-100 font-semibold text-gray-700">
                   <td className="table-td-left">Total</td>
+                  <td className="table-td text-gray-400">–</td>
+                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.prodDrone, 0))}</td>
                   <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.hrsProd,   0), 1)}</td>
                   <td className="table-td text-red-400">{fmt(semanalFiltradas.reduce((a, s) => a + s.detencion, 0), 1)}</td>
                   <td className="table-td text-gray-400">–</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.despachos, 0))}</td>
-                  <td className="table-td">{semanalFiltradas.reduce((a, s) => a + s.viajes, 0)}</td>
+                  <td className="table-td text-gray-400">–</td>
                   <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.prodPeso,  0))}</td>
-                  <td className="table-td text-gray-400">–</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.prodDrone, 0))}</td>
-                  <td className="table-td text-gray-400">–</td>
+                  <td className="table-td">{semanalFiltradas.reduce((a, s) => a + s.viajes, 0)}</td>
+                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.despachos, 0))}</td>
                   <td className="table-td text-gray-400">–</td>
                 </tr>
               </tbody>
