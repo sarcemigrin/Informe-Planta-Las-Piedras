@@ -196,10 +196,12 @@ export default function InformePage() {
 
   const soloUnAnio   = semAnios.length === 1;
   const chartSemanal = semanalFiltradas.map(s => ({
-    _key:     s.semana,
-    semana:   soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
-    kpiDrone: s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
-    kpiPeso:  s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
+    _key:      s.semana,
+    semana:    soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
+    prodDrone: +s.prodDrone.toFixed(1),
+    prodPeso:  +s.prodPeso.toFixed(1),
+    kpiDrone:  s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
+    kpiPeso:   s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
   }));
 
   // Semana seleccionada (por defecto la última del filtro)
@@ -551,23 +553,23 @@ export default function InformePage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <InfoCard
-                label="Producción Drone"
-                value={fmt(selectedSem.prodDrone)}
-                sub="toneladas"
-              />
-              <InfoCard
                 label="Productividad Drone"
                 value={`${fmt(selectedSemKpiD)} t/h`}
                 color={prodColor(selectedSemKpiD)}
               />
               <InfoCard
-                label="Producción Pesóm."
-                value={fmt(selectedSem.prodPeso)}
+                label="Producción Drone"
+                value={fmt(selectedSem.prodDrone)}
                 sub="toneladas"
               />
               <InfoCard
                 label="Productividad Pesóm."
                 value={`${fmt(selectedSemKpiP)} t/h`}
+              />
+              <InfoCard
+                label="Producción Pesóm."
+                value={fmt(selectedSem.prodPeso)}
+                sub="toneladas"
               />
             </div>
             <p className="text-xs text-gray-400 -mt-2 mb-3">
@@ -576,13 +578,13 @@ export default function InformePage() {
           </>
         )}
 
-        {/* Gráfico semanal */}
+        {/* Gráfico semanal — barras producción (eje izq.) + líneas productividad (eje der.) */}
         {chartSemanal.length > 0 && (
           <div className="card mb-4 cursor-pointer">
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={280}>
               <ComposedChart
                 data={chartSemanal}
-                margin={{ top: 5, right: 20, left: 10, bottom: 45 }}
+                margin={{ top: 5, right: 50, left: 10, bottom: 45 }}
                 onClick={(data) => {
                   if (!data?.activePayload?.[0]) return;
                   const key = (data.activePayload[0].payload as { _key: string })._key;
@@ -592,30 +594,36 @@ export default function InformePage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="semana" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={55} />
                 <YAxis
+                  yAxisId="ton"
                   tick={{ fontSize: 10 }}
-                  label={{ value: "t/h", angle: -90, position: "insideLeft", offset: -2, style: { fontSize: 9, fill: "#9ca3af" } }}
+                  label={{ value: "ton", angle: -90, position: "insideLeft", offset: -2, style: { fontSize: 9, fill: "#9ca3af" } }}
+                />
+                <YAxis
+                  yAxisId="kpi"
+                  orientation="right"
+                  tick={{ fontSize: 10 }}
+                  label={{ value: "t/h", angle: 90, position: "insideRight", offset: 12, style: { fontSize: 9, fill: "#9ca3af" } }}
                 />
                 <Tooltip
-                  formatter={(value, name) => [`${fmt(value as number)} t/h`, name]}
+                  formatter={(value, name) => {
+                    const isKpi = String(name).startsWith("Productividad");
+                    return [`${fmt(value as number)} ${isKpi ? "t/h" : "ton"}`, name];
+                  }}
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
                 />
                 <Legend />
-                <Bar dataKey="kpiDrone" name="Productividad Drone" radius={[3, 3, 0, 0]}>
+                <Bar yAxisId="ton" dataKey="prodDrone" name="Producción Drone" radius={[3, 3, 0, 0]}>
                   {chartSemanal.map((entry) => (
-                    <Cell
-                      key={entry._key}
-                      fill={entry._key === selectedSem?.semana ? C_DRONE : C_DRONE + "99"}
-                    />
+                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_DRONE : C_DRONE + "88"} />
                   ))}
                 </Bar>
-                <Bar dataKey="kpiPeso" name="Productividad Pesóm." radius={[3, 3, 0, 0]}>
+                <Bar yAxisId="ton" dataKey="prodPeso" name="Producción Pesóm." radius={[3, 3, 0, 0]}>
                   {chartSemanal.map((entry) => (
-                    <Cell
-                      key={entry._key}
-                      fill={entry._key === selectedSem?.semana ? C_PESO : C_PESO + "88"}
-                    />
+                    <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_PESO : C_PESO + "88"} />
                   ))}
                 </Bar>
+                <Line yAxisId="kpi" type="monotone" dataKey="kpiDrone" name="Productividad Drone"  stroke={C_DRONE} strokeWidth={2.5} dot={{ r: 3, fill: C_DRONE, strokeWidth: 0 }} connectNulls activeDot={{ r: 5 }} />
+                <Line yAxisId="kpi" type="monotone" dataKey="kpiPeso"  name="Productividad Pesóm." stroke={C_PESO}  strokeWidth={2.5} dot={{ r: 3, fill: C_PESO,  strokeWidth: 0 }} connectNulls activeDot={{ r: 5 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
