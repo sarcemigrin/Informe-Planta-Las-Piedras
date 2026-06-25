@@ -518,21 +518,55 @@ export default function InformePage() {
           }
         />
 
-        {/* Panel semana seleccionada */}
+        {/* Panel 8 tarjetas semana seleccionada */}
         {selectedSem && (
-          <InfoPanel hint="Pincha una barra del gráfico o una fila de la tabla para ver esa semana">
-            <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Semana</p>
-              <p className="text-sm font-semibold text-gray-900">{selectedSem.semana}</p>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <InfoCard
+                label="Semana"
+                value={selectedSem.semana}
+              />
+              <InfoCard
+                label="Horas Productivas"
+                value={`${fmt(selectedSem.hrsProd, 1)} hrs`}
+              />
+              <InfoCard
+                label="Detención"
+                value={`${fmt(selectedSem.detencion, 1)} hrs`}
+                sub={`${selectedSemDetPct.toFixed(1)}% del tiempo`}
+                color="text-red-500"
+              />
+              <InfoCard
+                label="Despachos"
+                value={fmt(selectedSem.despachos)}
+                sub={`${selectedSem.viajes} viajes`}
+              />
             </div>
-            <StatMini label="Hrs Productivas"      value={`${fmt(selectedSem.hrsProd, 1)} hrs`} />
-            <StatMini label="Detención"            value={`${fmt(selectedSem.detencion, 1)} hrs · ${selectedSemDetPct.toFixed(1)}%`} color="text-red-400" />
-            <StatMini label="Despachos"            value={`${fmt(selectedSem.despachos)} ton · ${selectedSem.viajes} vj`} />
-            <StatMini label="Producción Drone"     value={`${fmt(selectedSem.prodDrone)} ton`} />
-            <StatMini label="Productividad Drone"  value={`${fmt(selectedSemKpiD)} t/h`}  color={prodColor(selectedSemKpiD)} />
-            <StatMini label="Producción Pesóm."    value={`${fmt(selectedSem.prodPeso)} ton`} />
-            <StatMini label="Productividad Pesóm." value={`${fmt(selectedSemKpiP)} t/h`} />
-          </InfoPanel>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <InfoCard
+                label="Producción Drone"
+                value={fmt(selectedSem.prodDrone)}
+                sub="toneladas"
+              />
+              <InfoCard
+                label="Productividad Drone"
+                value={`${fmt(selectedSemKpiD)} t/h`}
+                color={prodColor(selectedSemKpiD)}
+              />
+              <InfoCard
+                label="Producción Pesóm."
+                value={fmt(selectedSem.prodPeso)}
+                sub="toneladas"
+              />
+              <InfoCard
+                label="Productividad Pesóm."
+                value={`${fmt(selectedSemKpiP)} t/h`}
+              />
+            </div>
+            <p className="text-xs text-gray-400 -mt-2 mb-3">
+              Pincha una barra del gráfico o una fila de la tabla para actualizar
+            </p>
+          </>
         )}
 
         {/* Gráfico semanal */}
