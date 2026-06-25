@@ -40,7 +40,11 @@ export default function ArenaPage() {
     id: number; fecha: string; hora: string; patente: string | null;
     articulo: string | null; toneladas: number | null; ton_final: number | null;
   }[]>([]);
-  const [previewDespachos, setPreviewDespachos] = useState<{ ton: number; viajes: number }>({ ton: 0, viajes: 0 });
+  const [previewDespachos, setPreviewDespachos] = useState<{
+    ton: number; viajes: number;
+    a36ton: number; a36viajes: number;
+    a39ton: number; a39viajes: number;
+  }>({ ton: 0, viajes: 0, a36ton: 0, a36viajes: 0, a39ton: 0, a39viajes: 0 });
   const [warnings, setWarnings] = useState<{ pesometro?: string; horometro?: string }>({});
 
   // ---- Cargar historial ----
@@ -94,15 +98,24 @@ export default function ArenaPage() {
     const currFH   = new Date(`${form.fecha}T${form.hora}:00`).toISOString();
     supabase
       .from("despachos")
-      .select("ton_final")
+      .select("ton_final, articulo")
       .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(prevFH, 15))
       .lte("fecha_hora", addMinutes(currFH, 15))
       .then(({ data }) => {
         if (data) {
-          const ton    = (data as { ton_final: number | null }[]).reduce((s, d) => s + (d.ton_final ?? 0), 0);
-          const viajes = data.length;
-          setPreviewDespachos({ ton, viajes });
+          type D = { ton_final: number | null; articulo: string | null };
+          const rows = data as D[];
+          const a36 = rows.filter(d => d.articulo === "A36LGC");
+          const a39 = rows.filter(d => d.articulo === "A39LGC");
+          const a36ton    = a36.reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          const a39ton    = a39.reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          setPreviewDespachos({
+            ton: a36ton + a39ton,
+            viajes: rows.length,
+            a36ton, a36viajes: a36.length,
+            a39ton, a39viajes: a39.length,
+          });
         }
       });
   }, [form.fecha, form.hora, prevRow]);
@@ -502,16 +515,34 @@ export default function ArenaPage() {
 
                 {/* ── Despachos del período ── */}
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Despachos del período</p>
-                <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                  <div className="text-center">
-                    <p className="text-[10px] text-gray-400">Viajes</p>
-                    <p className="font-bold text-gray-800 tabular-nums">{previewDespachos.viajes}</p>
+                <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1.5">
+                  {/* Totales */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Total</span>
+                    <span className="font-bold text-gray-800 tabular-nums text-sm">
+                      {fmt(previewDespachos.ton)} ton · {previewDespachos.viajes} viajes
+                    </span>
                   </div>
-                  <div className="w-px h-8 bg-gray-200" />
-                  <div className="text-center">
-                    <p className="text-[10px] text-gray-400">Toneladas</p>
-                    <p className="font-bold text-gray-800 tabular-nums">{fmt(previewDespachos.ton)}</p>
-                  </div>
+                  {/* Desglose por artículo */}
+                  {previewDespachos.viajes > 0 && (
+                    <div className="border-t border-gray-200 pt-1 space-y-0.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-blue-600 font-medium">A36 Arena</span>
+                        <span className="text-[10px] text-gray-700 tabular-nums">
+                          {fmt(previewDespachos.a36ton)} t · {previewDespachos.a36viajes} v
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-green-600 font-medium">A39</span>
+                        <span className="text-[10px] text-gray-700 tabular-nums">
+                          {fmt(previewDespachos.a39ton)} t · {previewDespachos.a39viajes} v
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {previewDespachos.viajes === 0 && (
+                    <p className="text-[10px] text-gray-400">Sin despachos en el período</p>
+                  )}
                 </div>
 
                 <div className="border-t-2 border-gray-300 my-1" />
