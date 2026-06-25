@@ -76,16 +76,17 @@ function SectionHeader({ title, sub, action }: { title: string; sub?: string; ac
 
 // Tarjeta individual del panel de selección
 function InfoCard({
-  label, value, sub, color, badge,
+  label, value, sub, color, badge, info,
 }: {
   label: string;
   value?: string;
   sub?: string;
   color?: string;
   badge?: { bg: string; text: string; label: string };
+  info?: string;
 }) {
   return (
-    <div className="card py-4 px-4 flex flex-col items-center justify-center gap-1 min-w-0 text-center">
+    <div className="card relative py-4 px-4 flex flex-col items-center justify-center gap-1 min-w-0 text-center">
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 truncate w-full text-center">{label}</p>
       {badge ? (
         <span className={`mt-0.5 px-2.5 py-1 rounded-full text-base font-bold ${badge.bg} ${badge.text}`}>
@@ -95,6 +96,25 @@ function InfoCard({
         <p className={`text-xl font-bold leading-tight ${color ?? "text-gray-800"}`}>{value ?? "–"}</p>
       )}
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
+
+      {/* Ícono info con tooltip */}
+      {info && (
+        <div className="absolute bottom-2 right-2 group">
+          <svg
+            className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors cursor-help"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="8" strokeLinecap="round" strokeWidth={3}/>
+            <line x1="12" y1="12" x2="12" y2="16" strokeLinecap="round" strokeWidth={2}/>
+          </svg>
+          <div className="absolute bottom-5 right-0 w-52 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5
+                          opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20
+                          text-left leading-relaxed shadow-lg">
+            {info}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -282,44 +302,52 @@ export default function InformePage() {
                 label="Último droneo"
                 value={format(parseISO(selectedCubRow.fecha), "dd MMM yyyy", { locale: es })}
                 sub={selectedCubRow.hora ? selectedCubRow.hora.slice(0, 5) : undefined}
+                info="Fecha y hora del último registro de cubicación por drone."
               />
               <InfoCard
                 label="Producción Drone"
                 value={fmt(selectedCubRow.produccion_drone)}
                 sub="toneladas"
                 color={prodColor(selectedCubRow.productividad_drone)}
+                info="Producción calculada por diferencia de inventario entre droneos consecutivos más despachos del período."
               />
               <InfoCard
                 label="Productividad Drone"
                 value={`${fmt(selectedCubRow.productividad_drone)} t/h`}
                 color={prodColor(selectedCubRow.productividad_drone)}
+                info="Toneladas producidas por hora de horómetro. Meta: ≥32 t/h · Alerta: 28,8–32 t/h · Crítico: <28,8 t/h."
               />
               <InfoCard
                 label="Producción Pesóm."
                 value={fmt(selectedCubRow.produccion_pesometro)}
                 sub="toneladas"
+                info="Producción según diferencia de lecturas del pesómetro, ajustada por factor de humedad 0,85. Referencia complementaria al cálculo por drone."
               />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <InfoCard
                 label="Productividad Pesóm."
                 value={`${fmt(selectedCubRow.productividad_pesometro)} t/h`}
+                info="Productividad calculada en base a la producción del pesómetro dividida por las horas productivas del período."
               />
               <InfoCard
                 label="Despachos (ton)"
                 value={fmt(selectedCubRow.despachos_ton)}
                 sub={`${selectedCubRow.cantidad_despachos ?? 0} viajes`}
+                info="Total toneladas despachadas entre el droneo anterior y este, según datos SAP."
               />
               <InfoCard
                 label="Inventario"
                 value={fmt(selectedCubRow.inventario_ton)}
                 sub="toneladas"
                 color={invColor(selectedCubRow.inventario_ton)}
+                info="Inventario total en canchas al momento del droneo. Meta: ≥7.500 ton · Alerta: 6.500–7.500 ton · Crítico: <6.500 ton."
               />
               <InfoCard
                 label="Diferencia"
                 badge={difBadge(selectedCubRow.diferencia)}
                 sub="vs. período anterior"
+                info="Diferencia porcentual entre producción Drone y producción Pesómetro. Valores positivos indican que el pesómetro supera al drone."
               />
             </div>
             <p className="text-xs text-gray-400 -mt-2 mb-3">
@@ -528,27 +556,38 @@ export default function InformePage() {
               {(() => {
                 const [anioStr, semStr] = selectedSem.semana.split("-");
                 return (
-                  <div className="card py-4 px-4 flex flex-col items-center justify-center gap-1 text-center">
+                  <div className="card relative py-4 px-4 flex flex-col items-center justify-center gap-1 text-center overflow-hidden">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Semana</p>
                     <p className="text-xl font-bold text-gray-900">{semStr}</p>
                     <p className="text-xs text-gray-400">{anioStr}</p>
+                    <div className="absolute bottom-2 right-2 group">
+                      <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="8" strokeLinecap="round" strokeWidth={3}/><line x1="12" y1="12" x2="12" y2="16" strokeLinecap="round" strokeWidth={2}/>
+                      </svg>
+                      <div className="absolute bottom-5 right-0 w-52 bg-gray-900 text-white text-xs rounded-lg px-3 py-2.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20 text-left leading-relaxed shadow-lg">
+                        Número de semana ISO del año seleccionado.
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
               <InfoCard
                 label="Horas Productivas"
                 value={`${fmt(selectedSem.hrsProd, 1)} hrs`}
+                info="Total de horas productivas acumuladas en la semana según diferencia de horómetro entre registros."
               />
               <InfoCard
                 label="Detención"
                 value={`${fmt(selectedSem.detencion, 1)} hrs`}
                 sub={`${selectedSemDetPct.toFixed(1)}% del tiempo`}
                 color="text-red-500"
+                info="Horas de detención no productivas. El porcentaje indica la proporción respecto al tiempo total disponible."
               />
               <InfoCard
                 label="Despachos"
                 value={fmt(selectedSem.despachos)}
                 sub={`${selectedSem.viajes} viajes`}
+                info="Total toneladas despachadas en la semana según datos SAP, con el número de viajes asociados."
               />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -556,20 +595,24 @@ export default function InformePage() {
                 label="Productividad Drone"
                 value={`${fmt(selectedSemKpiD)} t/h`}
                 color={prodColor(selectedSemKpiD)}
+                info="Promedio de productividad semanal calculado como producción drone total dividida por horas productivas. Meta: ≥32 t/h."
               />
               <InfoCard
                 label="Producción Drone"
                 value={fmt(selectedSem.prodDrone)}
                 sub="toneladas"
+                info="Total toneladas producidas en la semana según cálculo por drone (diferencia de inventario más despachos)."
               />
               <InfoCard
                 label="Productividad Pesóm."
                 value={`${fmt(selectedSemKpiP)} t/h`}
+                info="Productividad semanal calculada en base a la producción del pesómetro dividida por horas productivas."
               />
               <InfoCard
                 label="Producción Pesóm."
                 value={fmt(selectedSem.prodPeso)}
                 sub="toneladas"
+                info="Total toneladas producidas en la semana según pesómetro, ajustadas por factor de humedad 0,85."
               />
             </div>
             <p className="text-xs text-gray-400 -mt-2 mb-3">
