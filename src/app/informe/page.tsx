@@ -137,6 +137,7 @@ export default function InformePage() {
   // Semanal
   const [semAnios,    setSemAnios]    = useState<number[]>([]);
   const [semSemestre, setSemSemestre] = useState<"todo" | "S1" | "S2">("todo");
+  const [semLimit,    setSemLimit]    = useState(10);
   const [selectedSemKey, setSelectedSemKey] = useState<string | null>(null);
 
   useEffect(() => { loadData(); }, []);
@@ -214,8 +215,9 @@ export default function InformePage() {
     return true;
   });
 
-  const soloUnAnio   = semAnios.length === 1;
-  const chartSemanal = semanalFiltradas.map(s => ({
+  const soloUnAnio      = semAnios.length === 1;
+  const semLast10       = semanalFiltradas.slice(-10);
+  const chartSemanal = semLast10.map(s => ({
     _key:      s.semana,
     semana:    soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
     prodDrone: +s.prodDrone.toFixed(1),
@@ -696,56 +698,64 @@ export default function InformePage() {
                 </tr>
               </thead>
               <tbody>
-                {[...semanalFiltradas].reverse().map((s, idx) => {
-                  const kpiD   = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
-                  const kpiP   = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
-                  const detPct = (s.hrsProd + s.detencion) > 0 ? s.detencion / (s.hrsProd + s.detencion) * 100 : 0;
-                  const isSel  = s.semana === selectedSem?.semana;
-                  return (
-                    <tr
-                      key={s.semana}
-                      onClick={() => setSelectedSemKey(s.semana)}
-                      className="cursor-pointer transition-colors hover:bg-green-50/40"
-                      style={isSel
-                        ? { backgroundColor: C_SELECTED, boxShadow: `inset 3px 0 0 ${C_DRONE}` }
-                        : { backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}
-                    >
-                      <td className="table-td-left font-medium text-gray-700">
-                        {s.semana}
-                        {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
-                      </td>
-                      <td className={`table-td font-semibold ${prodColor(kpiD)}`}>
-                        {fmt(kpiD)} <span className="text-gray-400 font-normal text-xs">t/h</span>
-                      </td>
-                      <td className="table-td font-semibold text-gray-700">{fmt(s.prodDrone)}</td>
-                      <td className="table-td text-gray-600">{fmt(s.hrsProd, 1)}</td>
-                      <td className={`table-td ${s.detencion > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(s.detencion, 1)}</td>
-                      <td className="table-td text-gray-500">{detPct.toFixed(1)}%</td>
-                      <td className="table-td font-semibold text-gray-600">
-                        {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
-                      </td>
-                      <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
-                      <td className="table-td text-gray-600">{s.viajes}</td>
-                      <td className="table-td text-gray-600">{fmt(s.despachos)}</td>
-                      <td className="table-td text-gray-500">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-gray-50 border-t border-gray-100 font-semibold text-gray-700">
-                  <td className="table-td-left">Total</td>
-                  <td className="table-td text-gray-400">–</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.prodDrone, 0))}</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.hrsProd,   0), 1)}</td>
-                  <td className="table-td text-red-400">{fmt(semanalFiltradas.reduce((a, s) => a + s.detencion, 0), 1)}</td>
-                  <td className="table-td text-gray-400">–</td>
-                  <td className="table-td text-gray-400">–</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.prodPeso,  0))}</td>
-                  <td className="table-td">{semanalFiltradas.reduce((a, s) => a + s.viajes, 0)}</td>
-                  <td className="table-td">{fmt(semanalFiltradas.reduce((a, s) => a + s.despachos, 0))}</td>
-                  <td className="table-td text-gray-400">–</td>
-                </tr>
+                {(() => {
+                  const reversed = [...semanalFiltradas].reverse();
+                  return reversed.slice(0, semLimit).map((s, idx) => {
+                    const kpiD   = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
+                    const kpiP   = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
+                    const detPct = (s.hrsProd + s.detencion) > 0 ? s.detencion / (s.hrsProd + s.detencion) * 100 : 0;
+                    const isSel  = s.semana === selectedSem?.semana;
+                    return (
+                      <tr
+                        key={s.semana}
+                        onClick={() => setSelectedSemKey(s.semana)}
+                        className="cursor-pointer transition-colors hover:bg-green-50/40"
+                        style={isSel
+                          ? { backgroundColor: C_SELECTED, boxShadow: `inset 3px 0 0 ${C_DRONE}` }
+                          : { backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}
+                      >
+                        <td className="table-td-left font-medium text-gray-700">
+                          {s.semana}
+                          {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
+                        </td>
+                        <td className={`table-td font-semibold ${prodColor(kpiD)}`}>
+                          {fmt(kpiD)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                        </td>
+                        <td className="table-td font-semibold text-gray-700">{fmt(s.prodDrone)}</td>
+                        <td className="table-td text-gray-600">{fmt(s.hrsProd, 1)}</td>
+                        <td className={`table-td ${s.detencion > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(s.detencion, 1)}</td>
+                        <td className="table-td text-gray-500">{detPct.toFixed(1)}%</td>
+                        <td className="table-td font-semibold text-gray-600">
+                          {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                        </td>
+                        <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
+                        <td className="table-td text-gray-600">{s.viajes}</td>
+                        <td className="table-td text-gray-600">{fmt(s.despachos)}</td>
+                        <td className="table-td text-gray-500">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
+            {/* Footer paginación semanal */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 bg-gray-50/60">
+              <span className="text-xs text-gray-400">
+                Mostrando {Math.min(semLimit, semanalFiltradas.length)} de {semanalFiltradas.length} semanas
+              </span>
+              <div className="flex gap-2">
+                {semLimit > 10 && (
+                  <button className="btn-secondary text-xs py-1 px-3" onClick={() => setSemLimit(l => Math.max(10, l - 10))}>
+                    Ver 10 menos
+                  </button>
+                )}
+                {semLimit < semanalFiltradas.length && (
+                  <button className="btn-secondary text-xs py-1 px-3" onClick={() => setSemLimit(l => l + 10)}>
+                    Ver 10 más
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </section>
