@@ -216,7 +216,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     const legendY = tableY - hdrH - (historial.length + 1) * rowH;
     drawRect(page, M, legendY, 6, 6, GREEN);
     txt(page, "Registro actual", M + 10, legendY + 0.5, fontR, 6.5, GRAY);
-    txt(page, `Control de productividad: ≥ 32 t/h`, M + 90, legendY + 0.5, fontR, 6.5, GRAY);
+    txt(page, `Control de productividad: >= 32 t/h`, M + 90, legendY + 0.5, fontR, 6.5, GRAY);
   } else {
     txt(page, "Sin historial disponible", M, tableTop - 20, fontR, 8, GRAY);
   }
