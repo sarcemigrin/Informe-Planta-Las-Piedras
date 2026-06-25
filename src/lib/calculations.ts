@@ -8,7 +8,7 @@
 export const DENSIDAD_ARENA   = 1.4;   // ton/m3
 export const DENSIDAD_CUARZO  = 1.65;  // ton/m3
 export const FACTOR_PESOMETRO = 0.85;  // Corrección pesómetro (col F = E × 0.85)
-export const FACTOR_CONOS     = 0.9;   // Compactación conos (AF = AD×0.9 + AE)
+export const FACTOR_CONOS     = 1.4;   // Densidad arena (usada también para conos)
 
 // ---- Tipos de entrada ----
 export interface ArenaInput {
@@ -51,8 +51,8 @@ export interface ArenaCalculated {
   cantidad_despachos:      number;   // N
   // Inventario
   conos:                   number;   // AD = cono1+cono2+cono3
-  acopio:                  number;   // AE = sum(pilas)
-  inventario_m3:           number;   // AF = conos×0.9 + acopio
+  acopio:                  number;   // AE = sum(pilas 1-4)
+  inventario_m3:           number;   // AF = (conos + acopio + rinones)
   inventario_ton:          number;   // AG = AF × 1.4
   diferencia_inventario:   number;   // AH = AG - AG_ant + fierrillo×1.4
   // Producción
@@ -64,6 +64,21 @@ export interface ArenaCalculated {
   // Cancha
   cancha_vieja_ton:        number;   // AR = conos × 1.4
   cancha_nueva_ton:        number;   // AS = acopio × 1.4
+  cancha_vieja_m3:         number;   // cono_1+cono_2+cono_3
+  cancha_nueva_m3:         number;   // pila_1+pila_2+pila_3+pila_4
+  rinones_m3:              number;   // pila_5+pila_6+pila_7
+  rinones_ton:             number;   // rinones × 1.4
+  // Acopios individuales en ton
+  acopio_1_ton:            number;
+  acopio_2_ton:            number;
+  acopio_3_ton:            number;
+  acopio_4_ton:            number;
+  acopio_5_ton:            number;
+  acopio_6_ton:            number;
+  acopio_7_ton:            number;
+  r1_ton:                  number;
+  r2_ton:                  number;
+  r3_ton:                  number;
 }
 
 export interface CuarzoCalculated {
@@ -104,10 +119,10 @@ export function calcularArena(
 
   // Sin registro anterior: primer droneo histórico
   if (!previous) {
-    const conos  = (current.cono_1 || 0) + (current.cono_2 || 0) + (current.cono_3 || 0);
-    const acopio = sum([current.pila_1, current.pila_2, current.pila_3,
-                        current.pila_4, current.pila_5, current.pila_6, current.pila_7]);
-    const inv_m3  = conos * FACTOR_CONOS + acopio;
+    const conos   = (current.cono_1 || 0) + (current.cono_2 || 0) + (current.cono_3 || 0);
+    const acopio  = sum([current.pila_1, current.pila_2, current.pila_3, current.pila_4]);
+    const rinones = sum([current.pila_5, current.pila_6, current.pila_7]);
+    const inv_m3  = conos + acopio + rinones;
     const inv_ton = inv_m3 * DENSIDAD_ARENA;
     return {
       fecha_hora:              fechaHora.toISOString(),
@@ -128,8 +143,22 @@ export function calcularArena(
       productividad_pesometro: 0,
       productividad_hrs_reales:0,
       diferencia:              0,
-      cancha_vieja_ton:        conos  * DENSIDAD_ARENA,
-      cancha_nueva_ton:        acopio * DENSIDAD_ARENA,
+      cancha_vieja_ton:        conos   * DENSIDAD_ARENA,
+      cancha_nueva_ton:        acopio  * DENSIDAD_ARENA,
+      cancha_vieja_m3:         conos,
+      cancha_nueva_m3:         acopio,
+      rinones_m3:              rinones,
+      rinones_ton:             rinones * DENSIDAD_ARENA,
+      acopio_1_ton:            (current.cono_1 || 0) * DENSIDAD_ARENA,
+      acopio_2_ton:            (current.cono_2 || 0) * DENSIDAD_ARENA,
+      acopio_3_ton:            (current.cono_3 || 0) * DENSIDAD_ARENA,
+      acopio_4_ton:            (current.pila_1 || 0) * DENSIDAD_ARENA,
+      acopio_5_ton:            (current.pila_2 || 0) * DENSIDAD_ARENA,
+      acopio_6_ton:            (current.pila_3 || 0) * DENSIDAD_ARENA,
+      acopio_7_ton:            (current.pila_4 || 0) * DENSIDAD_ARENA,
+      r1_ton:                  (current.pila_5 || 0) * DENSIDAD_ARENA,
+      r2_ton:                  (current.pila_6 || 0) * DENSIDAD_ARENA,
+      r3_ton:                  (current.pila_7 || 0) * DENSIDAD_ARENA,
     };
   }
 
@@ -151,9 +180,9 @@ export function calcularArena(
 
   // ---- Cols AD, AE, AF, AG ----
   const conos   = (current.cono_1 || 0) + (current.cono_2 || 0) + (current.cono_3 || 0);
-  const acopio  = sum([current.pila_1, current.pila_2, current.pila_3,
-                       current.pila_4, current.pila_5, current.pila_6, current.pila_7]);
-  const inv_m3  = conos * FACTOR_CONOS + acopio;
+  const acopio  = sum([current.pila_1, current.pila_2, current.pila_3, current.pila_4]);
+  const rinones = sum([current.pila_5, current.pila_6, current.pila_7]);
+  const inv_m3  = conos + acopio + rinones;
   const inv_ton = inv_m3 * DENSIDAD_ARENA;
 
   // ---- Col AH: Diferencia Inventario ----
@@ -191,8 +220,22 @@ export function calcularArena(
     productividad_pesometro: prodvPeso,
     productividad_hrs_reales:prodvReales,
     diferencia,
-    cancha_vieja_ton:        conos  * DENSIDAD_ARENA,
-    cancha_nueva_ton:        acopio * DENSIDAD_ARENA,
+    cancha_vieja_ton:        conos   * DENSIDAD_ARENA,
+    cancha_nueva_ton:        acopio  * DENSIDAD_ARENA,
+    cancha_vieja_m3:         conos,
+    cancha_nueva_m3:         acopio,
+    rinones_m3:              rinones,
+    rinones_ton:             rinones * DENSIDAD_ARENA,
+    acopio_1_ton:            (current.cono_1 || 0) * DENSIDAD_ARENA,
+    acopio_2_ton:            (current.cono_2 || 0) * DENSIDAD_ARENA,
+    acopio_3_ton:            (current.cono_3 || 0) * DENSIDAD_ARENA,
+    acopio_4_ton:            (current.pila_1 || 0) * DENSIDAD_ARENA,
+    acopio_5_ton:            (current.pila_2 || 0) * DENSIDAD_ARENA,
+    acopio_6_ton:            (current.pila_3 || 0) * DENSIDAD_ARENA,
+    acopio_7_ton:            (current.pila_4 || 0) * DENSIDAD_ARENA,
+    r1_ton:                  (current.pila_5 || 0) * DENSIDAD_ARENA,
+    r2_ton:                  (current.pila_6 || 0) * DENSIDAD_ARENA,
+    r3_ton:                  (current.pila_7 || 0) * DENSIDAD_ARENA,
   };
 }
 

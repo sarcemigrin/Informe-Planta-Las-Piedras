@@ -249,7 +249,7 @@ export default function Dashboard() {
               <span className="text-sm font-bold text-gray-800">{fmt(canchaNuevaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             <div className="grid grid-cols-4 gap-1">
-              {["Acopio 1","Acopio 2","Acopio 3","Acopio 4"].map((lbl,n)=>(
+              {["Acopio 4","Acopio 5","Acopio 6","Acopio 7"].map((lbl,n)=>(
                 <div key={n} className="bg-gray-50 rounded-lg px-1 py-1.5 text-center">
                   <p className="text-xs text-gray-400">{lbl}</p>
                   <p className="text-sm font-semibold text-gray-700">{fmt(pilasTon[n],0)}</p>

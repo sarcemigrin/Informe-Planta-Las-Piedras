@@ -163,10 +163,10 @@ export default function InformePage() {
 
       {/* ── KPIs resumen ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Prod. Drone Total"   value={fmt(rows.reduce((s, r) => s + (r.produccion_drone ?? 0), 0))}       unit="ton"   color="green"  />
-        <KpiCard label="Prod. Pesóm. Total"  value={fmt(rows.reduce((s, r) => s + (r.produccion_pesometro ?? 0), 0))}    unit="ton"   color="orange" />
-        <KpiCard label="Despachos Total"     value={fmt(rows.reduce((s, r) => s + (r.despachos_ton ?? 0), 0))}           unit="ton"   color="blue"   />
-        <KpiCard label="Productividad Prom." value={fmt(rows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (rows.length || 1))} unit="ton/h" color="purple" />
+        <KpiCard label="Productividad Prom." value={fmt(rows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (rows.length || 1))} unit="ton/h" color="green"  />
+        <KpiCard label="Prod. Drone Total"   value={fmt(rows.reduce((s, r) => s + (r.produccion_drone ?? 0), 0))}       unit="ton"   color="blue"   />
+        <KpiCard label="Despachos Total"     value={fmt(rows.reduce((s, r) => s + (r.despachos_ton ?? 0), 0))}           unit="ton"   color="gray"   />
+        <KpiCard label="Prod. Pesóm. Total"  value={fmt(rows.reduce((s, r) => s + (r.produccion_pesometro ?? 0), 0))}    unit="ton"   color="slate"  />
       </div>
 
       {/* ══════════════════════════════════════════
@@ -204,14 +204,14 @@ export default function InformePage() {
             <thead className="border-b border-gray-100 bg-gray-50">
               <tr>
                 <th className="table-th text-left">Fecha y Hora</th>
+                <th className="table-th">Prodvd Drone</th>
+                <th className="table-th">Prod. Drone</th>
                 <th className="table-th">Hrs Prod.</th>
                 <th className="table-th">Detención</th>
+                <th className="table-th">Prodvd Pesóm.</th>
+                <th className="table-th">Prod. Pesóm.</th>
                 <th className="table-th">Viajes</th>
                 <th className="table-th">Despch. (Ton)</th>
-                <th className="table-th">Prod. Pesóm.</th>
-                <th className="table-th">Prodvd Pesóm.</th>
-                <th className="table-th">Prod. Drone</th>
-                <th className="table-th">Prodvd Drone</th>
                 <th className="table-th">Prodvd Reales</th>
                 <th className="table-th">Inventario</th>
                 <th className="table-th">Diferencia</th>
@@ -224,14 +224,14 @@ export default function InformePage() {
                   <td className="table-td-left font-medium">
                     {r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm", { locale: es }) : r.fecha}
                   </td>
+                  <td className="table-td font-semibold text-green-700">{fmt(r.productividad_drone)} t/h</td>
+                  <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
                   <td className="table-td">{fmt(r.diferencia_horometro, 1)}</td>
                   <td className="table-td text-red-500">{fmt(r.detencion, 1)}</td>
+                  <td className="table-td text-slate-600">{fmt(r.productividad_pesometro)} t/h</td>
+                  <td className="table-td text-slate-600">{fmt(r.produccion_pesometro)}</td>
                   <td className="table-td">{r.cantidad_despachos}</td>
                   <td className="table-td">{fmt(r.despachos_ton)}</td>
-                  <td className="table-td text-migrin">{fmt(r.produccion_pesometro)}</td>
-                  <td className="table-td">{fmt(r.productividad_pesometro)} t/h</td>
-                  <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
-                  <td className="table-td font-semibold">{fmt(r.productividad_drone)} t/h</td>
                   <td className="table-td">{fmt(r.productividad_hrs_reales)} t/h</td>
                   <td className="table-td text-blue-700">{fmt(r.inventario_ton)}</td>
                   <td className={`table-td font-semibold ${
@@ -394,13 +394,17 @@ function KpiCard({ label, value, unit, color }: {
   label: string; value: string; unit: string; color: string;
 }) {
   const colors: Record<string, string> = {
-    green: "text-green-600", orange: "text-migrin",
-    blue: "text-blue-600",   purple: "text-purple-600",
+    green:  "text-green-600",
+    blue:   "text-blue-600",
+    gray:   "text-gray-700",
+    slate:  "text-slate-600",
+    purple: "text-purple-600",
+    orange: "text-migrin",
   };
   return (
     <div className="stat-card">
       <span className="stat-label">{label}</span>
-      <span className={`stat-value ${colors[color]}`}>{value}</span>
+      <span className={`stat-value ${colors[color] ?? "text-gray-900"}`}>{value}</span>
       <span className="text-xs text-gray-400">{unit}</span>
     </div>
   );

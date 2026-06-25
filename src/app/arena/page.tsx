@@ -12,7 +12,6 @@ import {
 import type { RegistroArena } from "@/types/database";
 import { format } from "date-fns";
 
-const PILAS = [1, 2, 3, 4, 5, 6, 7] as const;
 const CONOS = [1, 2, 3] as const;
 
 const today = () => format(new Date(), "yyyy-MM-dd");
@@ -290,14 +289,14 @@ export default function ArenaPage() {
             </div>
           </div>
 
-          {/* Conos (drone) */}
+          {/* Cancha Vieja (drone) */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">🗄 Conos – Volumen drone (m³)</h2>
-            <p className="text-xs text-gray-400 mb-3">Factor de compactación: ×0.9 al calcular inventario</p>
+            <h2 className="font-semibold text-gray-700 mb-1">⛰ Cancha Vieja – Volumen drone (m³)</h2>
+            <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
             <div className="grid grid-cols-3 gap-3">
               {CONOS.map((n) => (
                 <div key={n}>
-                  <label className="label">Cono {n}</label>
+                  <label className="label">Acopio {n}</label>
                   <input type="number" className="input" placeholder="0" step="0.01"
                     value={form[`cono_${n}`]} onChange={set(`cono_${n}`)} />
                 </div>
@@ -305,13 +304,29 @@ export default function ArenaPage() {
             </div>
           </div>
 
-          {/* Pilas (drone) */}
+          {/* Cancha Nueva (drone) */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-3">📦 Pilas / Acopio – Volumen drone (m³)</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {PILAS.map((n) => (
+            <h2 className="font-semibold text-gray-700 mb-1">🏔 Cancha Nueva – Volumen drone (m³)</h2>
+            <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {([1, 2, 3, 4] as const).map((n) => (
                 <div key={n}>
-                  <label className="label">Pila {n}</label>
+                  <label className="label">Acopio {n + 3}</label>
+                  <input type="number" className="input" placeholder="0" step="0.01"
+                    value={form[`pila_${n}`]} onChange={set(`pila_${n}`)} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Riñones (drone) */}
+          <div className="card">
+            <h2 className="font-semibold text-gray-700 mb-1">💎 Riñones – Volumen drone (m³)</h2>
+            <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([5, 6, 7] as const).map((n, i) => (
+                <div key={n}>
+                  <label className="label">R{i + 1}</label>
                   <input type="number" className="input" placeholder="0" step="0.01"
                     value={form[`pila_${n}`]} onChange={set(`pila_${n}`)} />
                 </div>
@@ -385,8 +400,9 @@ export default function ArenaPage() {
                 <PreviewRow label="Horas reales"       value={fmt(preview.horas_reales, 1)} unit="h" />
                 <PreviewRow label="Detención"          value={fmt(preview.detencion, 1)} unit="h" />
                 <hr className="border-gray-100" />
-                <PreviewRow label="Conos"              value={fmt(preview.conos)} unit="m³" />
-                <PreviewRow label="Acopio (pilas)"     value={fmt(preview.acopio)} unit="m³" />
+                <PreviewRow label="Cancha Vieja"       value={fmt(preview.cancha_vieja_m3)} unit="m³" />
+                <PreviewRow label="Cancha Nueva"       value={fmt(preview.cancha_nueva_m3)} unit="m³" />
+                <PreviewRow label="Riñones"            value={fmt(preview.rinones_m3)} unit="m³" />
                 <PreviewRow label="Inventario M³"      value={fmt(preview.inventario_m3)} unit="m³" />
                 <PreviewRow label="Inventario Ton"     value={fmt(preview.inventario_ton)} unit="ton" highlight />
                 <PreviewRow label="Diff Inventario"    value={fmt(preview.diferencia_inventario)} unit="ton" />
@@ -398,7 +414,8 @@ export default function ArenaPage() {
                 <hr className="border-gray-100" />
                 <PreviewRow label="Cancha Vieja"       value={fmt(preview.cancha_vieja_ton)} unit="ton" />
                 <PreviewRow label="Cancha Nueva"       value={fmt(preview.cancha_nueva_ton)} unit="ton" />
-                <p className="text-xs text-gray-400 pt-2">* Despachos se calculan al guardar</p>
+                <PreviewRow label="Riñones"            value={fmt(preview.rinones_ton)} unit="ton" />
+                <p className="text-xs text-gray-400 pt-2">* Densidad ×1.4 · Despachos se calculan al guardar</p>
               </div>
             ) : (
               <p className="text-sm text-gray-400">Ingresa Pesómetro y Horómetro para ver preview</p>
