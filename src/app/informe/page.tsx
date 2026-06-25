@@ -14,13 +14,15 @@ import {
   ComposedChart, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
+  Cell,
 } from "recharts";
 import { EditArenaModal } from "@/components/EditArenaModal";
 
 // ─── Paleta corporativa ───────────────────────────────────────────────────────
-const C_DRONE = "#6BCF7F";   // migrin verde
-const C_PESO  = "#374151";   // antracita
-const C_INV   = "#94a3b8";   // slate claro (inventario, eje secundario)
+const C_DRONE   = "#6BCF7F";
+const C_PESO    = "#374151";
+const C_INV     = "#94a3b8";
+const C_SELECTED = "#6BCF7F22";  // fondo fila seleccionada
 
 // ─── Umbrales ─────────────────────────────────────────────────────────────────
 const PROD_TARGET = 32;
@@ -35,30 +37,21 @@ interface HistorialCambio {
   valor_anterior: string; valor_nuevo: string;
   usuario_email: string; created_at: string; registro_id: string;
 }
-
 interface SemanaStat {
-  semana:    string;
-  prodDrone: number;
-  prodPeso:  number;
-  despachos: number;
-  viajes:    number;
-  dias:      number;
-  hrsProd:   number;
-  detencion: number;
+  semana: string;
+  prodDrone: number; prodPeso: number;
+  despachos: number; viajes: number;
+  dias: number; hrsProd: number; detencion: number;
 }
 
-// ─── Helpers de color ─────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function prodColor(v?: number | null) {
   if (!v) return "text-gray-700";
-  if (v >= PROD_TARGET)        return "text-green-600";
-  if (v >= PROD_TARGET * 0.9)  return "text-yellow-500";
-  return "text-red-500";
+  return v >= PROD_TARGET ? "text-green-600" : v >= PROD_TARGET * 0.9 ? "text-yellow-500" : "text-red-500";
 }
 function invColor(v?: number | null) {
   if (!v) return "text-gray-700";
-  if (v >= INV_TARGET) return "text-green-600";
-  if (v >= INV_WARN)   return "text-yellow-500";
-  return "text-red-500";
+  return v >= INV_TARGET ? "text-green-600" : v >= INV_WARN ? "text-yellow-500" : "text-red-500";
 }
 function difBadge(dif?: number | null) {
   if (dif == null) return { bg: "bg-gray-100", text: "text-gray-500", label: "–" };
@@ -68,10 +61,7 @@ function difBadge(dif?: number | null) {
   return { bg: "bg-gray-100", text: "text-gray-600", label: pct };
 }
 
-// ─── Cabecera de sección ──────────────────────────────────────────────────────
-function SectionHeader({
-  title, sub, action,
-}: { title: string; sub?: string; action?: React.ReactNode }) {
+function SectionHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-3">
@@ -84,40 +74,46 @@ function SectionHeader({
   );
 }
 
-// ─── Tooltip personalizado para gráficos ──────────────────────────────────────
-function ChartTooltip({ active, payload, label }: {
-  active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string;
-}) {
-  if (!active || !payload?.length) return null;
+function StatMini({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-2 text-xs">
-      <p className="font-semibold text-gray-700 mb-1">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: <span className="font-semibold">{fmt(p.value)}</span>
-        </p>
-      ))}
+    <div>
+      <p className="text-xs text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className={`text-sm font-semibold ${color ?? "text-gray-800"}`}>{value}</p>
     </div>
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// Panel de datos sobre el gráfico (registro seleccionado)
+function InfoPanel({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="card mb-3 py-3 border-l-4" style={{ borderLeftColor: C_DRONE }}>
+      <div className="flex flex-wrap items-end gap-x-7 gap-y-2">
+        {children}
+      </div>
+      {hint && <p className="text-xs text-gray-400 mt-2">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── Página ───────────────────────────────────────────────────────────────────
 export default function InformePage() {
   const { data: session } = useSession();
   const isAdmin           = session?.user?.rol === "admin";
 
-  const [rows, setRows]         = useState<RegistroArena[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [editRow, setEditRow]   = useState<RegistroArena | null>(null);
-  const [historial, setHistorial] = useState<HistorialCambio[]>([]);
+  const [rows, setRows]               = useState<RegistroArena[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [editRow, setEditRow]         = useState<RegistroArena | null>(null);
+  const [historial, setHistorial]     = useState<HistorialCambio[]>([]);
   const [showHistorial, setShowHistorial] = useState(false);
 
-  // Cubicación: paginación (empieza en 15, crece de 10 en 10)
-  const [cubLimit, setCubLimit] = useState(CUB_INIT);
+  // Cubicación
+  const [cubLimit, setCubLimit]       = useState(CUB_INIT);
+  const [selectedCubId, setSelectedCubId] = useState<string | null>(null);
 
-  // Semanal: filtros
+  // Semanal
   const [semAnios,    setSemAnios]    = useState<number[]>([]);
   const [semSemestre, setSemSemestre] = useState<"todo" | "S1" | "S2">("todo");
+  const [selectedSemKey, setSelectedSemKey] = useState<string | null>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -126,9 +122,12 @@ export default function InformePage() {
       .from("registros_arena")
       .select("*")
       .order("fecha_hora", { ascending: true });
-    setRows(data ?? []);
+    const loaded = data ?? [];
+    setRows(loaded);
     setLoading(false);
     if (semAnios.length === 0) setSemAnios([new Date().getFullYear()]);
+    // Selección inicial = último registro
+    if (loaded.length > 0) setSelectedCubId(loaded[loaded.length - 1].id);
   }
 
   async function loadHistorial() {
@@ -144,64 +143,72 @@ export default function InformePage() {
   // ── Último registro ───────────────────────────────────────────────────────
   const ultimoRow = rows.length > 0 ? rows[rows.length - 1] : null;
 
-  // ── Gráfico + tabla cubicación: últimos cubLimit registros ────────────────
-  const cubRows     = rows.slice(-cubLimit);
-  const avgProdKpi  = cubRows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (cubRows.length || 1);
+  // ── Cubicación: datos dinámicos según cubLimit ────────────────────────────
+  const cubRows    = rows.slice(-cubLimit);
+  const avgProdKpi = cubRows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (cubRows.length || 1);
 
   const chartCubicacion = cubRows.map((r) => ({
+    _id:        r.id,
     fecha:      format(parseISO(r.fecha), "dd/MM"),
-    kpiDrone:   r.productividad_drone,
-    kpiPeso:    r.productividad_pesometro,
-    inventario: r.inventario_ton,
+    kpiDrone:   r.productividad_drone   ?? null,
+    kpiPeso:    r.productividad_pesometro ?? null,
+    inventario: r.inventario_ton         ?? null,
   }));
 
-  // ── Resumen semanal ───────────────────────────────────────────────────────
+  // Registro cubicación seleccionado (por defecto el último)
+  const selectedCubRow = (selectedCubId ? rows.find(r => r.id === selectedCubId) : null) ?? ultimoRow;
+
+  // ── Semanal ───────────────────────────────────────────────────────────────
   const semanas: Record<string, SemanaStat> = {};
   for (let i = 1; i < rows.length; i++) {
     const r    = rows[i];
     const prev = rows[i - 1];
     const anio = parseISO(r.fecha).getFullYear();
     const sem  = `${anio}-S${String(getISOWeek(parseISO(r.fecha))).padStart(2, "0")}`;
-    const diasPeriodo = Math.max(1,
-      Math.round((new Date(r.fecha).getTime() - new Date(prev.fecha).getTime()) / 86400000)
-    );
-    if (!semanas[sem]) semanas[sem] = {
-      semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0,
-      viajes: 0, dias: 0, hrsProd: 0, detencion: 0,
-    };
-    semanas[sem].prodDrone += r.produccion_drone    ?? 0;
-    semanas[sem].prodPeso  += r.produccion_pesometro ?? 0;
-    semanas[sem].despachos += r.despachos_ton        ?? 0;
-    semanas[sem].viajes    += r.cantidad_despachos   ?? 0;
-    semanas[sem].dias      += diasPeriodo;
-    semanas[sem].hrsProd   += r.diferencia_horometro ?? 0;
-    semanas[sem].detencion += r.detencion            ?? 0;
+    const dias = Math.max(1, Math.round((new Date(r.fecha).getTime() - new Date(prev.fecha).getTime()) / 86400000));
+    if (!semanas[sem]) semanas[sem] = { semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0, viajes: 0, dias: 0, hrsProd: 0, detencion: 0 };
+    semanas[sem].prodDrone  += r.produccion_drone      ?? 0;
+    semanas[sem].prodPeso   += r.produccion_pesometro  ?? 0;
+    semanas[sem].despachos  += r.despachos_ton         ?? 0;
+    semanas[sem].viajes     += r.cantidad_despachos    ?? 0;
+    semanas[sem].dias       += dias;
+    semanas[sem].hrsProd    += r.diferencia_horometro  ?? 0;
+    semanas[sem].detencion  += r.detencion             ?? 0;
   }
-  const semanalRows = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
-  const anioActual  = new Date().getFullYear();
-  const aniosDisponibles = [...new Set(semanalRows.map((s) => parseInt(s.semana.split("-")[0])))].sort();
+  const semanalRows      = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
+  const anioActual       = new Date().getFullYear();
+  const aniosDisponibles = [...new Set(semanalRows.map(s => parseInt(s.semana.split("-")[0])))].sort();
 
-  const S1_WEEKS = Array.from({ length: 26 }, (_, i) => String(i +  1).padStart(2, "0"));
-  const S2_WEEKS = Array.from({ length: 26 }, (_, i) => String(i + 27).padStart(2, "0"));
+  const S1 = Array.from({ length: 26 }, (_, i) => String(i +  1).padStart(2, "0"));
+  const S2 = Array.from({ length: 26 }, (_, i) => String(i + 27).padStart(2, "0"));
 
-  const semanalFiltradas = semanalRows.filter((s) => {
-    const [anioStr, semStr] = s.semana.split("-S");
-    if (!semAnios.includes(parseInt(anioStr))) return false;
-    if (semSemestre === "S1" && !S1_WEEKS.includes(semStr)) return false;
-    if (semSemestre === "S2" && !S2_WEEKS.includes(semStr)) return false;
+  const semanalFiltradas = semanalRows.filter(s => {
+    const [aStr, wStr] = s.semana.split("-S");
+    if (!semAnios.includes(parseInt(aStr))) return false;
+    if (semSemestre === "S1" && !S1.includes(wStr)) return false;
+    if (semSemestre === "S2" && !S2.includes(wStr)) return false;
     return true;
   });
 
   const soloUnAnio   = semAnios.length === 1;
-  const chartSemanal = semanalFiltradas.map((s) => ({
-    semana:       soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
-    kpiDrone:     s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
-    kpiPeso:      s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
+  const chartSemanal = semanalFiltradas.map(s => ({
+    _key:     s.semana,
+    semana:   soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
+    kpiDrone: s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
+    kpiPeso:  s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
   }));
 
-  // ── Exportar Excel ────────────────────────────────────────────────────────
+  // Semana seleccionada (por defecto la última del filtro)
+  const lastSemFiltrada   = semanalFiltradas[semanalFiltradas.length - 1] ?? null;
+  const selectedSem       = (selectedSemKey ? semanalFiltradas.find(s => s.semana === selectedSemKey) : null) ?? lastSemFiltrada;
+  const selectedSemKpiD   = selectedSem && selectedSem.hrsProd > 0 ? selectedSem.prodDrone / selectedSem.hrsProd : 0;
+  const selectedSemKpiP   = selectedSem && selectedSem.hrsProd > 0 ? selectedSem.prodPeso  / selectedSem.hrsProd : 0;
+  const selectedSemDetPct = selectedSem && (selectedSem.hrsProd + selectedSem.detencion) > 0
+    ? selectedSem.detencion / (selectedSem.hrsProd + selectedSem.detencion) * 100 : 0;
+
+  // ── Excel ─────────────────────────────────────────────────────────────────
   function exportExcel() {
-    const dataCub = rows.map((r) => ({
+    const dataCub = rows.map(r => ({
       "Fecha y hora":              r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm") : "",
       "Horas Productivas":         r.diferencia_horometro ?? "",
       "Detención (hrs)":           r.detencion ?? "",
@@ -211,22 +218,19 @@ export default function InformePage() {
       "Productividad (Pesómetro)": r.productividad_pesometro ?? "",
       "Producción (Drone)":        r.produccion_drone ?? "",
       "Productividad (Drone)":     r.productividad_drone ?? "",
-      "Productividad Hrs Reales":  r.productividad_hrs_reales ?? "",
       "Inventario (Ton)":          r.inventario_ton ?? "",
       "Diferencia":                r.diferencia ? (r.diferencia * 100).toFixed(1) + "%" : "",
-      "Notas":                     r.notas ?? "",
     }));
-    const dataSem = semanalRows.map((s) => ({
+    const dataSem = semanalRows.map(s => ({
       "Semana":                s.semana,
-      "Horas Productivas":     s.hrsProd.toFixed(1),
+      "Hrs Productivas":       s.hrsProd.toFixed(1),
       "Detención (hrs)":       s.detencion.toFixed(1),
       "Despachos (Ton)":       s.despachos.toFixed(2),
       "Despachos (Viajes)":    s.viajes,
-      "Producción (Pesóm.)":   s.prodPeso.toFixed(2),
-      "Productividad (Pesóm.)":s.hrsProd > 0 ? (s.prodPeso / s.hrsProd).toFixed(2) : "",
-      "Producción (Drone)":    s.prodDrone.toFixed(2),
-      "Productividad (Drone)": s.hrsProd > 0 ? (s.prodDrone / s.hrsProd).toFixed(2) : "",
-      "Días":                  s.dias,
+      "Producción Pesóm.":     s.prodPeso.toFixed(2),
+      "Productividad Pesóm.":  s.hrsProd > 0 ? (s.prodPeso / s.hrsProd).toFixed(2) : "",
+      "Producción Drone":      s.prodDrone.toFixed(2),
+      "Productividad Drone":   s.hrsProd > 0 ? (s.prodDrone / s.hrsProd).toFixed(2) : "",
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dataCub), "Por Cubicación");
@@ -234,76 +238,74 @@ export default function InformePage() {
     XLSX.writeFile(wb, `Informe_Arena_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   }
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
-  );
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>;
 
   return (
     <>
     <div className="space-y-8">
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Informe Producción Arena</h1>
           <p className="text-sm text-gray-500">
             {rows.length > 0
-              ? <>Del {format(parseISO(rows[0].fecha), "dd/MM/yyyy")} al {format(parseISO(rows[rows.length - 1].fecha), "dd/MM/yyyy")}
-                {" · "}{rows.length} cubicaciones</>
+              ? <>Del {format(parseISO(rows[0].fecha), "dd/MM/yyyy")} al {format(parseISO(rows[rows.length-1].fecha), "dd/MM/yyyy")} · {rows.length} cubicaciones</>
               : "Sin datos"}
           </p>
         </div>
         <button className="btn-secondary" onClick={exportExcel}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           Exportar Excel
         </button>
       </div>
 
-      {/* ── Panel último droneo ──────────────────────────────────────────── */}
-      {ultimoRow && (
-        <div className="card py-3" style={{ borderLeft: `4px solid ${C_DRONE}` }}>
-          <p className="label mb-2">Último droneo</p>
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-            <div>
-              <p className="text-xs text-gray-400">Fecha</p>
-              <p className="text-sm font-semibold text-gray-900">
-                {format(parseISO(ultimoRow.fecha), "dd 'de' MMMM yyyy", { locale: es })}
-                {ultimoRow.hora && <span className="text-gray-400 font-normal ml-1">· {ultimoRow.hora.slice(0, 5)}</span>}
-              </p>
-            </div>
-            <StatMini label="Producción Drone"   value={`${fmt(ultimoRow.produccion_drone)} ton`}   color={prodColor(ultimoRow.productividad_drone)} />
-            <StatMini label="Productividad Drone" value={`${fmt(ultimoRow.productividad_drone)} t/h`} color={prodColor(ultimoRow.productividad_drone)} />
-            <StatMini label="Producción Pesóm."  value={`${fmt(ultimoRow.produccion_pesometro)} ton`} />
-            <StatMini label="Productividad Pesóm." value={`${fmt(ultimoRow.productividad_pesometro)} t/h`} />
-            <StatMini label="Despachos"          value={`${fmt(ultimoRow.despachos_ton)} ton · ${ultimoRow.cantidad_despachos ?? 0} vj`} />
-            <StatMini label="Inventario"         value={`${fmt(ultimoRow.inventario_ton)} ton`} color={invColor(ultimoRow.inventario_ton)} />
-            <div>
-              <p className="text-xs text-gray-400">Diferencia</p>
-              {(() => { const b = difBadge(ultimoRow.diferencia); return (
-                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${b.bg} ${b.text}`}>{b.label}</span>
-              ); })()}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════
           SECCIÓN 1 — POR CUBICACIÓN
       ══════════════════════════════════════════════════════════════════ */}
       <section>
-        <SectionHeader
-          title="Por Cubicación"
-          sub={`últimos ${cubRows.length} registros`}
-        />
+        <SectionHeader title="Por Cubicación" sub={`últimos ${cubRows.length} registros`} />
+
+        {/* Panel del registro seleccionado */}
+        {selectedCubRow && (
+          <InfoPanel hint="Pincha un punto del gráfico o una fila de la tabla para ver su detalle">
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Último droneo</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {format(parseISO(selectedCubRow.fecha), "dd 'de' MMMM yyyy", { locale: es })}
+                {selectedCubRow.hora && <span className="text-gray-400 font-normal ml-1">· {selectedCubRow.hora.slice(0,5)}</span>}
+              </p>
+            </div>
+            <StatMini label="Producción Drone"    value={`${fmt(selectedCubRow.produccion_drone)} ton`}         color={prodColor(selectedCubRow.productividad_drone)} />
+            <StatMini label="Productividad Drone" value={`${fmt(selectedCubRow.productividad_drone)} t/h`}      color={prodColor(selectedCubRow.productividad_drone)} />
+            <StatMini label="Producción Pesóm."   value={`${fmt(selectedCubRow.produccion_pesometro)} ton`} />
+            <StatMini label="Productividad Pesóm." value={`${fmt(selectedCubRow.productividad_pesometro)} t/h`} />
+            <StatMini label="Despachos"           value={`${fmt(selectedCubRow.despachos_ton)} ton · ${selectedCubRow.cantidad_despachos ?? 0} vj`} />
+            <StatMini label="Inventario"          value={`${fmt(selectedCubRow.inventario_ton)} ton`}           color={invColor(selectedCubRow.inventario_ton)} />
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Diferencia</p>
+              {(() => { const b = difBadge(selectedCubRow.diferencia); return (
+                <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${b.bg} ${b.text}`}>{b.label}</span>
+              );})()}
+            </div>
+          </InfoPanel>
+        )}
 
         {/* Gráfico — productividad Drone + Pesóm. (izq.), inventario (der.) */}
         {chartCubicacion.length > 0 && (
-          <div className="card mb-4">
-            <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={chartCubicacion} margin={{ top: 5, right: 50, left: 10, bottom: 5 }}>
+          <div className="card mb-4 cursor-pointer">
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart
+                data={chartCubicacion}
+                margin={{ top: 5, right: 50, left: 10, bottom: 5 }}
+                onClick={(data) => {
+                  if (!data?.activePayload?.[0]) return;
+                  const id = (data.activePayload[0].payload as { _id: string })._id;
+                  setSelectedCubId(id);
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
                 <YAxis
@@ -317,15 +319,21 @@ export default function InformePage() {
                   tick={{ fontSize: 10 }}
                   label={{ value: "ton", angle: 90, position: "insideRight", offset: 12, style: { fontSize: 9, fill: C_INV } }}
                 />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip
+                  formatter={(value, name) => {
+                    const isInv = name === "Inventario";
+                    return [`${fmt(value as number)} ${isInv ? "ton" : "t/h"}`, name];
+                  }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                />
                 <Legend />
                 <ReferenceLine
                   yAxisId="kpi" y={avgProdKpi} stroke={C_DRONE} strokeDasharray="5 5"
-                  label={{ value: `Prom. ${fmt(avgProdKpi)}`, fill: C_DRONE, fontSize: 9 }}
+                  label={{ value: `Prom. ${fmt(avgProdKpi)} t/h`, fill: C_DRONE, fontSize: 9 }}
                 />
-                <Line yAxisId="kpi" type="monotone" dataKey="kpiDrone"   name="Productividad Drone"    stroke={C_DRONE} strokeWidth={2.5} dot={{ r: 3, fill: C_DRONE }} connectNulls />
-                <Line yAxisId="kpi" type="monotone" dataKey="kpiPeso"    name="Productividad Pesóm."   stroke={C_PESO}  strokeWidth={2.5} dot={{ r: 3, fill: C_PESO  }} connectNulls />
-                <Line yAxisId="inv" type="monotone" dataKey="inventario" name="Inventario"             stroke={C_INV}   strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+                <Line yAxisId="kpi" type="monotone" dataKey="kpiDrone"   name="Productividad Drone"  stroke={C_DRONE} strokeWidth={2.5} dot={{ r: 3, fill: C_DRONE, strokeWidth: 0 }} connectNulls activeDot={{ r: 6, fill: C_DRONE }} />
+                <Line yAxisId="kpi" type="monotone" dataKey="kpiPeso"    name="Productividad Pesóm." stroke={C_PESO}  strokeWidth={2.5} dot={{ r: 3, fill: C_PESO,  strokeWidth: 0 }} connectNulls activeDot={{ r: 6, fill: C_PESO  }} />
+                <Line yAxisId="inv" type="monotone" dataKey="inventario" name="Inventario"            stroke={C_INV}  strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -359,27 +367,29 @@ export default function InformePage() {
                 </thead>
                 <tbody>
                   {visible.map((r, idx) => {
-                    const badge = difBadge(r.diferencia);
+                    const badge     = difBadge(r.diferencia);
+                    const isSelected = r.id === selectedCubRow?.id;
                     return (
                       <tr
                         key={r.id}
-                        className={`transition-colors hover:bg-green-50/30 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
+                        onClick={() => setSelectedCubId(r.id)}
+                        className={`cursor-pointer transition-colors hover:bg-green-50/40 ${
+                          isSelected
+                            ? "ring-1 ring-inset ring-green-300"
+                            : idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"
+                        }`}
+                        style={isSelected ? { backgroundColor: C_SELECTED } : {}}
                       >
                         <td className="table-td-left font-medium text-gray-700">
-                          {r.fecha_hora
-                            ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm", { locale: es })
-                            : r.fecha}
+                          {r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm", { locale: es }) : r.fecha}
+                          {isSelected && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
                         </td>
                         <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>
                           {fmt(r.productividad_drone)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                         </td>
-                        <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>
-                          {fmt(r.produccion_drone)}
-                        </td>
+                        <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>{fmt(r.produccion_drone)}</td>
                         <td className="table-td text-gray-600">{fmt(r.diferencia_horometro, 1)}</td>
-                        <td className={`table-td ${(r.detencion ?? 0) > 0 ? "text-red-400" : "text-gray-400"}`}>
-                          {fmt(r.detencion, 1)}
-                        </td>
+                        <td className={`table-td ${(r.detencion ?? 0) > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(r.detencion, 1)}</td>
                         <td className="table-td text-gray-600">
                           {fmt(r.productividad_pesometro)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                         </td>
@@ -389,20 +399,16 @@ export default function InformePage() {
                         <td className="table-td text-gray-500">
                           {fmt(r.productividad_hrs_reales)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                         </td>
-                        <td className={`table-td font-semibold ${invColor(r.inventario_ton)}`}>
-                          {fmt(r.inventario_ton)}
-                        </td>
+                        <td className={`table-td font-semibold ${invColor(r.inventario_ton)}`}>{fmt(r.inventario_ton)}</td>
                         <td className="table-td">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>
-                            {badge.label}
-                          </span>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>{badge.label}</span>
                         </td>
                         {isAdmin && (
                           <td className="table-td">
                             <button
-                              onClick={() => setEditRow(r)}
+                              onClick={(e) => { e.stopPropagation(); setEditRow(r); }}
                               className="text-gray-300 hover:text-migrin transition-colors text-base leading-none"
-                              title="Editar registro"
+                              title="Editar"
                             >✏️</button>
                           </td>
                         )}
@@ -412,25 +418,16 @@ export default function InformePage() {
                 </tbody>
               </table>
 
-              {/* Pie: contador + botones expandir/contraer */}
               <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/60">
-                <span className="text-xs text-gray-400">
-                  Mostrando {visible.length} de {reversed.length} registros
-                </span>
+                <span className="text-xs text-gray-400">Mostrando {visible.length} de {reversed.length} registros</span>
                 <div className="flex gap-2">
                   {hayMenos && (
-                    <button
-                      className="btn-secondary text-xs py-1 px-3"
-                      onClick={() => setCubLimit(l => Math.max(CUB_INIT, l - CUB_STEP))}
-                    >
+                    <button className="btn-secondary text-xs py-1 px-3" onClick={() => setCubLimit(l => Math.max(CUB_INIT, l - CUB_STEP))}>
                       Ver 10 menos
                     </button>
                   )}
                   {hayMas && (
-                    <button
-                      className="btn-secondary text-xs py-1 px-3"
-                      onClick={() => setCubLimit(l => l + CUB_STEP)}
-                    >
+                    <button className="btn-secondary text-xs py-1 px-3" onClick={() => setCubLimit(l => l + CUB_STEP)}>
                       Ver 10 más
                     </button>
                   )}
@@ -449,39 +446,31 @@ export default function InformePage() {
           title="Por Semana"
           action={
             <div className="flex flex-wrap items-center gap-2">
-              {/* Semestre */}
               <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
                 {(["todo", "S1", "S2"] as const).map((op) => (
                   <button
                     key={op}
                     onClick={() => setSemSemestre(op)}
-                    className={`px-3 py-1 transition-colors ${
-                      semSemestre === op
-                        ? "text-white"
-                        : "bg-white text-gray-600 hover:bg-gray-50"
-                    }`}
-                    style={semSemestre === op ? { backgroundColor: C_DRONE, color: "#fff" } : {}}
+                    className="px-3 py-1 transition-colors"
+                    style={semSemestre === op
+                      ? { backgroundColor: C_DRONE, color: "#fff" }
+                      : { backgroundColor: "#fff", color: "#374151" }}
                   >
                     {op === "todo" ? "Año completo" : op}
                   </button>
                 ))}
               </div>
-              {/* Años */}
               <div className="flex flex-wrap gap-1">
                 {aniosDisponibles.map((anio) => {
                   const activo = semAnios.includes(anio);
                   return (
                     <button
                       key={anio}
-                      onClick={() =>
-                        setSemAnios((prev) =>
-                          activo ? prev.filter((a) => a !== anio) : [...prev, anio]
-                        )
-                      }
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                        activo ? "border-transparent" : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
-                      }`}
-                      style={activo ? { backgroundColor: C_DRONE + "22", borderColor: C_DRONE + "66", color: C_DRONE } : {}}
+                      onClick={() => setSemAnios(prev => activo ? prev.filter(a => a !== anio) : [...prev, anio])}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors"
+                      style={activo
+                        ? { backgroundColor: C_DRONE + "22", borderColor: C_DRONE + "88", color: C_DRONE }
+                        : { backgroundColor: "#fff", borderColor: "#e5e7eb", color: "#9ca3af" }}
                     >
                       {anio}
                     </button>
@@ -492,30 +481,70 @@ export default function InformePage() {
           }
         />
 
-        {/* Gráfico semanal — productividad como barras */}
+        {/* Panel semana seleccionada */}
+        {selectedSem && (
+          <InfoPanel hint="Pincha una barra del gráfico o una fila de la tabla para ver esa semana">
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Semana</p>
+              <p className="text-sm font-semibold text-gray-900">{selectedSem.semana}</p>
+            </div>
+            <StatMini label="Hrs Productivas"      value={`${fmt(selectedSem.hrsProd, 1)} hrs`} />
+            <StatMini label="Detención"            value={`${fmt(selectedSem.detencion, 1)} hrs · ${selectedSemDetPct.toFixed(1)}%`} color="text-red-400" />
+            <StatMini label="Despachos"            value={`${fmt(selectedSem.despachos)} ton · ${selectedSem.viajes} vj`} />
+            <StatMini label="Producción Drone"     value={`${fmt(selectedSem.prodDrone)} ton`} />
+            <StatMini label="Productividad Drone"  value={`${fmt(selectedSemKpiD)} t/h`}  color={prodColor(selectedSemKpiD)} />
+            <StatMini label="Producción Pesóm."    value={`${fmt(selectedSem.prodPeso)} ton`} />
+            <StatMini label="Productividad Pesóm." value={`${fmt(selectedSemKpiP)} t/h`} />
+          </InfoPanel>
+        )}
+
+        {/* Gráfico semanal */}
         {chartSemanal.length > 0 && (
-          <div className="card mb-4">
-            <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={chartSemanal} margin={{ top: 5, right: 20, left: 10, bottom: 45 }}>
+          <div className="card mb-4 cursor-pointer">
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart
+                data={chartSemanal}
+                margin={{ top: 5, right: 20, left: 10, bottom: 45 }}
+                onClick={(data) => {
+                  if (!data?.activePayload?.[0]) return;
+                  const key = (data.activePayload[0].payload as { _key: string })._key;
+                  setSelectedSemKey(key);
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="semana" tick={{ fontSize: 9 }} interval={0} angle={-45} textAnchor="end" height={55} />
                 <YAxis
                   tick={{ fontSize: 10 }}
                   label={{ value: "t/h", angle: -90, position: "insideLeft", offset: -2, style: { fontSize: 9, fill: "#9ca3af" } }}
                 />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip
+                  formatter={(value, name) => [`${fmt(value as number)} t/h`, name]}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                />
                 <Legend />
-                <Bar dataKey="kpiDrone" name="Productividad Drone"    fill={C_DRONE} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="kpiPeso"  name="Productividad Pesóm."  fill={C_PESO}  radius={[3, 3, 0, 0]} />
+                <Bar dataKey="kpiDrone" name="Productividad Drone" radius={[3, 3, 0, 0]}>
+                  {chartSemanal.map((entry) => (
+                    <Cell
+                      key={entry._key}
+                      fill={entry._key === selectedSem?.semana ? C_DRONE : C_DRONE + "99"}
+                    />
+                  ))}
+                </Bar>
+                <Bar dataKey="kpiPeso" name="Productividad Pesóm." radius={[3, 3, 0, 0]}>
+                  {chartSemanal.map((entry) => (
+                    <Cell
+                      key={entry._key}
+                      fill={entry._key === selectedSem?.semana ? C_PESO : C_PESO + "88"}
+                    />
+                  ))}
+                </Bar>
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         )}
 
         {semanalFiltradas.length === 0 && (
-          <div className="card text-center py-10 text-sm text-gray-400">
-            Sin datos para la selección actual
-          </div>
+          <div className="card text-center py-10 text-sm text-gray-400">Sin datos para la selección actual</div>
         )}
 
         {/* Tabla semanal */}
@@ -539,16 +568,23 @@ export default function InformePage() {
               </thead>
               <tbody>
                 {[...semanalFiltradas].reverse().map((s, idx) => {
-                  const kpiDrone = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
-                  const kpiPeso  = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
-                  const detPct   = (s.hrsProd + s.detencion) > 0
-                    ? (s.detencion / (s.hrsProd + s.detencion) * 100) : 0;
+                  const kpiD   = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
+                  const kpiP   = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
+                  const detPct = (s.hrsProd + s.detencion) > 0 ? s.detencion / (s.hrsProd + s.detencion) * 100 : 0;
+                  const isSel  = s.semana === selectedSem?.semana;
                   return (
                     <tr
                       key={s.semana}
-                      className={`transition-colors hover:bg-green-50/30 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}
+                      onClick={() => setSelectedSemKey(s.semana)}
+                      className="cursor-pointer transition-colors hover:bg-green-50/40"
+                      style={isSel
+                        ? { backgroundColor: C_SELECTED, boxShadow: `inset 3px 0 0 ${C_DRONE}` }
+                        : { backgroundColor: idx % 2 === 0 ? "#fff" : "#f9fafb" }}
                     >
-                      <td className="table-td-left font-medium text-gray-700">{s.semana}</td>
+                      <td className="table-td-left font-medium text-gray-700">
+                        {s.semana}
+                        {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
+                      </td>
                       <td className="table-td text-gray-600">{fmt(s.hrsProd, 1)}</td>
                       <td className="table-td text-red-400">{fmt(s.detencion, 1)}</td>
                       <td className="table-td text-gray-500">{detPct.toFixed(1)}%</td>
@@ -556,11 +592,11 @@ export default function InformePage() {
                       <td className="table-td text-gray-600">{s.viajes}</td>
                       <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
                       <td className="table-td font-semibold" style={{ color: C_PESO }}>
-                        {fmt(kpiPeso)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                        {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                       </td>
                       <td className="table-td text-gray-600">{fmt(s.prodDrone)}</td>
-                      <td className={`table-td font-semibold ${prodColor(kpiDrone)}`}>
-                        {fmt(kpiDrone)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                      <td className={`table-td font-semibold ${prodColor(kpiD)}`}>
+                        {fmt(kpiD)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                       </td>
                       <td className="table-td text-gray-500">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
                     </tr>
@@ -586,17 +622,14 @@ export default function InformePage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════
-          SECCIÓN 3 — HISTORIAL DE CAMBIOS (solo admin)
+          SECCIÓN 3 — HISTORIAL (solo admin)
       ══════════════════════════════════════════════════════════════════ */}
       {isAdmin && (
         <section>
           <SectionHeader
             title="Historial de cambios"
             action={
-              <button
-                className="btn-secondary text-xs"
-                onClick={() => { if (!showHistorial) loadHistorial(); setShowHistorial(h => !h); }}
-              >
+              <button className="btn-secondary text-xs" onClick={() => { if (!showHistorial) loadHistorial(); setShowHistorial(h => !h); }}>
                 {showHistorial ? "Ocultar" : "Ver historial"}
               </button>
             }
@@ -645,15 +678,5 @@ export default function InformePage() {
       />
     )}
     </>
-  );
-}
-
-// ─── Sub-componentes ──────────────────────────────────────────────────────────
-function StatMini({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className={`text-sm font-semibold ${color ?? "text-gray-800"}`}>{value}</p>
-    </div>
   );
 }
