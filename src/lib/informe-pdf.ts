@@ -381,6 +381,9 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   const p2 = pdfDoc.addPage([W, 842]);
   pageHeader(p2, fR, fB, W, M, "Por Semana", data.fecha, data.hora, data.usuario_email);
 
+  // Variables para KPI cards página 2
+  const gap = 7; const cw = (usable - 3 * gap) / 4; const ch = 60;
+
   const sem = data.semanalStats ?? [];
   const lastSem = sem[sem.length - 1];
 
