@@ -78,6 +78,8 @@ export default function ArenaPage() {
     id: number; fecha: string; hora: string; patente: string | null;
     articulo: string | null; toneladas: number | null; ton_final: number | null;
   }[]>([]);
+  const [lastSyncTime, setLastSyncTime]   = useState<string | null>(null);
+  const [newDespachos,  setNewDespachos]  = useState<number | null>(null);
   const [previewDespachos, setPreviewDespachos] = useState<{
     ton: number; viajes: number;
     a36ton: number; a36viajes: number;
@@ -97,20 +99,25 @@ export default function ArenaPage() {
     loadHistorial();
     loadUltimosDespachos();
     // Sync automático silencioso al cargar la página
+    const prev = ultimosDespachos.length;
     fetch("/api/despachos/sync-sharepoint", { method: "POST" })
       .then(r => r.json())
-      .then(() => loadUltimosDespachos())
+      .then(() => loadUltimosDespachos(prev))
       .catch(() => {}); // fallo silencioso
   }, []);
 
-  async function loadUltimosDespachos() {
+  async function loadUltimosDespachos(prevCount?: number) {
     const { data } = await supabase
       .from("despachos")
       .select("id, fecha, hora, patente, articulo, toneladas, ton_final")
       .in("articulo", ["A36LGC", "A37LGC", "A38LGC", "A39LGC"])
       .order("fecha_hora", { ascending: false })
       .limit(100);
-    if (data) setUltimosDespachos(data as typeof ultimosDespachos);
+    if (data) {
+      setUltimosDespachos(data as typeof ultimosDespachos);
+      setLastSyncTime(new Date().toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }));
+      if (prevCount !== undefined) setNewDespachos(data.length - prevCount);
+    }
   }
 
   async function loadHistorial() {
@@ -512,7 +519,20 @@ export default function ArenaPage() {
         <div className="space-y-4">
           {/* Últimos despachos */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-2 text-sm">📋 Últimos despachos</h2>
+            <div className="flex items-start justify-between mb-2">
+              <h2 className="font-semibold text-gray-700 text-sm">📋 Últimos despachos</h2>
+              {lastSyncTime && (
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400">Actualizado: <span className="font-medium text-gray-600">{lastSyncTime}</span></p>
+                  {newDespachos !== null && newDespachos > 0 && (
+                    <p className="text-[10px] text-green-600 font-semibold">+{newDespachos} nuevos</p>
+                  )}
+                  {newDespachos !== null && newDespachos === 0 && (
+                    <p className="text-[10px] text-gray-400">Sin cambios</p>
+                  )}
+                </div>
+              )}
+            </div>
             {ultimosDespachos.length === 0 ? (
               <p className="text-xs text-gray-400">Sin despachos cargados</p>
             ) : (
