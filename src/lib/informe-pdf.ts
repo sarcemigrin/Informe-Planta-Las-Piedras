@@ -187,35 +187,66 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   pageHeader(p1, fR, fB, W, M, "Por Cubicacion",
     data.fecha, data.hora, data.usuario_email);
 
-  // Sección title
-  txt(p1, "REGISTRO ACTUAL", M, 760, fB, 8.5, DARK);
-  line(p1, M, 757, M + 100, 757, GREEN, 1.5);
-
-  // KPI cards 4+4
-  const gap = 7; const cw = (usable - 3 * gap) / 4; const ch = 60;
+  // ── Tarjeta del dato — registro actual ────────────────────────────────────
   const detPct = (data.horas_reales + data.detencion) > 0
     ? data.detencion / (data.horas_reales + data.detencion) * 100 : 0;
 
-  const row1 = [
-    { l: "Productividad Drone",  v: fmtN(data.productividad_drone),     u: "t/h",
-      a: data.productividad_drone  >= 32 ? GREEN : RED },
-    { l: "Produccion Drone",     v: fmtN(data.produccion_drone, 0),     u: "ton",  a: DARK },
-    { l: "Inventario",           v: fmtN(data.inventario_ton, 0),       u: "ton",
-      a: data.inventario_ton >= 7500 ? GREEN : data.inventario_ton >= 6500 ? AMBER : RED },
-    { l: "Despachos",            v: fmtN(data.despachos_ton, 0),        u: "ton",  a: DARK },
-  ];
-  const row2 = [
-    { l: "Productividad Pesom.", v: fmtN(data.productividad_pesometro), u: "t/h",
-      a: data.productividad_pesometro >= 32 ? GREEN : RED },
-    { l: "Produccion Pesom.",    v: fmtN(data.diferencia_pesometro, 0), u: "ton",  a: BLUE },
-    { l: "Horas Produccion",     v: fmtN(data.horas_reales),            u: "hrs",  a: DARK },
-    { l: "Detencion",            v: `${fmtN(data.detencion)} hrs / ${fmtN(detPct, 0)}%`, u: "",
-      a: data.detencion > 0 ? RED : GREEN },
+  const crdY = 622; const crdH = 142; const crdW = usable;
+  const hStripH = 28;
+  const bodyH = crdH - hStripH; // 114px
+  const rowH4 = Math.floor(bodyH / 2); // 57px per data row
+  const col4 = Math.floor((crdW - 4) / 4); // 4 columns (exclude left accent)
+  const x0 = M + 4;
+
+  // Outer card
+  rect(p1, M, crdY, crdW, crdH, LIGHT, rgb(0.80, 0.86, 0.92));
+  // Green left accent
+  rect(p1, M, crdY, 4, crdH, GREEN);
+  // Header strip (top of card)
+  rect(p1, M, crdY + crdH - hStripH, crdW, hStripH, DARK);
+  txt(p1, "CUBICACION REGISTRADA", x0 + 6, crdY + crdH - 8, fB, 10, WHITE);
+  const dlFmt = `${data.fecha.split("-").reverse().join("/")}   ${data.hora}`;
+  const dlFmtW = fB.widthOfTextAtSize(dlFmt, 10);
+  txt(p1, dlFmt, M + crdW - dlFmtW - 8, crdY + crdH - 8, fB, 10, GREEN);
+  if (data.usuario_email) {
+    txt(p1, `Registrado por: ${data.usuario_email}`, x0 + 6, crdY + crdH - 19, fR, 7, rgb(0.58, 0.66, 0.76));
+  }
+
+  // Horizontal separator between body rows
+  const rowSepY = crdY + rowH4;
+  line(p1, x0, rowSepY, x0 + crdW - 4, rowSepY, rgb(0.82, 0.88, 0.93));
+  // Vertical column separators
+  [1, 2, 3].forEach(ci => line(p1, x0 + ci * col4, crdY + 3, x0 + ci * col4, crdY + bodyH - 4, rgb(0.82, 0.88, 0.93)));
+
+  // Data rows: [label_y, value_y] relative to body top (crdY+bodyH)
+  const bodyTop = crdY + bodyH;
+  const dataRows4: Array<{ l: string; v: string; c: ReturnType<typeof rgb> }[]> = [
+    [
+      { l: "KPI DRONE",        v: `${fmtN(data.productividad_drone)} t/h`,      c: data.productividad_drone  >= 32 ? GREEN : RED },
+      { l: "PRODUCCION DRONE", v: `${fmtN(data.produccion_drone, 0)} ton`,       c: DARK },
+      { l: "KPI PESOMETRO",    v: `${fmtN(data.productividad_pesometro)} t/h`,   c: data.productividad_pesometro >= 32 ? GREEN : RED },
+      { l: "PROD. PESOMETRO",  v: `${fmtN(Math.max(0, data.productividad_pesometro * data.horas_reales), 0)} ton`, c: BLUE },
+    ],
+    [
+      { l: "HRS PRODUCCION",   v: `${fmtN(data.horas_reales)} hrs`,              c: DARK },
+      { l: "DETENCION",        v: `${fmtN(data.detencion)} hrs  (${fmtN(detPct, 0)}%)`, c: data.detencion > 0 ? RED : GREEN },
+      { l: "INVENTARIO",       v: `${fmtN(data.inventario_ton, 0)} ton`,          c: data.inventario_ton >= 7500 ? GREEN : data.inventario_ton >= 6500 ? AMBER : RED },
+      { l: "DESPACHOS",        v: `${fmtN(data.despachos_ton, 0)} ton  /  ${data.cantidad_despachos ?? 0} viajes`, c: DARK },
+    ],
   ];
 
-  [row1, row2].forEach((row, ri) => {
-    const cy = ri === 0 ? 684 : 684 - ch - gap;
-    row.forEach((k, ci) => kpiCard(p1, fR, fB, M + ci * (cw + gap), cy, cw, ch, k.l, k.v, k.u, k.a));
+  dataRows4.forEach((row, ri) => {
+    // Row 0: upper body (bodyTop to bodyTop-rowH4)
+    // Row 1: lower body (rowSepY to crdY)
+    const rowTop = bodyTop - ri * rowH4;
+    row.forEach((cell, ci) => {
+      const cx = x0 + ci * col4 + 8;
+      txt(p1, cell.l, cx, rowTop - 10, fR, 5.5, GRAY);
+      // Auto-shrink font if value is long
+      const vLen = cell.v.length;
+      const vSize = vLen > 16 ? 10.5 : vLen > 12 ? 12 : 14;
+      txt(p1, cell.v, cx, rowTop - 10 - vSize - 4, fB, vSize, cell.c);
+    });
   });
 
   // Sparkline productividad — año completo
@@ -388,9 +419,10 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     txt(p2, `PRODUCCION SEMANAL (ton) - AÑO ${semYear}`, M, chartY2 + chartH2 + 10, fB, 7.5, DARK);
     rect(p2, M, chartY2, usable, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
 
-    // Usar solo valores positivos para la escala
-    const validProd = sem.map(s => s.prodDrone).filter(v => v > 0);
-    const maxP = validProd.length > 0 ? Math.max(...validProd) : 1;
+    // Usar solo valores positivos; cap al percentil 95 para ignorar outliers extremos
+    const allProd = sem.flatMap(s => [s.prodDrone, s.prodPeso]).filter(v => v > 0).sort((a, b) => a - b);
+    const p95idx  = Math.max(0, Math.floor(allProd.length * 0.95) - 1);
+    const maxP    = allProd.length > 0 ? Math.min(allProd[allProd.length - 1], allProd[p95idx] * 1.2) : 1;
 
     // Y-axis gridlines con labels
     for (let gi = 1; gi <= 4; gi++) {

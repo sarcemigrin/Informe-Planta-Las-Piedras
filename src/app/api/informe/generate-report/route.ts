@@ -234,8 +234,9 @@ export async function POST(req: Request) {
           const weekNum = Math.floor(dayOfYear / 7) + 1;
           const key = `${year}-S${String(weekNum).padStart(2, "0")}`;
           const cur = semMap.get(key) ?? { prodDrone: 0, prodPeso: 0, hrsProd: 0, detencion: 0, despachos: 0, viajes: 0 };
-          cur.prodDrone  += r.produccion_drone     ?? 0;
-          cur.prodPeso   += r.diferencia_pesometro ?? 0;
+          cur.prodDrone  += r.produccion_drone ?? 0;
+          // prodPeso = productividad (t/h) × horas reales — evita valores extremos de diferencia_pesometro
+          cur.prodPeso   += (r.productividad_pesometro ?? 0) * (r.horas_reales ?? 0);
           cur.hrsProd    += r.horas_reales      ?? 0;
           cur.detencion  += r.detencion         ?? 0;
           cur.despachos  += r.despachos_ton     ?? 0;
