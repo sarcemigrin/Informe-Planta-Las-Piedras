@@ -92,10 +92,15 @@ export default function ArenaPage() {
     try { localStorage.setItem(FORM_KEY, JSON.stringify(form)); } catch {}
   }, [form]);
 
-  // ---- Cargar historial ----
+  // ---- Cargar historial + auto-sync despachos al entrar ----
   useEffect(() => {
     loadHistorial();
     loadUltimosDespachos();
+    // Sync automático silencioso al cargar la página
+    fetch("/api/despachos/sync-sharepoint", { method: "POST" })
+      .then(r => r.json())
+      .then(() => loadUltimosDespachos())
+      .catch(() => {}); // fallo silencioso
   }, []);
 
   async function loadUltimosDespachos() {
