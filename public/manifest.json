@@ -1,7 +1,7 @@
 {
-  "name": "Arena Control – Planta Las Piedras",
-  "short_name": "Arena Control",
-  "description": "Control de producción y volúmenes Migrin",
+  "name": "Control P&P LP",
+  "short_name": "Control P&P LP",
+  "description": "Control de Producción y Productividad – Planta Las Piedras",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#111827",

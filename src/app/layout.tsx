@@ -7,8 +7,8 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Arena Control – Planta Las Piedras",
-  description: "Control de producción y volúmenes",
+  title: "Control P&P LP",
+  description: "Control de Producción y Productividad – Planta Las Piedras",
   manifest: "/manifest.json",
   icons: {
     icon: [
