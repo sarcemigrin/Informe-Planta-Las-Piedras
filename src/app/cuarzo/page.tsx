@@ -17,17 +17,36 @@ import { format } from "date-fns";
 const today   = () => format(new Date(), "yyyy-MM-dd");
 const nowTime = () => format(new Date(), "HH:mm");
 
+const ARENA_DRAFT_KEY = "arena-form-draft";
+
+function loadDefaults(): Record<string, string> {
+  const base = { fecha: today(), hora: nowTime(), pesometro: "", horometro: "", volumen: "", notas: "" };
+  try {
+    const saved = typeof window !== "undefined" ? localStorage.getItem(ARENA_DRAFT_KEY) : null;
+    if (!saved) return base;
+    const arena = JSON.parse(saved);
+    return {
+      ...base,
+      fecha: arena.fecha || base.fecha,
+      hora:  arena.hora  || base.hora,
+    };
+  } catch { return base; }
+}
+
+function formToInput(f: Record<string, string>): CuarzoInput {
+  return {
+    fecha:     f.fecha,
+    hora:      f.hora,
+    pesometro: parseFloat(f.pesometro) || 0,
+    horometro: parseFloat(f.horometro) || 0,
+    cono_1:    parseFloat(f.volumen)   || 0,
+    cono_2:    0,
+    cono_3:    0,
+  };
+}
+
 export default function CuarzoPage() {
-  const [form, setForm] = useState<Record<string, string>>({
-    fecha:    today(),
-    hora:     nowTime(),
-    pesometro:"",
-    horometro:"",
-    cono_1:   "",
-    cono_2:   "0",
-    cono_3:   "0",
-    notas:    "",
-  });
+  const [form, setForm] = useState<Record<string, string>>(loadDefaults);
 
   const { data: session }         = useSession();
   const [historial, setHistorial] = useState<RegistroCuarzo[]>([]);
@@ -38,6 +57,19 @@ export default function CuarzoPage() {
   const [editRow, setEditRow]     = useState<RegistroCuarzo | null>(null);
 
   useEffect(() => { loadHistorial(); }, []);
+
+  // Sync fecha/hora when Arena draft changes in another tab
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== ARENA_DRAFT_KEY || !e.newValue) return;
+      try {
+        const arena = JSON.parse(e.newValue);
+        setForm((f) => ({ ...f, fecha: arena.fecha || f.fecha, hora: arena.hora || f.hora }));
+      } catch {}
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   async function loadHistorial() {
     const { data } = await supabase
@@ -125,8 +157,8 @@ export default function CuarzoPage() {
       });
 
       if (error) throw error;
-      setMsg({ type:"ok", text:"✅ Registro guardado." });
-      setForm((f) => ({ ...f, fecha:today(), hora:nowTime(), pesometro:"", horometro:"", cono_1:"", cono_2:"0", cono_3:"0", notas:"" }));
+      setMsg({ type:"ok", text:"Registro guardado." });
+      setForm((f) => ({ ...f, pesometro:"", horometro:"", volumen:"", notas:"" }));
       await loadHistorial();
     } catch (e: unknown) {
       setMsg({ type:"err", text:`Error: ${(e as Error).message}` });
@@ -144,7 +176,7 @@ export default function CuarzoPage() {
     <AdminGuard>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">🪨 Ingreso Datos Cuarzo</h1>
+        <h1 className="text-2xl font-bold">Ingreso Datos Cuarzo</h1>
         <p className="text-sm text-gray-500">
           Registro anterior: {prevRow
             ? `${prevRow.fecha} ${prevRow.hora?.slice(0,5)} — Horómetro: ${prevRow.horometro?.toLocaleString("es-CL")}`
@@ -161,7 +193,8 @@ export default function CuarzoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-3">📅 Fecha y hora</h2>
+            <h2 className="font-semibold text-gray-700 mb-3">Fecha y hora</h2>
+            <p className="text-xs text-blue-500 mb-3">La fecha y hora se toman del último droneo registrado en Arena.</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="label">Fecha</label>
                 <input type="date" className="input" value={form.fecha} onChange={set("fecha")} /></div>
@@ -171,24 +204,32 @@ export default function CuarzoPage() {
           </div>
 
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-3">🔧 Instrumentos</h2>
+            <h2 className="font-semibold text-gray-700 mb-3">Instrumentos</h2>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">Pesómetro</label>
-                <input type="number" className="input" placeholder="810205" value={form.pesometro} onChange={set("pesometro")} /></div>
-              <div><label className="label">Horómetro</label>
-                <input type="number" className="input" placeholder="12838" value={form.horometro} onChange={set("horometro")} step="0.1" /></div>
+              <div>
+                <label className="label">Pesómetro</label>
+                <input type="number" className="input" placeholder="810205" value={form.pesometro} onChange={set("pesometro")} />
+                {prevRow && (
+                  <p className="text-xs text-gray-400 mt-1">Anterior: {prevRow.pesometro?.toLocaleString("es-CL")}</p>
+                )}
+              </div>
+              <div>
+                <label className="label">Horómetro</label>
+                <input type="number" className="input" placeholder="12838" value={form.horometro} onChange={set("horometro")} step="0.1" />
+                {prevRow && (
+                  <p className="text-xs text-gray-400 mt-1">Anterior: {prevRow.horometro?.toLocaleString("es-CL")}</p>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">🗄 Volumen drone (m³)</h2>
+            <h2 className="font-semibold text-gray-700 mb-1">Volumen drone (m³)</h2>
             <p className="text-xs text-gray-400 mb-3">Densidad Cuarzo: 1.65 ton/m³</p>
-            <div className="grid grid-cols-3 gap-3">
-              {[1,2,3].map((n) => (
-                <div key={n}><label className="label">Cono {n}</label>
-                  <input type="number" className="input" placeholder="0" step="0.01"
-                    value={form[`cono_${n}`]} onChange={set(`cono_${n}`)} /></div>
-              ))}
+            <div>
+              <label className="label">Volumen total</label>
+              <input type="number" className="input" placeholder="0" step="0.01"
+                value={form.volumen} onChange={set("volumen")} />
             </div>
           </div>
 
@@ -198,13 +239,13 @@ export default function CuarzoPage() {
           </div>
 
           <button className="btn-primary w-full py-3 text-base" onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando..." : "💾 Guardar Registro"}
+            {saving ? "Guardando..." : "Guardar Registro"}
           </button>
         </div>
 
         <div>
           <div className="card sticky top-20">
-            <h2 className="font-semibold text-gray-700 mb-3">📊 Preview</h2>
+            <h2 className="font-semibold text-gray-700 mb-3">Preview</h2>
             {preview ? (
               <div className="space-y-2 text-sm">
                 <PreviewRow label="Prod. Pesómetro" value={fmt(preview.produccion_pesometro)} unit="ton" highlight />
@@ -212,7 +253,7 @@ export default function CuarzoPage() {
                 <PreviewRow label="Horas reales"    value={fmt(preview.horas_reales, 1)} unit="h" />
                 <PreviewRow label="Detención"       value={fmt(preview.detencion, 1)} unit="h" />
                 <hr className="border-gray-100" />
-                <PreviewRow label="Conos m³"        value={fmt(preview.conos)} unit="m³" />
+                <PreviewRow label="Volumen m³"      value={fmt(preview.conos)} unit="m³" />
                 <PreviewRow label="Inventario Ton"  value={fmt(preview.inventario_ton)} unit="ton" highlight />
                 <PreviewRow label="Diff Inventario" value={fmt(preview.diferencia_inventario)} unit="ton" />
                 <hr className="border-gray-100" />
@@ -252,7 +293,7 @@ export default function CuarzoPage() {
                     onClick={() => setEditRow(r)}
                     className="text-gray-400 hover:text-migrin transition-colors"
                     title="Editar registro"
-                  >✏️</button>
+                  >Editar</button>
                 </td>
               </tr>
             ))}

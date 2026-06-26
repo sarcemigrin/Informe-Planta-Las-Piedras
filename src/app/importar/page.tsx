@@ -33,12 +33,12 @@ export default function ImportarPage() {
 
   async function handleImport() {
     const file = fileRef.current?.files?.[0];
-    if (!file) { addLog("❌ Selecciona un archivo Excel"); return; }
+    if (!file) { addLog(" Selecciona un archivo Excel"); return; }
 
     setLoading(true);
     setLog([]);
     setProgreso(null);
-    addLog(`📂 Leyendo ${file.name}...`);
+    addLog(` Leyendo ${file.name}...`);
 
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -46,35 +46,35 @@ export default function ImportarPage() {
         const wb = XLSX.read(ev.target?.result, { type: "binary", cellDates: true });
 
         // ---- IMPORTAR DATOS ARENA ----
-        addLog("⛏ Importando hoja 'Datos Arena'...");
+        addLog(" Importando hoja 'Datos Arena'...");
         const wsArena = wb.Sheets["Datos Arena"];
         if (!wsArena) {
-          addLog("⚠ No se encontró la hoja 'Datos Arena'");
+          addLog(" No se encontró la hoja 'Datos Arena'");
         } else {
           await importArena(wsArena);
         }
 
         // ---- IMPORTAR DATOS CUARZO ----
-        addLog("🪨 Importando hoja 'Datos Cuarzo'...");
+        addLog(" Importando hoja 'Datos Cuarzo'...");
         const wsCuarzo = wb.Sheets["Datos Cuarzo"];
         if (!wsCuarzo) {
-          addLog("⚠ No se encontró la hoja 'Datos Cuarzo'");
+          addLog(" No se encontró la hoja 'Datos Cuarzo'");
         } else {
           await importCuarzo(wsCuarzo);
         }
 
         // ---- IMPORTAR QUERY1 / DESPACHOS ----
-        addLog("🚛 Importando hoja 'Query1' (despachos)...");
+        addLog(" Importando hoja 'Query1' (despachos)...");
         const wsQuery = wb.Sheets["Query1"];
         if (!wsQuery) {
-          addLog("⚠ No se encontró la hoja 'Query1'");
+          addLog(" No se encontró la hoja 'Query1'");
         } else {
           await importDespachos(wsQuery);
         }
 
-        addLog("✅ Importación completa");
+        addLog(" Importación completa");
       } catch (e: unknown) {
-        addLog(`❌ Error: ${(e as Error).message}`);
+        addLog(` Error: ${(e as Error).message}`);
       } finally {
         setLoading(false);
       }
@@ -142,7 +142,7 @@ export default function ImportarPage() {
       if (lote.length >= 100) {
         const { error } = await supabase.from("registros_arena")
           .upsert(lote as never[], { onConflict: "fecha_hora" });
-        if (error) { err += lote.length; addLog(`  ⚠ Lote con error: ${error.message}`); }
+        if (error) { err += lote.length; addLog(`   Lote con error: ${error.message}`); }
         else        { ok  += lote.length; }
         lote.length = 0;
         setProgreso({ etapa:"Arena", ok, err, total: rows.length });
@@ -157,7 +157,7 @@ export default function ImportarPage() {
       else        { ok  += lote.length; }
     }
 
-    addLog(`  ✅ Arena: ${ok} importados, ${err} errores`);
+    addLog(`   Arena: ${ok} importados, ${err} errores`);
     setProgreso({ etapa:"Arena", ok, err, total: rows.length });
   }
 
@@ -206,7 +206,7 @@ export default function ImportarPage() {
       if (lote.length >= 100) {
         const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
         const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
-        if (error) { err += lote.length; addLog(`  ⚠ Cuarzo error: ${error.message}`); }
+        if (error) { err += lote.length; addLog(`   Cuarzo error: ${error.message}`); }
         else ok += dedup.length;
         lote.length = 0;
         setProgreso({ etapa:"Cuarzo", ok, err, total: rows.length });
@@ -216,10 +216,10 @@ export default function ImportarPage() {
     if (lote.length > 0) {
       const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
       const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
-      if (error) { err += lote.length; addLog(`  ⚠ Último lote cuarzo: ${error.message}`); }
+      if (error) { err += lote.length; addLog(`   Último lote cuarzo: ${error.message}`); }
       else ok += dedup.length;
     }
-    addLog(`  ✅ Cuarzo: ${ok} importados, ${err} errores`);
+    addLog(`   Cuarzo: ${ok} importados, ${err} errores`);
   }
 
   async function importDespachos(ws: XLSX.WorkSheet) {
@@ -274,7 +274,7 @@ export default function ImportarPage() {
         const { error } = await supabase.from("despachos").insert(lote);
         if (error) {
           err += lote.length;
-          if (err <= 500) addLog(`  ⚠ Error (lote): ${error.message}`);
+          if (err <= 500) addLog(`   Error (lote): ${error.message}`);
         } else ok += lote.length;
         lote.length = 0;
         setProgreso({ etapa:"Despachos", ok, err, total: data.length });
@@ -283,31 +283,31 @@ export default function ImportarPage() {
 
     if (lote.length > 0) {
       const { error } = await supabase.from("despachos").insert(lote);
-      if (error) { err += lote.length; addLog(`  ⚠ Error (último lote): ${error.message}`); }
+      if (error) { err += lote.length; addLog(`   Error (último lote): ${error.message}`); }
       else       ok  += lote.length;
     }
 
     // --- Diagnóstico: si todo falla, intenta insertar solo 1 fila ---
     if (ok === 0 && err > 0 && data.length > 0) {
-      addLog("  🔍 Diagnóstico: intentando insertar 1 fila...");
+      addLog("   Diagnóstico: intentando insertar 1 fila...");
       const firstRow = data[0] as unknown[];
       const rowObj: Record<string,unknown> = {};
       headers.forEach((h, i) => { rowObj[h] = firstRow[i]; });
-      addLog(`  📋 Headers del Excel: ${headers.slice(0,10).join(" | ")}`);
+      addLog(`   Headers del Excel: ${headers.slice(0,10).join(" | ")}`);
       const fecha0 = parseDate(rowObj["Fecha"]);
       const hora0  = parseTime(rowObj["Hora"]);
-      addLog(`  📋 Fecha: ${fecha0}, Hora: ${hora0}`);
+      addLog(`   Fecha: ${fecha0}, Hora: ${hora0}`);
       const { error: e1 } = await supabase.from("despachos").insert([{
         fecha: fecha0,
         hora: (hora0 ?? "00:00") + ":00",
         fecha_hora: `${fecha0}T${hora0 ?? "00:00"}:00+00:00`,
         tipo: String(rowObj["Tipo"] ?? ""),
       }]);
-      if (e1) addLog(`  ❌ Error 1 fila: ${e1.message} | code: ${e1.code} | details: ${e1.details}`);
-      else addLog("  ✅ 1 fila insertada OK");
+      if (e1) addLog(`   Error 1 fila: ${e1.message} | code: ${e1.code} | details: ${e1.details}`);
+      else addLog("   1 fila insertada OK");
     }
 
-    addLog(`  ✅ Despachos: ${ok} importados, ${err} errores`);
+    addLog(`   Despachos: ${ok} importados, ${err} errores`);
     setProgreso({ etapa:"Despachos", ok, err, total: data.length });
   }
 
@@ -315,7 +315,7 @@ export default function ImportarPage() {
     <AdminGuard>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">⬆ Importar Excel histórico</h1>
+        <h1 className="text-2xl font-bold"> Importar Excel histórico</h1>
         <p className="text-sm text-gray-500">
           Sube tu archivo "Informe Producción Planta Arena" para cargar todo el historial en Supabase.
           Esto solo se necesita hacer una vez para migrar la data existente.
@@ -323,12 +323,12 @@ export default function ImportarPage() {
       </div>
 
       <div className="card space-y-4">
-        <h2 className="font-semibold text-gray-700">📂 Seleccionar archivo Excel</h2>
+        <h2 className="font-semibold text-gray-700"> Seleccionar archivo Excel</h2>
         <ul className="text-xs text-gray-500 space-y-1">
-          <li>✅ Se importarán las hojas: <strong>Datos Arena</strong>, <strong>Datos Cuarzo</strong> y <strong>Query1</strong></li>
-          <li>✅ Si ya hay datos en Supabase, se actualizarán (upsert por fecha_hora / doc_entry)</li>
-          <li>✅ El archivo no se modifica, solo se lee</li>
-          <li>⚠ La importación puede tardar varios minutos con archivos grandes</li>
+          <li> Se importarán las hojas: <strong>Datos Arena</strong>, <strong>Datos Cuarzo</strong> y <strong>Query1</strong></li>
+          <li> Si ya hay datos en Supabase, se actualizarán (upsert por fecha_hora / doc_entry)</li>
+          <li> El archivo no se modifica, solo se lee</li>
+          <li> La importación puede tardar varios minutos con archivos grandes</li>
         </ul>
 
         <div className="flex flex-wrap gap-3 items-center">
@@ -343,7 +343,7 @@ export default function ImportarPage() {
             onClick={handleImport}
             disabled={loading}
           >
-            {loading ? "Importando..." : "🚀 Iniciar importación"}
+            {loading ? "Importando..." : " Iniciar importación"}
           </button>
         </div>
 

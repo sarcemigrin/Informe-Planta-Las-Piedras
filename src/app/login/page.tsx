@@ -33,7 +33,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center space-y-1">
-          <div className="text-5xl">🏔</div>
+          <div className="text-5xl"></div>
           <h1 className="text-2xl font-bold text-gray-900">Arena Control</h1>
           <p className="text-sm text-gray-500">Planta Las Piedras</p>
         </div>

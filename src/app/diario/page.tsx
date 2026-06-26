@@ -108,7 +108,7 @@ export default function DiarioPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">📅 Vista Diaria (Arena)</h1>
+          <h1 className="text-2xl font-bold"> Vista Diaria (Arena)</h1>
           <p className="text-sm text-gray-500">
             Días de droneo: valores reales. Días intermedios: promedio del período distribuido.
           </p>
@@ -177,7 +177,7 @@ export default function DiarioPage() {
                   </td>
                   <td className="table-td text-gray-400">S{r.semana}</td>
                   <td className="table-td text-center">
-                    {r.esDroneo ? <span className="text-migrin font-bold">✓</span> : ""}
+                    {r.esDroneo ? <span className="text-migrin font-bold"></span> : ""}
                   </td>
                   <td className="table-td text-green-700 font-semibold">{fmt(r.prodDroneDia)}</td>
                   <td className="table-td">{fmt(r.despachosDia)}</td>

@@ -106,7 +106,7 @@ export function Navigation() {
             onClick={() => setOpen(!open)}
             aria-label="Menú"
           >
-            {open ? "✕" : "☰"}
+            {open ? "" : ""}
           </button>
         </div>
       </div>

@@ -286,7 +286,7 @@ export default function ArenaPage() {
 
       if (error) throw error;
 
-      // ── Generar y enviar informe PDF (fire-and-forget, no bloquea UI) ──
+      //  Generar y enviar informe PDF (fire-and-forget, no bloquea UI) 
       fetch("/api/informe/generate-report", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -308,7 +308,7 @@ export default function ArenaPage() {
         .then(j => { if (!j.ok) console.warn("[report]", j.error); })
         .catch(e  => console.warn("[report] error:", e));
 
-      setMsg({ type: "ok", text: "✅ Registro guardado correctamente." });
+      setMsg({ type: "ok", text: " Registro guardado correctamente." });
       // Resetear formulario y limpiar borrador
       const reset = {
         fecha: today(), hora: nowTime(), pesometro: "", horometro: "", fierrillo: "0",
@@ -338,7 +338,7 @@ export default function ArenaPage() {
         const detail = json.errors?.[0] ?? json.error ?? json.message ?? "Error al sincronizar despachos";
         setMsg({ type: "err", text: detail });
       } else {
-        setMsg({ type: "ok", text: `✅ ${json.message}` });
+        setMsg({ type: "ok", text: ` ${json.message}` });
         await loadUltimosDespachos();
       }
     } catch (e: unknown) {
@@ -358,7 +358,7 @@ export default function ArenaPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">⛏ Ingreso Datos Arena</h1>
+          <h1 className="text-2xl font-bold"> Ingreso Datos Arena</h1>
           <p className="text-sm text-gray-500">
             Registro anterior: {prevRow
               ? `${prevRow.fecha} ${prevRow.hora?.slice(0,5)} — Pesómetro: ${prevRow.pesometro?.toLocaleString("es-CL")}`
@@ -372,9 +372,9 @@ export default function ArenaPage() {
           title="Sincroniza los despachos desde SALIDAS ROMANAS.xlsx en SharePoint"
         >
           {syncing ? (
-            <span className="animate-spin text-base">⟳</span>
+            <span className="animate-spin text-base"></span>
           ) : (
-            <span>🔄</span>
+            <span></span>
           )}
           {syncing ? "Sincronizando..." : "Actualizar Despachos"}
         </button>
@@ -395,7 +395,7 @@ export default function ArenaPage() {
           <div className="bg-white border border-amber-300 rounded-lg shadow-xl w-80 mx-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
             <div className="bg-amber-400 px-3 py-2 flex items-center justify-between">
-              <span className="text-white font-semibold text-sm">⚠️ Valor fuera de rango</span>
+              <span className="text-white font-semibold text-sm"> Valor fuera de rango</span>
               <button className="text-white/80 hover:text-white text-lg leading-none" onClick={() => setWarnings({})}>×</button>
             </div>
             <div className="px-3 py-2 space-y-2">
@@ -422,7 +422,7 @@ export default function ArenaPage() {
 
           {/* Fecha y hora */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">📅 Fecha y hora del droneo</h2>
+            <h2 className="font-semibold text-gray-700 mb-1"> Fecha y hora del droneo</h2>
             <p className="text-xs text-blue-500 mb-3">
               Ingresa la fecha y hora real del vuelo, aunque lo estés registrando después.
             </p>
@@ -440,15 +440,21 @@ export default function ArenaPage() {
 
           {/* Instrumentos */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-3">🔧 Instrumentos</h2>
+            <h2 className="font-semibold text-gray-700 mb-3">Instrumentos</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
                 <label className="label">Pesómetro</label>
                 <input type="number" className="input" placeholder="327729" value={form.pesometro} onChange={set("pesometro")} onBlur={() => checkInstrumento("pesometro")} />
+                {prevRow && (
+                  <p className="text-xs text-gray-400 mt-1">Anterior: {prevRow.pesometro?.toLocaleString("es-CL")}</p>
+                )}
               </div>
               <div>
                 <label className="label">Horómetro</label>
                 <input type="number" className="input" placeholder="47280" value={form.horometro} onChange={set("horometro")} onBlur={() => checkInstrumento("horometro")} />
+                {prevRow && (
+                  <p className="text-xs text-gray-400 mt-1">Anterior: {prevRow.horometro?.toLocaleString("es-CL")}</p>
+                )}
               </div>
               <div>
                 <label className="label">Fierrillo (m³)</label>
@@ -459,7 +465,7 @@ export default function ArenaPage() {
 
           {/* Cancha Vieja (drone) */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">⛰ Cancha Vieja – Volumen drone (m³)</h2>
+            <h2 className="font-semibold text-gray-700 mb-1"> Cancha Vieja – Volumen drone (m³)</h2>
             <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
             <div className="grid grid-cols-3 gap-3">
               {CONOS.map((n) => (
@@ -474,7 +480,7 @@ export default function ArenaPage() {
 
           {/* Cancha Nueva (drone) */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">🏔 Cancha Nueva – Volumen drone (m³)</h2>
+            <h2 className="font-semibold text-gray-700 mb-1"> Cancha Nueva – Volumen drone (m³)</h2>
             <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {([1, 2, 3, 4] as const).map((n) => (
@@ -489,7 +495,7 @@ export default function ArenaPage() {
 
           {/* Riñones (drone) */}
           <div className="card">
-            <h2 className="font-semibold text-gray-700 mb-1">💎 Riñones – Volumen drone (m³)</h2>
+            <h2 className="font-semibold text-gray-700 mb-1"> Riñones – Volumen drone (m³)</h2>
             <p className="text-xs text-gray-400 mb-3">Densidad: ×1.4 al calcular toneladas</p>
             <div className="grid grid-cols-3 gap-3">
               {([5, 6, 7] as const).map((n, i) => (
@@ -511,7 +517,7 @@ export default function ArenaPage() {
 
           {/* Botón guardar */}
           <button className="btn-primary w-full py-3 text-base" onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando..." : "💾 Guardar Registro"}
+            {saving ? "Guardando..." : " Guardar Registro"}
           </button>
         </div>
 
@@ -520,7 +526,7 @@ export default function ArenaPage() {
           {/* Últimos despachos */}
           <div className="card">
             <div className="flex items-start justify-between mb-2">
-              <h2 className="font-semibold text-gray-700 text-sm">📋 Últimos despachos</h2>
+              <h2 className="font-semibold text-gray-700 text-sm"> Últimos despachos</h2>
               {lastSyncTime && (
                 <div className="text-right">
                   <p className="text-[10px] text-gray-400">Actualizado: <span className="font-medium text-gray-600">{lastSyncTime}</span></p>
@@ -572,7 +578,7 @@ export default function ArenaPage() {
 
           {/* Preview calculado */}
           <div className="card sticky top-20">
-            <h2 className="font-semibold text-gray-700 mb-2">📊 Preview calculado</h2>
+            <h2 className="font-semibold text-gray-700 mb-2"> Preview calculado</h2>
 
             {/* Indicador de período */}
             {prevRow ? (
@@ -589,7 +595,7 @@ export default function ArenaPage() {
                   <span className="ml-1">
                     ({fmt(preview.horas_reales, 1)} h)
                     {preview.horas_reales > 48 && (
-                      <span className="ml-1">⚠ Verifica la fecha del droneo</span>
+                      <span className="ml-1"> Verifica la fecha del droneo</span>
                     )}
                   </span>
                 )}
@@ -603,7 +609,7 @@ export default function ArenaPage() {
             {preview ? (
               <div className="space-y-1.5 text-sm">
 
-                {/* ── Bloque 1: Instrumentos ── */}
+                {/*  Bloque 1: Instrumentos  */}
                 <PreviewRow label="Diff Pesómetro"  value={fmt(preview.diferencia_pesometro)} unit="unid." />
                 <PreviewRow label="Prod. Pesómetro" value={fmt(preview.produccion_pesometro)} unit="ton" />
                 <PreviewRow label="Diff Horómetro"  value={fmt(preview.diferencia_horometro, 1)} unit="h" />
@@ -612,7 +618,7 @@ export default function ArenaPage() {
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
-                {/* ── Despachos del período ── */}
+                {/*  Despachos del período  */}
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Despachos del período</p>
                 <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1.5">
                   {/* Totales */}
@@ -646,7 +652,7 @@ export default function ArenaPage() {
                     <button
                       className="text-[10px] text-blue-500 hover:underline mt-0.5"
                       onClick={() => setShowDespDebug(v => !v)}>
-                      {showDespDebug ? "▲ Ocultar detalle" : "▼ Ver detalle por viaje"}
+                      {showDespDebug ? " Ocultar detalle" : " Ver detalle por viaje"}
                     </button>
                   )}
                 </div>
@@ -689,7 +695,7 @@ export default function ArenaPage() {
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
-                {/* ── Bloque 2: Producción ── */}
+                {/*  Bloque 2: Producción  */}
                 <PreviewRow label="Prod. Drone"       value={fmt(preview.produccion_drone)} unit="ton" />
                 <PreviewRow label="Productividad"     value={fmt(preview.productividad_drone)} unit="ton/h" colorClass={prodColor(preview.productividad_drone)} />
                 <PreviewRow label="Prodvd Hrs Reales" value={fmt(preview.productividad_hrs_reales)} unit="ton/h" colorClass={prodColor(preview.productividad_hrs_reales)} />
@@ -697,7 +703,7 @@ export default function ArenaPage() {
 
                 <div className="border-t-2 border-gray-300 my-1" />
 
-                {/* ── Tabla resumen inventario por cancha ── */}
+                {/*  Tabla resumen inventario por cancha  */}
                 <table className="w-full text-xs mt-0.5">
                   <thead>
                     <tr className="text-gray-400 border-b border-gray-200">
@@ -708,17 +714,17 @@ export default function ArenaPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     <tr>
-                      <td className="py-0.5 text-gray-600">⛰ Vieja</td>
+                      <td className="py-0.5 text-gray-600"> Vieja</td>
                       <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.cancha_vieja_m3, 0)}</td>
                       <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.cancha_vieja_ton)}</td>
                     </tr>
                     <tr>
-                      <td className="py-0.5 text-gray-600">🏔 Nueva</td>
+                      <td className="py-0.5 text-gray-600"> Nueva</td>
                       <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.cancha_nueva_m3, 0)}</td>
                       <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.cancha_nueva_ton)}</td>
                     </tr>
                     <tr>
-                      <td className="py-0.5 text-gray-600">💎 Riñones</td>
+                      <td className="py-0.5 text-gray-600"> Riñones</td>
                       <td className="py-0.5 text-right tabular-nums text-gray-800">{fmt(preview.rinones_m3, 0)}</td>
                       <td className="py-0.5 text-right tabular-nums font-semibold text-gray-800">{fmt(preview.rinones_ton)}</td>
                     </tr>
@@ -779,7 +785,7 @@ export default function ArenaPage() {
   );
 }
 
-// ── Metas de control ──────────────────────────────────────
+//  Metas de control 
 // Inventario: meta mínima 7.500 ton
 // Productividad: meta 32 ton/h
 // Criterio: ≥95% meta → verde | ≥90% → ámbar | <90% → rojo

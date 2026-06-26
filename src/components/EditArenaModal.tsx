@@ -116,10 +116,10 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="font-bold text-gray-800">✏️ Editar registro Arena</h2>
+            <h2 className="font-bold text-gray-800"> Editar registro Arena</h2>
             <p className="text-xs text-gray-400">{registro.fecha} {(registro.hora ?? "").slice(0, 5)}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none"></button>
         </div>
 
         {/* Campos */}

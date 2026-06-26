@@ -133,7 +133,7 @@ export default function DespachosPage() {
     <AdminGuard>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">🚛 Despachos</h1>
+        <h1 className="text-2xl font-bold"> Despachos</h1>
         <p className="text-sm text-gray-500">
           Equivalente a Query1. Importa el archivo Excel/CSV exportado de tu ERP.
         </p>
@@ -141,7 +141,7 @@ export default function DespachosPage() {
 
       {/* Importar */}
       <div className="card space-y-4">
-        <h2 className="font-semibold text-gray-700">⬆ Importar archivo de despachos</h2>
+        <h2 className="font-semibold text-gray-700"> Importar archivo de despachos</h2>
         <p className="text-xs text-gray-500">
           El archivo debe tener las columnas del sistema ERP:
           Tipo, DocEntry, NDocumento, Folio, Fecha, Hora, Articulo, Toneladas, Ton. Final, Patente, etc.

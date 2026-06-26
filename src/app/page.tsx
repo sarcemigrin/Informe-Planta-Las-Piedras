@@ -202,19 +202,19 @@ export default function Dashboard() {
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon="⚡"
+          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon=""
             info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
             trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
-          <KpiCard label="Producción Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon="🚁"
+          <KpiCard label="Producción Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon=""
             info="Produccion por diferencia de inventario entre droneos consecutivos + despachos del periodo."
             trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
-          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon="📦"
+          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon=""
             info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
             trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
-          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon="🚛"
+          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon=""
             info="Total toneladas despachadas entre el droneo anterior y este, segun datos SAP."
             trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
-          <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon="⚖️"
+          <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
         </div>
@@ -225,7 +225,7 @@ export default function Dashboard() {
         <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Cuarzo &amp; Canchas Arena</h2>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
-          <KpiCard label="Inventario Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon="🪨"
+          <KpiCard label="Inventario Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon=""
             info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
 
           {/* Cancha Vieja */}
@@ -354,7 +354,7 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
-                {([["S1","S1"],["S2","S2"],["anual","Ano"]] as const).map(([v,label])=>(
+                {([["S1","S1"],["S2","S2"],["anual","Año"]] as const).map(([v,label])=>(
                   <button key={v} onClick={()=>setPeriodoComp(v)}
                     className="text-xs px-2.5 py-1 rounded-md font-medium transition-colors"
                     style={periodoComp===v?{backgroundColor:"#6BCF7F",color:"#fff"}:{color:"#6b7280"}}>
@@ -373,7 +373,7 @@ export default function Dashboard() {
               </div>
               <button onClick={()=>setShowYrFilter(f=>!f)}
                 className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 font-medium hover:border-migrin transition-colors">
-                Anos {showYrFilter?"^":"v"}
+                Años {showYrFilter?"^":"v"}
               </button>
             </div>
           </div>

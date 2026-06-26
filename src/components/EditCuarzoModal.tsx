@@ -94,10 +94,10 @@ export function EditCuarzoModal({ registro, userEmail, onClose, onSaved }: Props
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="font-bold text-gray-800">✏️ Editar registro Cuarzo</h2>
+            <h2 className="font-bold text-gray-800"> Editar registro Cuarzo</h2>
             <p className="text-xs text-gray-400">{registro.fecha} {(registro.hora ?? "").slice(0, 5)}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none"></button>
         </div>
 
         <div className="overflow-y-auto px-6 py-4 flex-1">

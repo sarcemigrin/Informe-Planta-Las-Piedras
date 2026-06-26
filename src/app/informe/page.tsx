@@ -18,20 +18,20 @@ import {
 } from "recharts";
 import { EditArenaModal } from "@/components/EditArenaModal";
 
-// ─── Paleta corporativa ───────────────────────────────────────────────────────
+//  Paleta corporativa 
 const C_DRONE   = "#6BCF7F";
 const C_PESO    = "#374151";
 const C_INV     = "#94a3b8";
 const C_SELECTED = "#6BCF7F22";  // fondo fila seleccionada
 
-// ─── Umbrales ─────────────────────────────────────────────────────────────────
+//  Umbrales 
 const PROD_TARGET = 32;
 const INV_TARGET  = 7500;
 const INV_WARN    = 6500;
 const CUB_INIT    = 15;
 const CUB_STEP    = 10;
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+//  Tipos 
 interface HistorialCambio {
   id: string; campo: string;
   valor_anterior: string; valor_nuevo: string;
@@ -44,7 +44,7 @@ interface SemanaStat {
   dias: number; hrsProd: number; detencion: number;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers 
 function prodColor(v?: number | null) {
   if (!v) return "text-gray-700";
   return v >= PROD_TARGET ? "text-green-600" : v >= PROD_TARGET * 0.9 ? "text-yellow-500" : "text-red-500";
@@ -119,7 +119,7 @@ function InfoCard({
   );
 }
 
-// ─── Página ───────────────────────────────────────────────────────────────────
+//  Página 
 export default function InformePage() {
   const { data: session } = useSession();
   const isAdmin           = session?.user?.rol === "admin";
@@ -166,10 +166,10 @@ export default function InformePage() {
     setHistorial(data ?? []);
   }
 
-  // ── Último registro ───────────────────────────────────────────────────────
+  //  Último registro 
   const ultimoRow = rows.length > 0 ? rows[rows.length - 1] : null;
 
-  // ── Cubicación: datos dinámicos según cubLimit ────────────────────────────
+  //  Cubicación: datos dinámicos según cubLimit 
   const cubRows    = rows.slice(-cubLimit);
   const avgProdKpi = cubRows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (cubRows.length || 1);
 
@@ -184,7 +184,7 @@ export default function InformePage() {
   // Registro cubicación seleccionado (por defecto el último)
   const selectedCubRow = (selectedCubId ? rows.find(r => r.id === selectedCubId) : null) ?? ultimoRow;
 
-  // ── Semanal ───────────────────────────────────────────────────────────────
+  //  Semanal 
   const semanas: Record<string, SemanaStat> = {};
   for (let i = 1; i < rows.length; i++) {
     const r    = rows[i];
@@ -235,7 +235,7 @@ export default function InformePage() {
   const selectedSemDetPct = selectedSem && (selectedSem.hrsProd + selectedSem.detencion) > 0
     ? selectedSem.detencion / (selectedSem.hrsProd + selectedSem.detencion) * 100 : 0;
 
-  // ── Excel ─────────────────────────────────────────────────────────────────
+  //  Excel 
   function exportExcel() {
     const dataCub = rows.map(r => ({
       "Fecha y hora":              r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm") : "",
@@ -273,7 +273,7 @@ export default function InformePage() {
     <>
     <div className="space-y-8">
 
-      {/* ── Header ── */}
+      {/*  Header  */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Informe Producción Arena</h1>
@@ -293,9 +293,9 @@ export default function InformePage() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
+      {/* 
           SECCIÓN 1 — POR CUBICACIÓN
-      ══════════════════════════════════════════════════════════════════ */}
+       */}
       <section>
         <SectionHeader title="Por Cubicación" sub={`últimos ${cubRows.length} registros`} />
 
@@ -454,7 +454,7 @@ export default function InformePage() {
                       >
                         <td className="table-td-left font-medium text-gray-700">
                           {r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm", { locale: es }) : r.fecha}
-                          {isSelected && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
+                          {isSelected && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase"> selec.</span>}
                         </td>
                         <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>
                           {fmt(r.productividad_drone)} <span className="text-gray-400 font-normal text-xs">t/h</span>
@@ -481,7 +481,7 @@ export default function InformePage() {
                               onClick={(e) => { e.stopPropagation(); setEditRow(r); }}
                               className="text-gray-300 hover:text-migrin transition-colors text-base leading-none"
                               title="Editar"
-                            >✏️</button>
+                            ></button>
                           </td>
                         )}
                       </tr>
@@ -510,9 +510,9 @@ export default function InformePage() {
         })()}
       </section>
 
-      {/* ══════════════════════════════════════════════════════════════════
+      {/* 
           SECCIÓN 2 — SEMANAL
-      ══════════════════════════════════════════════════════════════════ */}
+       */}
       <section>
         <SectionHeader
           title="Por Semana"
@@ -719,7 +719,7 @@ export default function InformePage() {
                       >
                         <td className="table-td-left font-medium text-gray-700">
                           {s.semana}
-                          {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase">● selec.</span>}
+                          {isSel && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase"> selec.</span>}
                         </td>
                         <td className={`table-td font-semibold ${prodColor(kpiD)}`}>
                           {fmt(kpiD)} <span className="text-gray-400 font-normal text-xs">t/h</span>
@@ -763,9 +763,9 @@ export default function InformePage() {
         )}
       </section>
 
-      {/* ══════════════════════════════════════════════════════════════════
+      {/* 
           SECCIÓN 3 — HISTORIAL (solo admin)
-      ══════════════════════════════════════════════════════════════════ */}
+       */}
       {isAdmin && (
         <section>
           <SectionHeader
