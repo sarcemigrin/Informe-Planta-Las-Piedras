@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <!-- White background -->
-  <rect width="200" height="200" fill="white"/>
-  <!-- Outer dark ring -->
-  <circle cx="100" cy="100" r="95" fill="#3a3a3a"/>
-  <!-- White interior -->
-  <circle cx="100" cy="100" r="76" fill="white"/>
-  <!-- Green large circle -->
-  <circle cx="107" cy="88" r="53" fill="#6BCF7F"/>
-  <!-- White halo around small circle -->
-  <circle cx="79" cy="127" r="17" fill="white"/>
-  <!-- Small dark circle -->
-  <circle cx="79" cy="127" r="13" fill="#3a3a3a"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><image href="/icon-512.png" width="512" height="512"/></svg>
