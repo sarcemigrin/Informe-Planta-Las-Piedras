@@ -77,7 +77,7 @@ export default function DespachosPage() {
         fecha: format(parseISO(fecha), "dd/MM"),
         ton:   Math.round(ton),
       }));
-  }, [rowsPeriodo]);
+  }, [rowsFiltrados]);
 
   // ---- Tabla: filtro texto + material + paginación ----
   const filtered = rows.filter((r) => {
