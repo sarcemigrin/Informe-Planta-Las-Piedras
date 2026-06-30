@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// Busca BBDD Despachos.xlsx en todo el drive del usuario
-const ONEDRIVE_FILE_NAME = "BBDD Despachos.xlsx";
+// Busca BBDD Despachos.xlsx o .xlsm en todo el drive del usuario
+const ONEDRIVE_FILE_NAMES = ["BBDD Despachos.xlsm", "BBDD Despachos.xlsx"];
 
 interface DriveItem {
   name: string;
@@ -35,10 +35,10 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
     items = [...items, ...value];
   }
 
-  const item = items.find((f) => f.name === ONEDRIVE_FILE_NAME);
+  const item = items.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
   if (!item) {
     const found = items.map((f) => f.name).slice(0, 5).join(", ") || "ninguno";
-    throw new Error(`"${ONEDRIVE_FILE_NAME}" no encontrado. Archivos similares: ${found}`);
+    throw new Error(`"${ONEDRIVE_FILE_NAMES.join(" o ")}" no encontrado. Archivos similares: ${found}`);
   }
 
   return {
