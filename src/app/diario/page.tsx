@@ -154,8 +154,8 @@ export default function DiarioPage() {
 
   const chartData = [...filtrados].reverse().slice(-30).map((r) => ({
     fecha:     format(r.fecha, "dd/MM"),
-    prodDrone: +r.prodDroneDia.toFixed(2),
-    despachos: +r.despachosDia.toFixed(2),
+    prodDrone: +r.prodDroneDia.toFixed(1),
+    despachos: +r.despachosDia.toFixed(1),
   }));
 
   // ---- Calendario ----

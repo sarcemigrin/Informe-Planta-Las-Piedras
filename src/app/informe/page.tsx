@@ -242,8 +242,8 @@ export default function InformePage() {
     semana:    soloUnAnio ? s.semana.replace(`${semAnios[0]}-`, "") : s.semana,
     prodDrone: +s.prodDrone.toFixed(1),
     prodPeso:  +s.prodPeso.toFixed(1),
-    kpiDrone:  s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(2) : null,
-    kpiPeso:   s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(2) : null,
+    kpiDrone:  s.hrsProd > 0 ? +(s.prodDrone / s.hrsProd).toFixed(1) : null,
+    kpiPeso:   s.hrsProd > 0 ? +(s.prodPeso  / s.hrsProd).toFixed(1) : null,
   }));
 
   // Semana seleccionada (por defecto la última del filtro)

@@ -426,7 +426,7 @@ function sum(values: (number | undefined | null)[]): number {
 }
 
 // ---- Formato número ----
-export function fmt(n: number | null | undefined, decimales = 2): string {
+export function fmt(n: number | null | undefined, decimales = 1): string {
   if (n == null || isNaN(n)) return "–";
   return n.toLocaleString("es-CL", {
     minimumFractionDigits: decimales,

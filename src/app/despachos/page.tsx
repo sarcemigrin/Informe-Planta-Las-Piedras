@@ -301,7 +301,7 @@ export default function DespachosPage() {
                   }`}>{r.articulo}</span>
                 </td>
                 <td className="table-td-left text-gray-600 truncate max-w-[180px]">{r.nombre}</td>
-                <td className="table-td font-semibold">{r.ton_final?.toFixed(2)}</td>
+                <td className="table-td font-semibold">{r.ton_final?.toFixed(1)}</td>
                 <td className="table-td-left">{r.patente}</td>
                 <td className="table-td-left text-gray-400">{r.bodega_origen}</td>
               </tr>
