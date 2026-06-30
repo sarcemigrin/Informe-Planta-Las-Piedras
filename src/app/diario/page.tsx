@@ -332,12 +332,12 @@ export default function DiarioPage() {
                 <th className="table-th text-left">Fecha</th>
                 <th className="table-th">Sem</th>
                 <th className="table-th">Droneo</th>
-                <th className="table-th">Prod. Drone/día</th>
-                <th className="table-th">Despachos/día</th>
-                <th className="table-th">Horas/día</th>
                 <th className="table-th">Productividad</th>
-                <th className="table-th">Fierrillo/día</th>
+                <th className="table-th">Producción</th>
                 <th className="table-th">Prod. Total</th>
+                <th className="table-th">Horas/día</th>
+                <th className="table-th">Fierrillo/día</th>
+                <th className="table-th">Despachos/día</th>
                 <th className="table-th">Despachos Total</th>
                 <th className="table-th">Anotación</th>
               </tr>
@@ -357,12 +357,12 @@ export default function DiarioPage() {
                         ? <span className="text-green-600 font-bold text-base">✓</span>
                         : <span className="text-gray-300">–</span>}
                     </td>
-                    <td className="table-td text-gray-800">{fmt(r.prodDroneDia)}</td>
-                    <td className="table-td text-gray-800">{fmt(r.despachosDia)}</td>
-                    <td className="table-td text-gray-800">{fmt(r.horasDia, 1)}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? `${fmt(r.productividad)} t/h` : "–"}</td>
-                    <td className="table-td text-gray-800">{fmt(r.fierrilloDia)}</td>
+                    <td className="table-td text-gray-800">{fmt(r.prodDroneDia)}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.prodDroneTotal) : "–"}</td>
+                    <td className="table-td text-gray-800">{fmt(r.horasDia, 1)}</td>
+                    <td className="table-td text-gray-800">{fmt(r.fierrilloDia)}</td>
+                    <td className="table-td text-gray-800">{fmt(r.despachosDia)}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.despachosTotal) : "–"}</td>
                     <td className="table-td">
                       {esFindeSemana(r.fecha)
