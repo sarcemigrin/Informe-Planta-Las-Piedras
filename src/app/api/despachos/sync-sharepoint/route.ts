@@ -223,21 +223,45 @@ export async function POST(request: Request) {
       });
     }
 
-    const { total, errors } = await upsertDespachos(despachos);
+    // Obtener la fecha_hora máxima ya almacenada en Supabase
+    const sb = getSupabaseServer();
+    const { data: maxRow } = await sb
+      .from("despachos")
+      .select("fecha_hora")
+      .order("fecha_hora", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    const conFolio    = despachos.filter((d) => d.folio !== null).length;
-    const sinFolio    = despachos.filter((d) => d.folio === null).length;
-    const errMsg      = errors.length ? ` | Errores upsert: ${errors.slice(0,2).join("; ")}` : "";
+    const ultimaFechaHora: string | null = maxRow?.fecha_hora ?? null;
+
+    // Filtrar solo registros más nuevos que el último almacenado
+    const nuevos = ultimaFechaHora
+      ? despachos.filter((d) => {
+          const fh = d.fecha_hora as string | null;
+          return fh && fh > ultimaFechaHora;
+        })
+      : despachos;
+
+    if (nuevos.length === 0) {
+      return NextResponse.json({
+        synced: 0, total_rows: despachos.length, skipped: skipped.length,
+        message: `Sin registros nuevos (último: ${ultimaFechaHora ?? "–"})`,
+      });
+    }
+
+    const { total, errors } = await upsertDespachos(nuevos);
+
+    const errMsg = errors.length ? ` | Errores: ${errors.slice(0, 2).join("; ")}` : "";
 
     return NextResponse.json({
-      synced:      total,
-      total_rows:  despachos.length,
-      con_folio:   conFolio,
-      sin_folio:   sinFolio,
-      skipped:     skipped.length,
-      sheets:      workbook.SheetNames,
-      errors:      errors.length ? errors : undefined,
-      message:     `${total} despachos sincronizados (${despachos.length} leídos, ${skipped.length} omitidos)${errMsg}`,
+      synced:           total,
+      total_rows:       despachos.length,
+      nuevos_procesados: nuevos.length,
+      skipped:          skipped.length,
+      ultima_fecha:     ultimaFechaHora,
+      sheets:           workbook.SheetNames,
+      errors:           errors.length ? errors : undefined,
+      message:          `${total} despachos nuevos importados (${nuevos.length} nuevos de ${despachos.length} leídos)${errMsg}`,
     }, { status: errors.length && total === 0 ? 502 : 200 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
