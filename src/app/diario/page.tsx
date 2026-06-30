@@ -172,21 +172,26 @@ export default function DiarioPage() {
 
   const hoy = startOfDay(new Date());
 
+  function esFindeSemana(d: Date): boolean {
+    const dow = d.getDay(); // 0=dom, 6=sáb
+    return dow === 0 || dow === 6;
+  }
+
   function calClass(d: Date): string {
-    const key = format(d, "yyyy-MM-dd");
+    const key    = format(d, "yyyy-MM-dd");
     const futuro = isBefore(hoy, startOfDay(d)) && !isToday(d);
     if (futuro) return "cal-day-futuro";
     if (droneoDias.has(key)) return "cal-day-droneo";
+    if (esFindeSemana(d)) return "cal-day-finde";
     if (anotaciones.has(key)) return "cal-day-anotado";
     if (isBefore(startOfDay(d), hoy) || isToday(d)) return "cal-day-sin";
     return "";
   }
 
   function abrirModal(d: Date) {
-    const key = format(d, "yyyy-MM-dd");
-    if (droneoDias.has(key)) return; // en días de droneo no se anota
+    const key    = format(d, "yyyy-MM-dd");
     const futuro = isBefore(hoy, startOfDay(d)) && !isToday(d);
-    if (futuro) return;
+    if (futuro || droneoDias.has(key) || esFindeSemana(d)) return;
     setModalFecha(key);
     setModalMotivo(anotaciones.get(key) ?? "");
   }
@@ -197,7 +202,7 @@ export default function DiarioPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Vista Diaria (Arena)</h1>
+          <h1 className="text-2xl font-bold">Control Vuelos</h1>
           <p className="text-sm text-gray-500">
             Días de droneo: valores reales. Días intermedios: promedio del período distribuido.
           </p>
@@ -243,14 +248,14 @@ export default function DiarioPage() {
         </div>
 
         {/* Días de semana */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map((d) => (
-            <div key={d} className="text-center text-xs text-gray-400 font-medium py-1">{d}</div>
+        <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+          {["L","M","X","J","V","S","D"].map((d) => (
+            <div key={d} className="text-center text-[10px] text-gray-400 font-medium py-0.5">{d}</div>
           ))}
         </div>
 
-        {/* Celdas del calendario */}
-        <div className="grid grid-cols-7 gap-1">
+        {/* Celdas del calendario — compactas */}
+        <div className="grid grid-cols-7 gap-0.5">
           {calDays.map((d, i) => {
             if (!d) return <div key={`b${i}`} />;
             const key    = format(d, "yyyy-MM-dd");
@@ -263,19 +268,20 @@ export default function DiarioPage() {
                 onClick={() => !futuro && abrirModal(d)}
                 title={nota ? `Anotación: ${nota}` : cls === "cal-day-droneo" ? "Día de droneo" : "Sin droneo — click para anotar"}
                 className={`
-                  flex flex-col items-center justify-center rounded-lg aspect-square text-xs font-medium
+                  flex flex-col items-center justify-center rounded py-1 text-[11px] font-medium
                   border border-transparent transition-colors select-none
-                  ${cls === "cal-day-droneo"  ? "bg-green-100 text-green-800" : ""}
-                  ${cls === "cal-day-sin"     ? "bg-red-50 text-red-700 cursor-pointer hover:border-red-300" : ""}
-                  ${cls === "cal-day-anotado" ? "bg-amber-100 text-amber-800 cursor-pointer hover:border-amber-400" : ""}
-                  ${cls === "cal-day-futuro"  ? "text-gray-300" : ""}
+                  ${cls === "cal-day-droneo" ? "bg-green-100 text-green-800" : ""}
+                  ${cls === "cal-day-sin"    ? "bg-red-50 text-red-700 cursor-pointer hover:border-red-300" : ""}
+                  ${cls === "cal-day-anotado"? "bg-amber-100 text-amber-800 cursor-pointer hover:border-amber-400" : ""}
+                  ${cls === "cal-day-finde"  ? "bg-gray-100 text-gray-400" : ""}
+                  ${cls === "cal-day-futuro" ? "text-gray-300" : ""}
                   ${!cls ? "text-gray-500 cursor-pointer hover:bg-gray-50" : ""}
                 `}
               >
                 {format(d, "d")}
-                {cls === "cal-day-droneo"  && <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-0.5" />}
-                {cls === "cal-day-sin"     && <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-0.5" />}
-                {cls === "cal-day-anotado" && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-0.5" />}
+                {cls === "cal-day-droneo"  && <span className="w-1 h-1 rounded-full bg-green-500 mt-0.5" />}
+                {cls === "cal-day-sin"     && <span className="w-1 h-1 rounded-full bg-red-400 mt-0.5" />}
+                {cls === "cal-day-anotado" && <span className="w-1 h-1 rounded-full bg-amber-500 mt-0.5" />}
               </div>
             );
           })}
@@ -291,6 +297,9 @@ export default function DiarioPage() {
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className="inline-block w-3 h-3 rounded-sm bg-amber-100 border border-amber-300" />Con anotación
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className="inline-block w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />Fin de semana
           </div>
           <span className="text-xs text-gray-400">Click en días sin droneo para agregar motivo</span>
         </div>
@@ -356,14 +365,16 @@ export default function DiarioPage() {
                     <td className="table-td text-blue-700">{r.esDroneo ? fmt(r.prodDroneTotal) : "–"}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.despachosTotal) : "–"}</td>
                     <td className="table-td">
-                      {nota
-                        ? <span className="text-amber-700 text-xs font-medium">{nota}</span>
-                        : !r.esDroneo
-                          ? <button
-                              onClick={() => abrirModal(r.fecha)}
-                              className="text-gray-300 hover:text-migrin text-xs transition-colors"
-                            >+ anotar</button>
-                          : null}
+                      {esFindeSemana(r.fecha)
+                        ? <span className="text-gray-400 text-xs">Fin de semana</span>
+                        : nota
+                          ? <span className="text-amber-700 text-xs font-medium">{nota}</span>
+                          : !r.esDroneo
+                            ? <button
+                                onClick={() => abrirModal(r.fecha)}
+                                className="text-gray-300 hover:text-migrin text-xs transition-colors"
+                              >+ anotar</button>
+                            : null}
                     </td>
                   </tr>
                 );

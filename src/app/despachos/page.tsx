@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import type { Despacho } from "@/types/database";
-import { format, subDays, parseISO } from "date-fns";
+import { format, parseISO, startOfWeek, startOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,7 +14,7 @@ import {
 } from "recharts";
 
 const PER_PAGE = 10;
-type Periodo = "7d" | "30d" | "todo";
+type Periodo = "semana" | "mes" | "todo";
 
 export default function DespachosPage() {
   const fileRef        = useRef<HTMLInputElement>(null);
@@ -22,9 +22,10 @@ export default function DespachosPage() {
   const [preview, setPreview] = useState<Record<string, unknown>[]>([]);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg]         = useState<{ type: "ok" | "err" | "info"; text: string } | null>(null);
-  const [filtro, setFiltro]   = useState("");
-  const [page, setPage]       = useState(1);
-  const [periodo, setPeriodo] = useState<Periodo>("30d");
+  const [filtro, setFiltro]       = useState("");
+  const [page, setPage]           = useState(1);
+  const [periodo, setPeriodo]     = useState<Periodo>("mes");
+  const [material, setMaterial]   = useState<string>("todos");
 
   useEffect(() => { loadDespachos(); }, []);
 
@@ -37,21 +38,35 @@ export default function DespachosPage() {
     setRows(data ?? []);
   }
 
-  // ---- Dashboard: filtro por período ----
-  const rowsPeriodo = useMemo(() => {
-    if (periodo === "todo") return rows;
-    const cutoff = subDays(new Date(), periodo === "7d" ? 7 : 30);
-    return rows.filter((r) => r.fecha_hora && parseISO(r.fecha_hora) >= cutoff);
-  }, [rows, periodo]);
+  // ---- Materiales únicos ----
+  const materiales = useMemo(() => {
+    const s = new Set(rows.map((r) => r.articulo).filter(Boolean) as string[]);
+    return [...s].sort();
+  }, [rows]);
 
-  const totalTon      = rowsPeriodo.reduce((s, r) => s + (r.ton_final ?? 0), 0);
-  const totalViajes   = rowsPeriodo.length;
+  // ---- Dashboard: filtro por período + material ----
+  const rowsFiltrados = useMemo(() => {
+    const now    = new Date();
+    const cutoff =
+      periodo === "semana" ? startOfWeek(now, { weekStartsOn: 1 }) :
+      periodo === "mes"    ? startOfMonth(now) :
+      null;
+
+    return rows.filter((r) => {
+      const pasaPeriodo  = !cutoff || (r.fecha_hora && parseISO(r.fecha_hora) >= cutoff);
+      const pasaMaterial = material === "todos" || r.articulo === material;
+      return pasaPeriodo && pasaMaterial;
+    });
+  }, [rows, periodo, material]);
+
+  const totalTon      = rowsFiltrados.reduce((s, r) => s + (r.ton_final ?? 0), 0);
+  const totalViajes   = rowsFiltrados.length;
   const promedioViaje = totalViajes > 0 ? totalTon / totalViajes : 0;
-  const diasActivos   = new Set(rowsPeriodo.map((r) => r.fecha)).size;
+  const diasActivos   = new Set(rowsFiltrados.map((r) => r.fecha)).size;
 
   const chartData = useMemo(() => {
     const map = new Map<string, number>();
-    rowsPeriodo.forEach((r) => {
+    rowsFiltrados.forEach((r) => {
       if (!r.fecha) return;
       map.set(r.fecha, (map.get(r.fecha) ?? 0) + (r.ton_final ?? 0));
     });
@@ -64,13 +79,15 @@ export default function DespachosPage() {
       }));
   }, [rowsPeriodo]);
 
-  // ---- Tabla: filtro + paginación ----
-  const filtered = rows.filter((r) =>
-    !filtro ||
-    r.articulo?.toLowerCase().includes(filtro.toLowerCase()) ||
-    r.nombre?.toLowerCase().includes(filtro.toLowerCase()) ||
-    r.patente?.toLowerCase().includes(filtro.toLowerCase())
-  );
+  // ---- Tabla: filtro texto + material + paginación ----
+  const filtered = rows.filter((r) => {
+    const pasaMaterial = material === "todos" || r.articulo === material;
+    const pasaTexto    = !filtro ||
+      r.articulo?.toLowerCase().includes(filtro.toLowerCase()) ||
+      r.nombre?.toLowerCase().includes(filtro.toLowerCase()) ||
+      r.patente?.toLowerCase().includes(filtro.toLowerCase());
+    return pasaMaterial && pasaTexto;
+  });
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated  = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
@@ -165,20 +182,39 @@ export default function DespachosPage() {
       <div className="card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="font-semibold text-gray-700">Resumen</h2>
-          <div className="flex gap-0.5 border border-gray-200 rounded-full p-0.5">
-            {(["7d", "30d", "todo"] as Periodo[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriodo(p)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  periodo === p
-                    ? "bg-green-100 text-migrin-dark"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {p === "7d" ? "7 días" : p === "30d" ? "30 días" : "Todo"}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Filtro período */}
+            <div className="flex gap-0.5 border border-gray-200 rounded-full p-0.5">
+              {(["semana", "mes", "todo"] as Periodo[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriodo(p)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    periodo === p
+                      ? "bg-green-100 text-migrin-dark"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {p === "semana" ? "Semana" : p === "mes" ? "Mes" : "Todo"}
+                </button>
+              ))}
+            </div>
+            {/* Filtro material */}
+            <div className="flex gap-0.5 border border-gray-200 rounded-full p-0.5">
+              {(["todos", ...materiales]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMaterial(m); setPage(1); }}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    material === m
+                      ? "bg-orange-100 text-migrin-dark"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {m === "todos" ? "Todos" : m}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -225,60 +261,6 @@ export default function DespachosPage() {
                 <Bar dataKey="ton" name="Ton" fill="#22c55e" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {/* ---- Importar ---- */}
-      <div className="card space-y-4">
-        <h2 className="font-semibold text-gray-700">Importar archivo de despachos</h2>
-        <p className="text-xs text-gray-500">
-          El archivo debe tener las columnas del sistema ERP:
-          Tipo, DocEntry, NDocumento, Folio, Fecha, Hora, Articulo, Toneladas, Ton. Final, Patente, etc.
-        </p>
-
-        <div className="flex flex-wrap gap-3 items-center">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-migrin-dark hover:file:bg-orange-100"
-            onChange={handleFile}
-          />
-          <button className="btn-primary" onClick={handleImport} disabled={uploading}>
-            {uploading ? "Importando..." : "Importar →"}
-          </button>
-        </div>
-
-        {msg && (
-          <div className={`rounded-lg px-4 py-3 text-sm ${
-            msg.type === "ok"  ? "bg-green-50 text-green-700"  :
-            msg.type === "err" ? "bg-red-50 text-red-700"      :
-                                 "bg-blue-50 text-blue-700"
-          }`}>{msg.text}</div>
-        )}
-
-        {preview.length > 0 && (
-          <div className="overflow-auto">
-            <p className="text-xs font-semibold text-gray-500 mb-1">Vista previa (primeras 5 filas):</p>
-            <table className="text-xs border-collapse">
-              <thead>
-                <tr>{Object.keys(preview[0]).map((k) => (
-                  <th key={k} className="border border-gray-200 px-2 py-1 bg-gray-50 whitespace-nowrap">{k}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => (
-                  <tr key={i}>
-                    {Object.values(row).map((v, j) => (
-                      <td key={j} className="border border-gray-200 px-2 py-1 whitespace-nowrap">
-                        {String(v ?? "")}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
@@ -352,6 +334,60 @@ export default function DespachosPage() {
             >Siguiente →</button>
           </div>
         </div>
+      </div>
+
+      {/* ---- Importar ---- */}
+      <div className="card space-y-4">
+        <h2 className="font-semibold text-gray-700">Importar archivo de despachos</h2>
+        <p className="text-xs text-gray-500">
+          El archivo debe tener las columnas del sistema ERP:
+          Tipo, DocEntry, NDocumento, Folio, Fecha, Hora, Articulo, Toneladas, Ton. Final, Patente, etc.
+        </p>
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-migrin-dark hover:file:bg-orange-100"
+            onChange={handleFile}
+          />
+          <button className="btn-primary" onClick={handleImport} disabled={uploading}>
+            {uploading ? "Importando..." : "Importar →"}
+          </button>
+        </div>
+
+        {msg && (
+          <div className={`rounded-lg px-4 py-3 text-sm ${
+            msg.type === "ok"  ? "bg-green-50 text-green-700"  :
+            msg.type === "err" ? "bg-red-50 text-red-700"      :
+                                 "bg-blue-50 text-blue-700"
+          }`}>{msg.text}</div>
+        )}
+
+        {preview.length > 0 && (
+          <div className="overflow-auto">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Vista previa (primeras 5 filas):</p>
+            <table className="text-xs border-collapse">
+              <thead>
+                <tr>{Object.keys(preview[0]).map((k) => (
+                  <th key={k} className="border border-gray-200 px-2 py-1 bg-gray-50 whitespace-nowrap">{k}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {preview.map((row, i) => (
+                  <tr key={i}>
+                    {Object.values(row).map((v, j) => (
+                      <td key={j} className="border border-gray-200 px-2 py-1 whitespace-nowrap">
+                        {String(v ?? "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
     </AdminGuard>

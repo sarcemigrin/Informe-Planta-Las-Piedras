@@ -7,7 +7,7 @@ import { useState } from "react";
 
 const linksViewer = [
   { href: "/",        label: "Dashboard" },
-  { href: "/diario",  label: "Diario" },
+  { href: "/diario",  label: "Control Vuelos" },
   { href: "/informe", label: "Informe" },
 ];
 
@@ -16,7 +16,7 @@ const linksAdmin = [
   { href: "/arena",     label: "Arena" },
   { href: "/cuarzo",    label: "Cuarzo" },
   { href: "/despachos", label: "Despachos" },
-  { href: "/diario",    label: "Diario" },
+  { href: "/diario",    label: "Control Vuelos" },
   { href: "/informe",   label: "Informe" },
   { href: "/importar",  label: "Importar" },
 ];
