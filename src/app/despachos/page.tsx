@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import type { Despacho } from "@/types/database";
-import { format, parseISO, startOfWeek, startOfMonth } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,7 +14,7 @@ import {
 } from "recharts";
 
 const PER_PAGE = 10;
-type Periodo = "semana" | "mes" | "todo";
+type Periodo = "mes" | "todo";
 
 export default function DespachosPage() {
   const fileRef        = useRef<HTMLInputElement>(null);
@@ -25,6 +25,7 @@ export default function DespachosPage() {
   const [filtro, setFiltro]       = useState("");
   const [page, setPage]           = useState(1);
   const [periodo, setPeriodo]     = useState<Periodo>("mes");
+
   const [material, setMaterial]   = useState<string>("todos");
 
   useEffect(() => { loadDespachos(); }, []);
@@ -47,10 +48,7 @@ export default function DespachosPage() {
   // ---- Dashboard: filtro por período + material ----
   const rowsFiltrados = useMemo(() => {
     const now    = new Date();
-    const cutoff =
-      periodo === "semana" ? startOfWeek(now, { weekStartsOn: 1 }) :
-      periodo === "mes"    ? startOfMonth(now) :
-      null;
+    const cutoff = periodo === "mes" ? startOfMonth(now) : null;
 
     return rows.filter((r) => {
       const pasaPeriodo  = !cutoff || (r.fecha_hora && parseISO(r.fecha_hora) >= cutoff);
@@ -59,10 +57,11 @@ export default function DespachosPage() {
     });
   }, [rows, periodo, material]);
 
-  const totalTon      = rowsFiltrados.reduce((s, r) => s + (r.ton_final ?? 0), 0);
-  const totalViajes   = rowsFiltrados.length;
-  const promedioViaje = totalViajes > 0 ? totalTon / totalViajes : 0;
-  const diasActivos   = new Set(rowsFiltrados.map((r) => r.fecha)).size;
+  const totalTon        = rowsFiltrados.reduce((s, r) => s + (r.ton_final ?? 0), 0);
+  const totalViajes     = rowsFiltrados.length;
+  const promedioViaje   = totalViajes > 0 ? totalTon / totalViajes : 0;
+  const diasActivos     = new Set(rowsFiltrados.map((r) => r.fecha)).size;
+  const viajesPorDia    = diasActivos > 0 ? totalViajes / diasActivos : 0;
 
   const chartData = useMemo(() => {
     const map = new Map<string, number>();
@@ -185,7 +184,7 @@ export default function DespachosPage() {
           <div className="flex flex-wrap gap-2 items-center">
             {/* Filtro período */}
             <div className="flex gap-0.5 border border-gray-200 rounded-full p-0.5">
-              {(["semana", "mes", "todo"] as Periodo[]).map((p) => (
+              {(["mes", "todo"] as Periodo[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPeriodo(p)}
@@ -195,7 +194,7 @@ export default function DespachosPage() {
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  {p === "semana" ? "Semana" : p === "mes" ? "Mes" : "Todo"}
+                  {p === "mes" ? "Mes" : "Todo"}
                 </button>
               ))}
             </div>
@@ -241,10 +240,10 @@ export default function DespachosPage() {
             </div>
           </div>
           <div className="stat-card text-center">
-            <span className="stat-label">Días activos</span>
+            <span className="stat-label">Despachos / día</span>
             <div className="flex items-baseline justify-center gap-1">
-              <span className="stat-value">{diasActivos}</span>
-              <span className="text-xs text-gray-400">días</span>
+              <span className="stat-value">{viajesPorDia.toLocaleString("es-CL", { maximumFractionDigits: 1 })}</span>
+              <span className="text-xs text-gray-400">viajes</span>
             </div>
           </div>
         </div>
