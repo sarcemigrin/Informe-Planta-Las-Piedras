@@ -427,12 +427,11 @@ export default function InformePage() {
                     <th className="table-th">Producción Drone</th>
                     <th className="table-th">Horas Prod.</th>
                     <th className="table-th">Detención</th>
-                    <th className="table-th">Productividad Pesóm.</th>
-                    <th className="table-th">Producción Pesóm.</th>
+                    <th className="table-th">Inventario</th>
                     <th className="table-th">Viajes</th>
                     <th className="table-th">Despachos (ton)</th>
-                    <th className="table-th">Productividad Real</th>
-                    <th className="table-th">Inventario</th>
+                    <th className="table-th">Productividad Pesóm.</th>
+                    <th className="table-th">Producción Pesóm.</th>
                     <th className="table-th">Diferencia</th>
                     {isAdmin && <th className="table-th w-8" />}
                   </tr>
@@ -452,26 +451,23 @@ export default function InformePage() {
                         }`}
                         style={isSelected ? { backgroundColor: C_SELECTED } : {}}
                       >
-                        <td className="table-td-left font-medium text-gray-700">
+                        <td className="table-td-left font-medium text-gray-800">
                           {r.fecha_hora ? format(new Date(r.fecha_hora), "dd/MM/yyyy HH:mm", { locale: es }) : r.fecha}
                           {isSelected && <span className="ml-2 text-[10px] font-bold text-green-600 uppercase"> selec.</span>}
                         </td>
                         <td className={`table-td font-semibold ${prodColor(r.productividad_drone)}`}>
-                          {fmt(r.productividad_drone)} <span className="text-gray-400 font-normal text-xs">t/h</span>
+                          {fmt(r.productividad_drone)} <span className="font-normal text-xs">t/h</span>
                         </td>
-                        <td className="table-td font-semibold text-gray-700">{fmt(r.produccion_drone)}</td>
-                        <td className="table-td text-gray-600">{fmt(r.diferencia_horometro, 1)}</td>
-                        <td className={`table-td ${(r.detencion ?? 0) > 0 ? "text-red-400" : "text-gray-400"}`}>{fmt(r.detencion, 1)}</td>
-                        <td className="table-td text-gray-600">
-                          {fmt(r.productividad_pesometro)} <span className="text-gray-400 font-normal text-xs">t/h</span>
-                        </td>
-                        <td className="table-td text-gray-600">{fmt(r.produccion_pesometro)}</td>
-                        <td className="table-td text-gray-600">{r.cantidad_despachos ?? "–"}</td>
-                        <td className="table-td text-gray-600">{fmt(r.despachos_ton)}</td>
-                        <td className="table-td text-gray-500">
-                          {fmt(r.productividad_hrs_reales)} <span className="text-gray-400 font-normal text-xs">t/h</span>
-                        </td>
+                        <td className="table-td font-semibold text-gray-800">{fmt(r.produccion_drone)}</td>
+                        <td className="table-td text-gray-800">{fmt(r.diferencia_horometro, 1)}</td>
+                        <td className={`table-td font-medium ${(r.detencion ?? 0) > 0 ? "text-red-500" : "text-gray-800"}`}>{fmt(r.detencion, 1)}</td>
                         <td className={`table-td font-semibold ${invColor(r.inventario_ton)}`}>{fmt(r.inventario_ton)}</td>
+                        <td className="table-td text-gray-800">{r.cantidad_despachos ?? "–"}</td>
+                        <td className="table-td text-gray-800">{fmt(r.despachos_ton)}</td>
+                        <td className="table-td text-gray-800">
+                          {fmt(r.productividad_pesometro)} <span className="text-xs">t/h</span>
+                        </td>
+                        <td className="table-td text-gray-800">{fmt(r.produccion_pesometro)}</td>
                         <td className="table-td">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>{badge.label}</span>
                         </td>
@@ -822,3 +818,4 @@ export default function InformePage() {
     </>
   );
 }
+                                                                                                                                                                                                                                                                                                                          
