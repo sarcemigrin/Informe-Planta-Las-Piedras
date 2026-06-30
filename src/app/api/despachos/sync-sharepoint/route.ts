@@ -7,19 +7,44 @@ import * as XLSX from "xlsx";
 // Busca BBDD Despachos.xlsx en todo el drive del usuario
 const ONEDRIVE_FILE_NAME = "BBDD Despachos.xlsx";
 
-async function getOneDriveFileUrl(accessToken: string): Promise<string> {
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!res.ok) throw new Error(`Error buscando archivo (${res.status}): ${await res.text()}`);
-  const { value } = await res.json() as { value: { name: string; id: string; parentReference?: { path?: string } }[] };
-  const item = value.find((f) => f.name === ONEDRIVE_FILE_NAME);
-  if (!item) {
-    const found = value.map((f) => f.name).join(", ") || "ninguno";
-    throw new Error(`"${ONEDRIVE_FILE_NAME}" no encontrado. Archivos similares encontrados: ${found}. Verifica que esté en OneDrive y sincronizado.`);
+interface DriveItem {
+  name: string;
+  id: string;
+  lastModifiedDateTime?: string;
+  parentReference?: { path?: string };
+}
+
+async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
+  // Buscar en drive personal + drives compartidos (SharePoint)
+  const searches = [
+    fetch(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`,
+      { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }),
+    fetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`,
+      { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }),
+  ];
+  const [myDriveRes, sharedRes] = await Promise.all(searches);
+
+  let items: DriveItem[] = [];
+
+  if (myDriveRes.ok) {
+    const { value } = await myDriveRes.json() as { value: DriveItem[] };
+    items = [...items, ...value];
   }
-  return `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`;
+  if (sharedRes.ok) {
+    const { value } = await sharedRes.json() as { value: DriveItem[] };
+    items = [...items, ...value];
+  }
+
+  const item = items.find((f) => f.name === ONEDRIVE_FILE_NAME);
+  if (!item) {
+    const found = items.map((f) => f.name).slice(0, 5).join(", ") || "ninguno";
+    throw new Error(`"${ONEDRIVE_FILE_NAME}" no encontrado. Archivos similares: ${found}`);
+  }
+
+  return {
+    url:          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+    lastModified: item.lastModifiedDateTime ?? null,
+  };
 }
 
 function getSupabaseServer() {
@@ -155,7 +180,7 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
       .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
       .select("id", { count: "exact", head: true });
     if (error) errors.push(error.message);
-    else total += count ?? withDocEntry.slice(i, i + BATCH).length;
+    else total += count ?? 0;
   }
   for (let i = 0; i < withoutDocEntry.length; i += BATCH) {
     const { error, count } = await sb
@@ -185,16 +210,19 @@ export async function POST(request: Request) {
   const sheetParam = searchParams.get("sheet") ?? "Consulta1";
 
   try {
-    // Buscar y descargar BBDD Despachos.xlsx desde OneDrive
+    // Buscar y descargar BBDD Despachos.xlsx desde OneDrive / SharePoint
     let fileUrl: string;
+    let fileLastModified: string | null = null;
     try {
-      fileUrl = await getOneDriveFileUrl(accessToken);
+      const info = await getOneDriveFileInfo(accessToken);
+      fileUrl          = info.url;
+      fileLastModified = info.lastModified;
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 502 });
     }
 
     const fileRes = await fetch(fileUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" },
     });
 
     if (!fileRes.ok) {
@@ -227,15 +255,20 @@ export async function POST(request: Request) {
 
     const errMsg = errors.length ? ` | Errores: ${errors.slice(0, 2).join("; ")}` : "";
 
+    const archivoFecha = fileLastModified
+      ? new Date(fileLastModified).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })
+      : "desconocida";
+
     return NextResponse.json({
-      synced:     total,
-      total_rows: despachos.length,
-      skipped:    skipped.length,
-      sheets:     workbook.SheetNames,
-      errors:     errors.length ? errors : undefined,
-      message:    total === 0
-        ? `Sin registros nuevos (${despachos.length} leídos, todos ya existían)`
-        : `${total} despachos nuevos importados (de ${despachos.length} leídos)${errMsg}`,
+      synced:            total,
+      total_rows:        despachos.length,
+      skipped:           skipped.length,
+      file_last_modified: fileLastModified,
+      sheets:            workbook.SheetNames,
+      errors:            errors.length ? errors : undefined,
+      message:           total === 0
+        ? `Sin registros nuevos — archivo Excel modificado el ${archivoFecha} (${despachos.length} leídos, todos ya existían)`
+        : `${total} despachos nuevos importados de ${despachos.length} leídos — archivo del ${archivoFecha}${errMsg}`,
     }, { status: errors.length && total === 0 ? 502 : 200 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
