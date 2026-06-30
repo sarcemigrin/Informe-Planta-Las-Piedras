@@ -538,18 +538,18 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
   }[color]??"bg-gray-50");
 
   return (
-    <div className={`stat-card relative pb-6 ${bgClass} border border-transparent hover:border-gray-200 transition-colors`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-base">{icon}</span>
-        {trendVal!=null&&(
-          <span className={`text-xs font-bold ${trendVal>=0?"text-green-600":"text-red-500"}`}>
-            {trendVal>=0?"↑":"↓"} {Math.abs(trendVal).toFixed(1)}% <span className="font-normal text-gray-400">vs ant.</span>
-          </span>
-        )}
+    <div className={`stat-card relative pb-6 ${bgClass} border border-transparent hover:border-gray-200 transition-colors items-center text-center`}>
+      <span className="stat-label w-full">{label}</span>
+      <div className="flex items-baseline justify-center gap-1">
+        <span className={`stat-value ${colorClass}`}>{value}</span>
+        <span className="text-xs text-gray-400 font-normal">{unit}</span>
       </div>
-      <span className="stat-label">{label}</span>
-      <span className={`stat-value ${colorClass}`}>{value}</span>
-      <span className="text-xs text-gray-400">{unit}</span>
+      {trendVal != null && (
+        <span className={`text-xs font-semibold ${trendVal >= 0 ? "text-green-600" : "text-red-500"}`}>
+          {trendVal >= 0 ? "↑" : "↓"} {Math.abs(trendVal).toFixed(1)}%{" "}
+          <span className="font-normal text-gray-400">vs ant.</span>
+        </span>
+      )}
       {info && (
         <div className="absolute bottom-2 right-2">
           <KpiInfoTooltip text={info}/>

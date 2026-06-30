@@ -21,16 +21,17 @@ const linksAdmin = [
   { href: "/importar",  label: "Importar" },
 ];
 
-function MigrinLogo({ size = 32 }: { size?: number }) {
+function MigrinLogo() {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Anillo exterior */}
-      <circle cx="50" cy="50" r="46" stroke="#3D3D3D" strokeWidth="10" fill="none"/>
-      {/* Círculo verde grande */}
-      <circle cx="55" cy="42" r="27" fill="#6BCF7F"/>
-      {/* Círculo oscuro pequeño */}
-      <circle cx="40" cy="60" r="10" fill="#3D3D3D"/>
-    </svg>
+    <div style={{
+      width: 44, height: 44, borderRadius: "50%", background: "#fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 6, flexShrink: 0,
+    }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/nav-logo-b.png" alt="Migrin" width={32} height={32}
+        style={{ objectFit: "contain", display: "block" }} />
+    </div>
   );
 }
 
@@ -51,7 +52,7 @@ export function Navigation() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <MigrinLogo size={30} />
+            <MigrinLogo />
             <div className="leading-tight">
               <div className="text-white font-bold text-sm tracking-wide">Arena Control</div>
               <div className="text-xs tracking-widest uppercase" style={{ color: "#6BCF7F", fontSize: "9px" }}>
