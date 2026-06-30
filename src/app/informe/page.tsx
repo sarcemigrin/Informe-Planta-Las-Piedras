@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
-import { format, getISOWeek, parseISO } from "date-fns";
+import { format, getISOWeek, getISOWeekYear, startOfISOWeek, addDays, eachDayOfInterval, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import {
@@ -184,22 +184,41 @@ export default function InformePage() {
   // Registro cubicación seleccionado (por defecto el último)
   const selectedCubRow = (selectedCubId ? rows.find(r => r.id === selectedCubId) : null) ?? ultimoRow;
 
-  //  Semanal 
+  //  Semanal — mismo criterio que Control Vuelos:
+  //  días desde día siguiente al droneo anterior hasta día del droneo actual (inclusive).
+  //  Producción dividida en partes iguales por día; cada día aporta a su semana ISO (lun-dom).
   const semanas: Record<string, SemanaStat> = {};
   for (let i = 1; i < rows.length; i++) {
     const r    = rows[i];
     const prev = rows[i - 1];
-    const anio = parseISO(r.fecha).getFullYear();
-    const sem  = `${anio}-S${String(getISOWeek(parseISO(r.fecha))).padStart(2, "0")}`;
-    const dias = Math.max(1, Math.round((new Date(r.fecha).getTime() - new Date(prev.fecha).getTime()) / 86400000));
-    if (!semanas[sem]) semanas[sem] = { semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0, viajes: 0, dias: 0, hrsProd: 0, detencion: 0 };
-    semanas[sem].prodDrone  += r.produccion_drone      ?? 0;
-    semanas[sem].prodPeso   += r.produccion_pesometro  ?? 0;
-    semanas[sem].despachos  += r.despachos_ton         ?? 0;
-    semanas[sem].viajes     += r.cantidad_despachos    ?? 0;
-    semanas[sem].dias       += dias;
-    semanas[sem].hrsProd    += r.diferencia_horometro  ?? 0;
-    semanas[sem].detencion  += r.detencion             ?? 0;
+
+    const fechaPrev = parseISO(prev.fecha);
+    const fechaCurr = parseISO(r.fecha);
+
+    // Días del período: desde el día SIGUIENTE al droneo anterior hasta el droneo actual inclusive
+    const diasPeriodo = eachDayOfInterval({ start: addDays(fechaPrev, 1), end: fechaCurr });
+    const n = Math.max(diasPeriodo.length, 1);
+
+    const prodDrone = r.produccion_drone      ?? 0;
+    const prodPeso  = r.produccion_pesometro  ?? 0;
+    const despachos = r.despachos_ton         ?? 0;
+    const viajes    = r.cantidad_despachos    ?? 0;
+    const hrsProd   = r.diferencia_horometro  ?? 0;
+    const detencion = r.detencion             ?? 0;
+
+    // Distribuir 1/n de cada valor a la semana ISO de cada día
+    for (const dia of diasPeriodo) {
+      const wkRef = startOfISOWeek(dia);   // lunes de esa semana (para obtener año ISO correcto)
+      const sem   = `${getISOWeekYear(wkRef)}-S${String(getISOWeek(dia)).padStart(2, "0")}`;
+      if (!semanas[sem]) semanas[sem] = { semana: sem, prodDrone: 0, prodPeso: 0, despachos: 0, viajes: 0, dias: 0, hrsProd: 0, detencion: 0 };
+      semanas[sem].prodDrone  += prodDrone / n;
+      semanas[sem].prodPeso   += prodPeso  / n;
+      semanas[sem].despachos  += despachos / n;
+      semanas[sem].viajes     += viajes    / n;
+      semanas[sem].hrsProd    += hrsProd   / n;
+      semanas[sem].detencion  += detencion / n;
+      semanas[sem].dias       += 1;
+    }
   }
   const semanalRows      = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
   const anioActual       = new Date().getFullYear();
