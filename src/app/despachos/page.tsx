@@ -28,7 +28,11 @@ export default function DespachosPage() {
 
   const [material, setMaterial]   = useState<string>("todos");
 
-  useEffect(() => { loadDespachos(); }, []);
+  useEffect(() => {
+    loadDespachos();
+    const interval = setInterval(loadDespachos, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function loadDespachos() {
     const { data } = await supabase
