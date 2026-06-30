@@ -357,12 +357,12 @@ export default function DiarioPage() {
                         ? <span className="text-green-600 font-bold text-base">✓</span>
                         : <span className="text-gray-300">–</span>}
                     </td>
-                    <td className="table-td text-green-700 font-semibold">{fmt(r.prodDroneDia)}</td>
+                    <td className="table-td text-gray-800">{fmt(r.prodDroneDia)}</td>
                     <td className="table-td text-gray-800">{fmt(r.despachosDia)}</td>
                     <td className="table-td text-gray-800">{fmt(r.horasDia, 1)}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? `${fmt(r.productividad)} t/h` : "–"}</td>
-                    <td className="table-td text-gray-400">{fmt(r.fierrilloDia)}</td>
-                    <td className="table-td text-blue-700">{r.esDroneo ? fmt(r.prodDroneTotal) : "–"}</td>
+                    <td className="table-td text-gray-800">{fmt(r.fierrilloDia)}</td>
+                    <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.prodDroneTotal) : "–"}</td>
                     <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.despachosTotal) : "–"}</td>
                     <td className="table-td">
                       {esFindeSemana(r.fecha)

@@ -487,11 +487,11 @@ export default function Dashboard() {
                   }
                 </td>
                 <td className={`table-td font-bold ${prodText(r.productividad_drone)}`}>{fmt(r.productividad_drone)} t/h</td>
-                <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
+                <td className="table-td text-gray-800">{fmt(r.produccion_drone)}</td>
                 <td className={`table-td font-semibold ${invText(r.inventario_ton)}`}>{fmt(r.inventario_ton)}</td>
-                <td className="table-td">{fmt(r.despachos_ton)}</td>
-                <td className="table-td text-migrin">{fmt(r.produccion_pesometro)}</td>
-                <td className={`table-td ${prodText(r.productividad_pesometro)}`}>{fmt(r.productividad_pesometro)} t/h</td>
+                <td className="table-td text-gray-800">{fmt(r.despachos_ton)}</td>
+                <td className="table-td text-gray-800">{fmt(r.produccion_pesometro)}</td>
+                <td className="table-td text-gray-800">{fmt(r.productividad_pesometro)} t/h</td>
               </tr>
             ))}
           </tbody>

@@ -674,7 +674,28 @@ export default function InformePage() {
                   }}
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
                 />
-                <Legend />
+                <Legend
+                  content={() => (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 20px", justifyContent: "center", fontSize: 12, marginTop: 4 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, backgroundColor: "rgba(107,207,127,0.6)" }} />
+                        Producción Drone
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, backgroundColor: "rgba(55,65,81,0.5)" }} />
+                        Producción Pesóm.
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ display: "inline-block", width: 20, height: 2.5, borderRadius: 2, backgroundColor: C_DRONE, verticalAlign: "middle" }} />
+                        Productividad Drone
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ display: "inline-block", width: 20, height: 2.5, borderRadius: 2, backgroundColor: C_PESO, verticalAlign: "middle" }} />
+                        Productividad Pesóm.
+                      </span>
+                    </div>
+                  )}
+                />
                 <Bar yAxisId="ton" dataKey="prodDrone" name="Producción Drone" radius={[3, 3, 0, 0]}>
                   {chartSemanal.map((entry) => (
                     <Cell key={entry._key} fill={entry._key === selectedSem?.semana ? C_DRONE : "rgba(107,207,127,0.45)"} />
@@ -747,7 +768,7 @@ export default function InformePage() {
                           {fmt(kpiP)} <span className="text-gray-400 font-normal text-xs">t/h</span>
                         </td>
                         <td className="table-td text-gray-600">{fmt(s.prodPeso)}</td>
-                        <td className="table-td text-gray-600">{s.viajes}</td>
+                        <td className="table-td text-gray-600">{fmt(s.viajes)}</td>
                         <td className="table-td text-gray-600">{fmt(s.despachos)}</td>
                         <td className="table-td text-gray-500">{fmt(s.prodDrone / Math.max(s.dias, 1))}</td>
                       </tr>
