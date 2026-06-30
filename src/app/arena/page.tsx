@@ -99,14 +99,17 @@ export default function ArenaPage() {
     loadHistorial();
     loadUltimosDespachos();
     // Sync automático silencioso al cargar la página
-    const prev = ultimosDespachos.length;
     fetch("/api/despachos/sync-sharepoint", { method: "POST" })
       .then(r => r.json())
-      .then(() => loadUltimosDespachos(prev))
+      .then((json) => {
+        const nuevos = json?.synced ?? 0;
+        setNewDespachos(nuevos > 0 ? nuevos : null);
+        loadUltimosDespachos();
+      })
       .catch(() => {}); // fallo silencioso
   }, []);
 
-  async function loadUltimosDespachos(prevCount?: number) {
+  async function loadUltimosDespachos() {
     const { data } = await supabase
       .from("despachos")
       .select("id, fecha, hora, patente, articulo, toneladas, ton_final")
@@ -116,7 +119,6 @@ export default function ArenaPage() {
     if (data) {
       setUltimosDespachos(data as typeof ultimosDespachos);
       setLastSyncTime(new Date().toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }));
-      if (prevCount !== undefined) setNewDespachos(data.length - prevCount);
     }
   }
 
@@ -338,7 +340,8 @@ export default function ArenaPage() {
         const detail = json.errors?.[0] ?? json.error ?? json.message ?? "Error al sincronizar despachos";
         setMsg({ type: "err", text: detail });
       } else {
-        setMsg({ type: "ok", text: ` ${json.message}` });
+        setMsg({ type: "ok", text: json.message });
+        setNewDespachos(json.synced > 0 ? json.synced : null);
         await loadUltimosDespachos();
       }
     } catch (e: unknown) {
