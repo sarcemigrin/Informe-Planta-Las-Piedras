@@ -152,7 +152,7 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   for (let i = 0; i < withDocEntry.length; i += BATCH) {
     const { error, count } = await sb
       .from("despachos")
-      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: false })
+      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
       .select("id", { count: "exact", head: true });
     if (error) errors.push(error.message);
     else total += count ?? withDocEntry.slice(i, i + BATCH).length;
@@ -223,45 +223,19 @@ export async function POST(request: Request) {
       });
     }
 
-    // Obtener la fecha_hora máxima ya almacenada en Supabase
-    const sb = getSupabaseServer();
-    const { data: maxRow } = await sb
-      .from("despachos")
-      .select("fecha_hora")
-      .order("fecha_hora", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const ultimaFechaHora: string | null = maxRow?.fecha_hora ?? null;
-
-    // Filtrar solo registros más nuevos que el último almacenado
-    const nuevos = ultimaFechaHora
-      ? despachos.filter((d) => {
-          const fh = d.fecha_hora as string | null;
-          return fh && fh > ultimaFechaHora;
-        })
-      : despachos;
-
-    if (nuevos.length === 0) {
-      return NextResponse.json({
-        synced: 0, total_rows: despachos.length, skipped: skipped.length,
-        message: `Sin registros nuevos (último: ${ultimaFechaHora ?? "–"})`,
-      });
-    }
-
-    const { total, errors } = await upsertDespachos(nuevos);
+    const { total, errors } = await upsertDespachos(despachos);
 
     const errMsg = errors.length ? ` | Errores: ${errors.slice(0, 2).join("; ")}` : "";
 
     return NextResponse.json({
-      synced:           total,
-      total_rows:       despachos.length,
-      nuevos_procesados: nuevos.length,
-      skipped:          skipped.length,
-      ultima_fecha:     ultimaFechaHora,
-      sheets:           workbook.SheetNames,
-      errors:           errors.length ? errors : undefined,
-      message:          `${total} despachos nuevos importados (${nuevos.length} nuevos de ${despachos.length} leídos)${errMsg}`,
+      synced:     total,
+      total_rows: despachos.length,
+      skipped:    skipped.length,
+      sheets:     workbook.SheetNames,
+      errors:     errors.length ? errors : undefined,
+      message:    total === 0
+        ? `Sin registros nuevos (${despachos.length} leídos, todos ya existían)`
+        : `${total} despachos nuevos importados (de ${despachos.length} leídos)${errMsg}`,
     }, { status: errors.length && total === 0 ? 502 : 200 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
