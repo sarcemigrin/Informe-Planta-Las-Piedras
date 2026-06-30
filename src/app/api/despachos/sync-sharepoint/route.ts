@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// Busca BBDD Despachos.xlsx o .xlsm en todo el drive del usuario
-const ONEDRIVE_FILE_NAMES = ["BBDD Despachos.xlsm", "BBDD Despachos.xlsx"];
+// Busca BBDD Despachos VBA.xlsm, .xlsm o .xlsx en todo el drive del usuario
+const ONEDRIVE_FILE_NAMES = ["BBDD Despachos VBA.xlsm", "BBDD Despachos.xlsm", "BBDD Despachos.xlsx"];
 
 interface DriveItem {
   name: string;
