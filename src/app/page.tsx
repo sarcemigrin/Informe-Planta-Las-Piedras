@@ -27,9 +27,11 @@ const PROD_CRIT   = PROD_TARGET * 0.90;
 const INV_TARGET = 7500;
 const INV_WARN   = 6500;
 
-const DENSIDAD = 1.4;
+const DENSIDAD        = 1.4;
+const DENSIDAD_CUARZO = 1.65;
 const CAP_CANCHA_NUEVA = 16150;
 const CAP_RINONES      = 1500;
+const CAP_CUARZO       = 5360;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
@@ -165,7 +167,9 @@ export default function Dashboard() {
     return ((cur-prv)/prv)*100;
   }
 
-  const conosTon = [(sel?.cono_1??0),(sel?.cono_2??0),(sel?.cono_3??0)].map(v=>v*DENSIDAD);
+  const conosTon      = [(sel?.cono_1??0),(sel?.cono_2??0),(sel?.cono_3??0)].map(v=>v*DENSIDAD);
+  const cuarzoConosTon = [(ultimoCuarzo?.cono_1??0),(ultimoCuarzo?.cono_2??0),(ultimoCuarzo?.cono_3??0)].map(v=>v*DENSIDAD_CUARZO);
+  const cuarzoTotalTon = cuarzoConosTon.reduce((a,b)=>a+b,0);
   const pilasTon = [(sel?.pila_1??0),(sel?.pila_2??0),(sel?.pila_3??0),(sel?.pila_4??0),(sel?.pila_5??0),(sel?.pila_6??0),(sel?.pila_7??0)].map(v=>v*DENSIDAD);
   const canchaViejaTon = conosTon.reduce((a,b)=>a+b,0);
   const canchaNuevaTon = pilasTon.slice(0,4).reduce((a,b)=>a+b,0);
@@ -237,8 +241,8 @@ export default function Dashboard() {
 
       {/* Cuarzo + Canchas */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Canchas Arena</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Canchas Arena &amp; Cuarzo</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
           {/* Cancha Vieja */}
           <div className="card space-y-2 relative pb-6">
@@ -300,6 +304,27 @@ export default function Dashboard() {
             </div>
             <div className="absolute bottom-2 right-2">
               <KpiInfoTooltip text="Desglose de acopios Rinones (R1, R2, R3): material acumulado en zonas secundarias de la cancha x 1.4 ton/m3."/>
+            </div>
+          </div>
+
+          {/* Cuarzo */}
+          <div className="card space-y-2 relative pb-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cuarzo</span>
+              <span className="text-sm font-bold text-blue-700">{fmt(cuarzoTotalTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+            </div>
+            {ultimoCuarzo && <CapacityBar current={cuarzoTotalTon} max={CAP_CUARZO}/>}
+            <div className="grid grid-cols-3 gap-1">
+              {["Cono 1","Cono 2","Cono 3"].map((lbl,n)=>(
+                <div key={n} className="bg-blue-50 rounded-lg px-2 py-1.5 text-center">
+                  <p className="text-xs text-gray-400">{lbl}</p>
+                  <p className="text-sm font-semibold text-blue-700">{fmt(cuarzoConosTon[n],0)}</p>
+                  <p className="text-xs text-gray-400">ton</p>
+                </div>
+              ))}
+            </div>
+            <div className="absolute bottom-2 right-2">
+              <KpiInfoTooltip text={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Conos x 1.65 ton/m3. Capacidad máx: ${fmt(CAP_CUARZO,0)} ton.`}/>
             </div>
           </div>
         </div>
