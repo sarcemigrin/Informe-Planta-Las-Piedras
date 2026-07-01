@@ -218,7 +218,7 @@ export default function Dashboard() {
             </span>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <KpiCard label="Productividad Drone" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon=""
             info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
             trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
@@ -234,8 +234,6 @@ export default function Dashboard() {
           <KpiCard label="Producción Pesom."   value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
-          <KpiCard label="Inv. Cuarzo"         value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue"  icon=""
-            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
         </div>
       </section>
 
@@ -245,17 +243,17 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
           {/* Cancha Vieja */}
-          <div className="card space-y-2 relative pb-6">
+          <div className="card space-y-3 relative pb-8 p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cancha Vieja</span>
-              <span className="text-sm font-bold text-gray-800">{fmt(canchaViejaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+              <span className="text-lg font-bold text-gray-800">{fmt(canchaViejaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             {maxCanchas.vieja > 0 && <CapacityBar current={canchaViejaTon} max={maxCanchas.vieja}/>}
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-2">
               {["Acopio 1","Acopio 2","Acopio 3"].map((lbl,n)=>(
-                <div key={n} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
-                  <p className="text-xs text-gray-400">{lbl}</p>
-                  <p className="text-sm font-semibold text-gray-700">{fmt(conosTon[n],0)}</p>
+                <div key={n} className="bg-gray-50 rounded-lg px-2 py-2.5 text-center">
+                  <p className="text-xs text-gray-400 mb-1">{lbl}</p>
+                  <p className="text-base font-bold text-gray-700">{fmt(conosTon[n],0)}</p>
                   <p className="text-xs text-gray-400">ton</p>
                 </div>
               ))}
@@ -266,17 +264,17 @@ export default function Dashboard() {
           </div>
 
           {/* Cancha Nueva */}
-          <div className="card space-y-2 relative pb-6">
+          <div className="card space-y-3 relative pb-8 p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cancha Nueva</span>
-              <span className="text-sm font-bold text-gray-800">{fmt(canchaNuevaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+              <span className="text-lg font-bold text-gray-800">{fmt(canchaNuevaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             <CapacityBar current={canchaNuevaTon} max={CAP_CANCHA_NUEVA}/>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-4 gap-2">
               {["Acopio 4","Acopio 5","Acopio 6","Acopio 7"].map((lbl,n)=>(
-                <div key={n} className="bg-gray-50 rounded-lg px-1 py-1.5 text-center">
-                  <p className="text-xs text-gray-400">{lbl}</p>
-                  <p className="text-sm font-semibold text-gray-700">{fmt(pilasTon[n],0)}</p>
+                <div key={n} className="bg-gray-50 rounded-lg px-1 py-2.5 text-center">
+                  <p className="text-xs text-gray-400 mb-1">{lbl}</p>
+                  <p className="text-base font-bold text-gray-700">{fmt(pilasTon[n],0)}</p>
                   <p className="text-xs text-gray-400">ton</p>
                 </div>
               ))}
@@ -287,38 +285,38 @@ export default function Dashboard() {
           </div>
 
           {/* Rinones */}
-          <div className="card space-y-2 relative pb-6">
+          <div className="card space-y-3 relative pb-8 p-5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rinones</span>
-              <span className="text-sm font-bold text-gray-800">{fmt(rinoesTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Riñones</span>
+              <span className="text-lg font-bold text-gray-800">{fmt(rinoesTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             <CapacityBar current={rinoesTon} max={CAP_RINONES}/>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-2">
               {["R1","R2","R3"].map((lbl,n)=>(
-                <div key={n} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
-                  <p className="text-xs text-gray-400">{lbl}</p>
-                  <p className="text-sm font-semibold text-gray-700">{fmt(pilasTon[n+4],0)}</p>
+                <div key={n} className="bg-gray-50 rounded-lg px-2 py-2.5 text-center">
+                  <p className="text-xs text-gray-400 mb-1">{lbl}</p>
+                  <p className="text-base font-bold text-gray-700">{fmt(pilasTon[n+4],0)}</p>
                   <p className="text-xs text-gray-400">ton</p>
                 </div>
               ))}
             </div>
             <div className="absolute bottom-2 right-2">
-              <KpiInfoTooltip text="Desglose de acopios Rinones (R1, R2, R3): material acumulado en zonas secundarias de la cancha x 1.4 ton/m3."/>
+              <KpiInfoTooltip text="Desglose de acopios Riñones (R1, R2, R3): material acumulado en zonas secundarias de la cancha x 1.4 ton/m3."/>
             </div>
           </div>
 
           {/* Cuarzo */}
-          <div className="card space-y-2 relative pb-6">
+          <div className="card space-y-3 relative pb-8 p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cuarzo</span>
-              <span className="text-sm font-bold text-blue-700">{fmt(cuarzoTotalTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
+              <span className="text-lg font-bold text-blue-700">{fmt(cuarzoTotalTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             {ultimoCuarzo && <CapacityBar current={cuarzoTotalTon} max={CAP_CUARZO}/>}
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-2">
               {["Cono 1","Cono 2","Cono 3"].map((lbl,n)=>(
-                <div key={n} className="bg-blue-50 rounded-lg px-2 py-1.5 text-center">
-                  <p className="text-xs text-gray-400">{lbl}</p>
-                  <p className="text-sm font-semibold text-blue-700">{fmt(cuarzoConosTon[n],0)}</p>
+                <div key={n} className="bg-blue-50 rounded-lg px-2 py-2.5 text-center">
+                  <p className="text-xs text-gray-400 mb-1">{lbl}</p>
+                  <p className="text-base font-bold text-blue-700">{fmt(cuarzoConosTon[n],0)}</p>
                   <p className="text-xs text-gray-400">ton</p>
                 </div>
               ))}
