@@ -14,29 +14,55 @@ interface DriveItem {
   parentReference?: { path?: string };
 }
 
-// Rutas conocidas donde puede estar el archivo (en orden de preferencia)
-const KNOWN_FOLDER_PATHS = [
-  "Ing Planificación y Control Gestión/Reporte_Informe_Productividad_Arenas",
-  "Ing Planificaci%C3%B3n y Control Gesti%C3%B3n/Reporte_Informe_Productividad_Arenas",
-];
+async function findFileInFolder(accessToken: string, folderId: string): Promise<DriveItem | null> {
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`,
+    { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }
+  );
+  if (!res.ok) return null;
+  const { value } = await res.json() as { value: DriveItem[] };
+  return value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name)) ?? null;
+}
 
 async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
 
-  // 1) Buscar directamente en carpetas conocidas (sin depender del índice de búsqueda)
-  for (const folder of KNOWN_FOLDER_PATHS) {
-    const folderRes = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}:/children`,
-      { headers }
+  // 1) Navegar por carpetas desde la raíz (sin depender del índice de búsqueda ni encoding de tildes)
+  const rootRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, { headers });
+  if (rootRes.ok) {
+    const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
+
+    // Buscar carpeta "Ing Planificación y Control Gestión"
+    const ingFolder = rootItems.find((f) =>
+      f.name.toLowerCase().includes("planificaci") && f.name.toLowerCase().includes("control")
     );
-    if (folderRes.ok) {
-      const { value } = await folderRes.json() as { value: DriveItem[] };
-      const item = value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
-      if (item) {
-        return {
-          url:          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
-          lastModified: item.lastModifiedDateTime ?? null,
-        };
+
+    if (ingFolder) {
+      // Listar hijos de esa carpeta
+      const ingRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${ingFolder.id}/children`, { headers });
+      if (ingRes.ok) {
+        const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
+
+        // Buscar carpeta "Reporte_Informe_Productividad_Arenas"
+        const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
+        if (reporteFolder) {
+          const file = await findFileInFolder(accessToken, reporteFolder.id);
+          if (file) {
+            return {
+              url:          `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`,
+              lastModified: file.lastModifiedDateTime ?? null,
+            };
+          }
+        }
+
+        // También buscar directo en "Ing Planificación" por si el archivo está ahí
+        const fileInIng = await findFileInFolder(accessToken, ingFolder.id);
+        if (fileInIng) {
+          return {
+            url:          `https://graph.microsoft.com/v1.0/me/drive/items/${fileInIng.id}/content`,
+            lastModified: fileInIng.lastModifiedDateTime ?? null,
+          };
+        }
       }
     }
   }
