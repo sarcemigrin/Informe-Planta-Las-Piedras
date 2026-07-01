@@ -29,8 +29,10 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
 
   // 1) Navegar por carpetas desde la raíz (sin depender del índice de búsqueda ni encoding de tildes)
   const rootRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, { headers });
+  const rootNames: string[] = [];
   if (rootRes.ok) {
     const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
+    rootNames.push(...rootItems.map((f) => f.name));
 
     // Buscar carpeta "Ing Planificación y Control Gestión"
     const ingFolder = rootItems.find((f) =>
@@ -80,7 +82,8 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
   const item = items.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
   if (!item) {
     const found = items.map((f) => f.name).slice(0, 5).join(", ") || "ninguno";
-    throw new Error(`"${ONEDRIVE_FILE_NAMES.join(" o ")}" no encontrado. Archivos similares: ${found}`);
+    const rootDebug = rootNames.slice(0, 8).join(" | ") || "raíz vacía o inaccesible";
+    throw new Error(`Archivo no encontrado. Carpetas en raíz de OneDrive: [${rootDebug}]. Búsqueda retornó: ${found}`);
   }
 
   return {
