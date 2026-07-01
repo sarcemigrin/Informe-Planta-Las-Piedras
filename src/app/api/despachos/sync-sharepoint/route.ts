@@ -24,16 +24,36 @@ async function findFileInFolder(accessToken: string, folderId: string): Promise<
   return value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name)) ?? null;
 }
 
-async function searchFileInDrive(accessToken: string, driveId: string): Promise<DriveItem | null> {
+async function searchFileInDrive(accessToken: string, driveId: string): Promise<{ file: DriveItem; driveId: string } | null> {
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
-  // Buscar por nombre en el drive
-  const res = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/search(q='BBDD Despachos')`,
-    { headers }
+
+  // Buscar navegando carpeta por carpeta desde la raíz del drive
+  const rootRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/root/children`, { headers });
+  if (!rootRes.ok) return null;
+  const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
+
+  // Buscar carpeta "Ing Planificación y Control Gestión"
+  const ingFolder = rootItems.find((f) =>
+    f.name.toLowerCase().includes("planificaci") || f.name.toLowerCase().includes("control gesti")
   );
-  if (!res.ok) return null;
-  const { value } = await res.json() as { value: DriveItem[] };
-  return value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name)) ?? null;
+  if (!ingFolder) return null;
+
+  // Listar hijos
+  const ingRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ingFolder.id}/children`, { headers });
+  if (!ingRes.ok) return null;
+  const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
+
+  // Buscar carpeta "Reporte_Informe_Productividad_Arenas"
+  const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
+  if (!reporteFolder) return null;
+
+  // Listar archivos en esa carpeta
+  const reporteRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${reporteFolder.id}/children`, { headers });
+  if (!reporteRes.ok) return null;
+  const { value: reporteItems } = await reporteRes.json() as { value: DriveItem[] };
+
+  const file = reporteItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
+  return file ? { file, driveId } : null;
 }
 
 async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
@@ -48,11 +68,11 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
     driveNames.push(...drives.map((d) => `${d.name}(${d.driveType})`));
 
     for (const drive of drives) {
-      const file = await searchFileInDrive(accessToken, drive.id);
-      if (file) {
+      const result = await searchFileInDrive(accessToken, drive.id);
+      if (result) {
         return {
-          url:          `https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${file.id}/content`,
-          lastModified: file.lastModifiedDateTime ?? null,
+          url:          `https://graph.microsoft.com/v1.0/drives/${result.driveId}/items/${result.file.id}/content`,
+          lastModified: result.file.lastModifiedDateTime ?? null,
         };
       }
     }
