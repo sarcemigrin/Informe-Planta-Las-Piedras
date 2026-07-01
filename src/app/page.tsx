@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
-import type { RegistroArena, RegistroCuarzo } from "@/types/database";
+import type { RegistroArena, RegistroCuarzo, VistaDiarioArena } from "@/types/database";
 import {
   ComposedChart, LineChart, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -74,6 +74,7 @@ export default function Dashboard() {
   const [arenaRows,      setArenaRows]      = useState<RegistroArena[]>([]);
   const [arenaHistorico, setArenaHistorico] = useState<ArenaHistRow[]>([]);
   const [cuarzoRows,     setCuarzoRows]     = useState<RegistroCuarzo[]>([]);
+  const [diarioArena,    setDiarioArena]    = useState<VistaDiarioArena[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [selectedIdx,    setSelectedIdx]    = useState(0);
   const [periodoComp,    setPeriodoComp]    = useState<"S1"|"S2"|"anual">("anual");
@@ -83,17 +84,22 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: arena }, { data: cuarzo }, { data: historico }] = await Promise.all([
+      const [{ data: arena }, { data: cuarzo }, { data: historico }, { data: diario }] = await Promise.all([
         supabase.from("registros_arena").select("*").order("fecha_hora",{ascending:false}).limit(30),
         supabase.from("registros_cuarzo").select("*").order("fecha_hora",{ascending:false}).limit(5),
         supabase.from("registros_arena")
           .select("fecha,produccion_drone,productividad_drone,cono_1,cono_2,cono_3,pila_1,pila_2,pila_3,pila_4,pila_5,pila_6,pila_7")
           .order("fecha_hora",{ascending:true})
           .gte("fecha","2023-01-01"),
+        supabase.from("vista_diario_arena")
+          .select("fecha,mes,anio,produccion_drone_dia,horas_reales_dia")
+          .order("fecha",{ascending:true})
+          .gte("fecha","2023-01-01"),
       ]);
       setArenaRows(arena ?? []);
       setCuarzoRows(cuarzo ?? []);
       setArenaHistorico((historico ?? []) as ArenaHistRow[]);
+      setDiarioArena((diario ?? []) as VistaDiarioArena[]);
       setLoading(false);
     }
     load();
@@ -125,27 +131,29 @@ export default function Dashboard() {
   const { compChart, allYears, currentYear } = useMemo(() => {
     const cy = new Date().getFullYear();
     const meses = periodoComp==="S1"?[0,1,2,3,4,5]:periodoComp==="S2"?[6,7,8,9,10,11]:[0,1,2,3,4,5,6,7,8,9,10,11];
-    const byYM: Record<number,Record<number,{ton:number[];prod:number[]}>> = {};
-    arenaHistorico.forEach(r => {
-      const d=pd(r.fecha), y=d.getFullYear(), m=d.getMonth();
-      if(!meses.includes(m)) return;
-      if(!byYM[y]) byYM[y]={};
-      if(!byYM[y][m]) byYM[y][m]={ton:[],prod:[]};
-      byYM[y][m].ton.push(r.produccion_drone ?? 0);
-      byYM[y][m].prod.push(r.productividad_drone ?? 0);
+    // Acumular producción y horas reales por año-mes desde la vista diaria
+    const byYM: Record<number,Record<number,{ton:number; hrs:number}>> = {};
+    diarioArena.forEach(r => {
+      const m = r.mes - 1; // mes en DB es 1-indexado
+      const y = r.anio;
+      if (!meses.includes(m)) return;
+      if (!byYM[y]) byYM[y] = {};
+      if (!byYM[y][m]) byYM[y][m] = { ton: 0, hrs: 0 };
+      byYM[y][m].ton += r.produccion_drone_dia ?? 0;
+      byYM[y][m].hrs += r.horas_reales_dia    ?? 0;
     });
     const ys = Object.keys(byYM).map(Number).sort();
     const data = meses.map(m => {
       const row: Record<string,unknown> = { mes: MESES[m] };
       ys.forEach(y => {
         const d = byYM[y]?.[m];
-        row["ton_" + y]  = d?.ton.length  ? d.ton.reduce((a,b)=>a+b,0)               : null;
-        row["prod_" + y] = d?.prod.length ? d.prod.reduce((a,b)=>a+b,0)/d.prod.length : null;
+        row["ton_"  + y] = d && d.ton > 0 ? d.ton : null;
+        row["prod_" + y] = d && d.ton > 0 && d.hrs > 0 ? d.ton / d.hrs : null;
       });
       return row;
     });
     return { compChart: data, allYears: ys, currentYear: cy };
-  }, [arenaHistorico, periodoComp]);
+  }, [diarioArena, periodoComp]);
 
   const maxCanchas = useMemo(() => {
     let vieja = 0;
