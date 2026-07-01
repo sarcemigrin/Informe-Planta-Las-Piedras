@@ -14,26 +14,42 @@ interface DriveItem {
   parentReference?: { path?: string };
 }
 
+// Rutas conocidas donde puede estar el archivo (en orden de preferencia)
+const KNOWN_FOLDER_PATHS = [
+  "Ing Planificación y Control Gestión/Reporte_Informe_Productividad_Arenas",
+  "Ing Planificaci%C3%B3n y Control Gesti%C3%B3n/Reporte_Informe_Productividad_Arenas",
+];
+
 async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
-  // Buscar en drive personal + drives compartidos (SharePoint)
-  const searches = [
-    fetch(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`,
-      { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }),
-    fetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`,
-      { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }),
-  ];
-  const [myDriveRes, sharedRes] = await Promise.all(searches);
+  const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
+
+  // 1) Buscar directamente en carpetas conocidas (sin depender del índice de búsqueda)
+  for (const folder of KNOWN_FOLDER_PATHS) {
+    const folderRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/drive/root:/${folder}:/children`,
+      { headers }
+    );
+    if (folderRes.ok) {
+      const { value } = await folderRes.json() as { value: DriveItem[] };
+      const item = value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
+      if (item) {
+        return {
+          url:          `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+          lastModified: item.lastModifiedDateTime ?? null,
+        };
+      }
+    }
+  }
+
+  // 2) Fallback: búsqueda por nombre + sharedWithMe
+  const [myDriveRes, sharedRes] = await Promise.all([
+    fetch(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`, { headers }),
+    fetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`, { headers }),
+  ]);
 
   let items: DriveItem[] = [];
-
-  if (myDriveRes.ok) {
-    const { value } = await myDriveRes.json() as { value: DriveItem[] };
-    items = [...items, ...value];
-  }
-  if (sharedRes.ok) {
-    const { value } = await sharedRes.json() as { value: DriveItem[] };
-    items = [...items, ...value];
-  }
+  if (myDriveRes.ok) { const { value } = await myDriveRes.json() as { value: DriveItem[] }; items = [...items, ...value]; }
+  if (sharedRes.ok)  { const { value } = await sharedRes.json()  as { value: DriveItem[] }; items = [...items, ...value]; }
 
   const item = items.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
   if (!item) {
