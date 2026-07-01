@@ -214,21 +214,24 @@ export default function Dashboard() {
             </span>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon=""
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <KpiCard label="Productividad Drone" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon=""
             info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
             trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
-          <KpiCard label="Producción Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon=""
+          <KpiCard label="Producción Drone"    value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon=""
             info="Produccion por diferencia de inventario entre droneos consecutivos + despachos del periodo."
             trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
-          <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon=""
+          <KpiCard label="Inventario Arena"    value={fmt(sel?.inventario_ton)}       unit="ton"   color="inv"    icon=""
             info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
             trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
-          <KpiCard label="Inv. Cuarzo"   value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton"   color="blue"   icon=""
-            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
-          <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
+          <KpiCard label="Productividad Pesom." value={fmt(sel?.productividad_pesometro)} unit="ton/h" color="migrin" icon=""
+            info="Productividad segun pesometro (t/h). Referencia complementaria al calculo por drone."
+            trend={trend(sel?.productividad_pesometro, prev?.productividad_pesometro)}/>
+          <KpiCard label="Producción Pesom."   value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
+          <KpiCard label="Inv. Cuarzo"         value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue"  icon=""
+            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
         </div>
       </section>
 
