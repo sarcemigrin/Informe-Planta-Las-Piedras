@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
 // Busca BBDD Despachos VBA.xlsm, .xlsm o .xlsx en todo el drive del usuario
-const ONEDRIVE_FILE_NAMES = ["BBDD Despachos VBA.xlsm", "BBDD Despachos.xlsm", "BBDD Despachos.xlsx"];
+const ONEDRIVE_FILE_NAMES = ["BBDD Despachos.xlsx", "BBDD Despachos.xlsm", "BBDD Despachos VBA.xlsm"];
 
 interface DriveItem {
   name: string;
