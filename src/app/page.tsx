@@ -31,7 +31,7 @@ const DENSIDAD = 1.4;
 const CAP_CANCHA_NUEVA = 16150;
 const CAP_RINONES      = 1500;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
+const YR_COLORS = ["#cbd5e1","#94a3b8","#64748b","#475569","#2563eb"];
 
 function pd(dateStr: string): Date {
   return new Date(dateStr + "T12:00:00");
@@ -573,8 +573,8 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
 
   return (
     <div className={"stat-card relative pb-6 " + bgClass + " border border-transparent hover:border-gray-200 transition-colors items-center text-center"}>
-      <span className="stat-label w-full">{label}</span>
-      <div className="flex items-baseline justify-center gap-1">
+      <span className="stat-label w-full text-center">{label}</span>
+      <div className="w-full flex items-baseline justify-center gap-1">
         <span className={"stat-value " + colorClass}>{value}</span>
         <span className="text-xs text-gray-400 font-normal">{unit}</span>
       </div>
