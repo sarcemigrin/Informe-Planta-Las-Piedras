@@ -24,52 +24,41 @@ async function findFileInFolder(accessToken: string, folderId: string): Promise<
   return value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name)) ?? null;
 }
 
+async function searchFileInDrive(accessToken: string, driveId: string): Promise<DriveItem | null> {
+  const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
+  // Buscar por nombre en el drive
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/search(q='BBDD Despachos')`,
+    { headers }
+  );
+  if (!res.ok) return null;
+  const { value } = await res.json() as { value: DriveItem[] };
+  return value.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name)) ?? null;
+}
+
 async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
 
-  // 1) Navegar por carpetas desde la raíz (sin depender del índice de búsqueda ni encoding de tildes)
-  const rootRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, { headers });
-  const rootNames: string[] = [];
-  if (rootRes.ok) {
-    const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
-    rootNames.push(...rootItems.map((f) => f.name));
+  // 1) Obtener todos los drives del usuario (personal + business + SharePoint)
+  const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/me/drives`, { headers });
+  const driveNames: string[] = [];
 
-    // Buscar carpeta "Ing Planificación y Control Gestión"
-    const ingFolder = rootItems.find((f) =>
-      f.name.toLowerCase().includes("planificaci") && f.name.toLowerCase().includes("control")
-    );
+  if (drivesRes.ok) {
+    const { value: drives } = await drivesRes.json() as { value: { id: string; name: string; driveType: string }[] };
+    driveNames.push(...drives.map((d) => `${d.name}(${d.driveType})`));
 
-    if (ingFolder) {
-      // Listar hijos de esa carpeta
-      const ingRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${ingFolder.id}/children`, { headers });
-      if (ingRes.ok) {
-        const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
-
-        // Buscar carpeta "Reporte_Informe_Productividad_Arenas"
-        const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
-        if (reporteFolder) {
-          const file = await findFileInFolder(accessToken, reporteFolder.id);
-          if (file) {
-            return {
-              url:          `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`,
-              lastModified: file.lastModifiedDateTime ?? null,
-            };
-          }
-        }
-
-        // También buscar directo en "Ing Planificación" por si el archivo está ahí
-        const fileInIng = await findFileInFolder(accessToken, ingFolder.id);
-        if (fileInIng) {
-          return {
-            url:          `https://graph.microsoft.com/v1.0/me/drive/items/${fileInIng.id}/content`,
-            lastModified: fileInIng.lastModifiedDateTime ?? null,
-          };
-        }
+    for (const drive of drives) {
+      const file = await searchFileInDrive(accessToken, drive.id);
+      if (file) {
+        return {
+          url:          `https://graph.microsoft.com/v1.0/drives/${drive.id}/items/${file.id}/content`,
+          lastModified: file.lastModifiedDateTime ?? null,
+        };
       }
     }
   }
 
-  // 2) Fallback: búsqueda por nombre + sharedWithMe
+  // 2) Fallback: búsqueda en drive personal + sharedWithMe
   const [myDriveRes, sharedRes] = await Promise.all([
     fetch(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`, { headers }),
     fetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`, { headers }),
@@ -82,8 +71,8 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
   const item = items.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
   if (!item) {
     const found = items.map((f) => f.name).slice(0, 5).join(", ") || "ninguno";
-    const rootDebug = rootNames.slice(0, 8).join(" | ") || "raíz vacía o inaccesible";
-    throw new Error(`Archivo no encontrado. Carpetas en raíz de OneDrive: [${rootDebug}]. Búsqueda retornó: ${found}`);
+    const drivesDebug = driveNames.join(" | ") || "sin drives adicionales";
+    throw new Error(`Archivo no encontrado. Drives disponibles: [${drivesDebug}]. Búsqueda retornó: ${found}`);
   }
 
   return {
