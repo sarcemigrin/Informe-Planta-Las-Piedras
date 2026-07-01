@@ -27,33 +27,42 @@ async function findFileInFolder(accessToken: string, folderId: string): Promise<
 async function searchFileInDrive(accessToken: string, driveId: string): Promise<{ file: DriveItem; driveId: string } | null> {
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
 
-  // Buscar navegando carpeta por carpeta desde la raíz del drive
+  // Buscar desde la raíz del drive
   const rootRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/root/children`, { headers });
   if (!rootRes.ok) return null;
   const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
 
-  // Buscar carpeta "Ing Planificación y Control Gestión"
+  // 1) Buscar directo en la raíz
+  const rootFile = rootItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
+  if (rootFile) return { file: rootFile, driveId };
+
+  // 2) Buscar en subcarpeta "Ing Planificación y Control Gestión"
   const ingFolder = rootItems.find((f) =>
     f.name.toLowerCase().includes("planificaci") || f.name.toLowerCase().includes("control gesti")
   );
-  if (!ingFolder) return null;
+  if (ingFolder) {
+    const ingRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ingFolder.id}/children`, { headers });
+    if (ingRes.ok) {
+      const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
 
-  // Listar hijos
-  const ingRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ingFolder.id}/children`, { headers });
-  if (!ingRes.ok) return null;
-  const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
+      // Directo en esa carpeta
+      const ingFile = ingItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
+      if (ingFile) return { file: ingFile, driveId };
 
-  // Buscar carpeta "Reporte_Informe_Productividad_Arenas"
-  const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
-  if (!reporteFolder) return null;
+      // En subcarpeta "Reporte"
+      const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
+      if (reporteFolder) {
+        const reporteRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${reporteFolder.id}/children`, { headers });
+        if (reporteRes.ok) {
+          const { value: reporteItems } = await reporteRes.json() as { value: DriveItem[] };
+          const file = reporteItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
+          if (file) return { file, driveId };
+        }
+      }
+    }
+  }
 
-  // Listar archivos en esa carpeta
-  const reporteRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${reporteFolder.id}/children`, { headers });
-  if (!reporteRes.ok) return null;
-  const { value: reporteItems } = await reporteRes.json() as { value: DriveItem[] };
-
-  const file = reporteItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
-  return file ? { file, driveId } : null;
+  return null;
 }
 
 async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; lastModified: string | null }> {
@@ -63,11 +72,19 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
   const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/me/drives`, { headers });
   const driveNames: string[] = [];
 
+  const rootDebugItems: string[] = [];
   if (drivesRes.ok) {
     const { value: drives } = await drivesRes.json() as { value: { id: string; name: string; driveType: string }[] };
     driveNames.push(...drives.map((d) => `${d.name}(${d.driveType})`));
 
     for (const drive of drives) {
+      // Debug: listar raíz del drive
+      const rootRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${drive.id}/root/children`, { headers });
+      if (rootRes.ok) {
+        const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
+        rootDebugItems.push(...rootItems.map((f) => f.name));
+      }
+
       const result = await searchFileInDrive(accessToken, drive.id);
       if (result) {
         return {
@@ -92,7 +109,8 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
   if (!item) {
     const found = items.map((f) => f.name).slice(0, 5).join(", ") || "ninguno";
     const drivesDebug = driveNames.join(" | ") || "sin drives adicionales";
-    throw new Error(`Archivo no encontrado. Drives disponibles: [${drivesDebug}]. Búsqueda retornó: ${found}`);
+    const rootDebug = rootDebugItems.slice(0, 10).join(" | ") || "vacío";
+    throw new Error(`Archivo no encontrado. Drives: [${drivesDebug}]. Raíz drive: [${rootDebug}]. Búsqueda: ${found}`);
   }
 
   return {
