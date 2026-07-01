@@ -31,7 +31,7 @@ const DENSIDAD = 1.4;
 const CAP_CANCHA_NUEVA = 16150;
 const CAP_RINONES      = 1500;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const YR_COLORS = ["#cbd5e1","#94a3b8","#64748b","#475569","#2563eb"];
+const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
 function pd(dateStr: string): Date {
   return new Date(dateStr + "T12:00:00");
@@ -224,9 +224,8 @@ export default function Dashboard() {
           <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon=""
             info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
             trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
-          <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon=""
-            info="Total toneladas despachadas entre el droneo anterior y este, segun datos SAP."
-            trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
+          <KpiCard label="Inv. Cuarzo"   value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton"   color="blue"   icon=""
+            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
           <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
             trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
@@ -235,11 +234,8 @@ export default function Dashboard() {
 
       {/* Cuarzo + Canchas */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Cuarzo &amp; Canchas Arena</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-
-          <KpiCard label="Inventario Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon=""
-            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Canchas Arena</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
           {/* Cancha Vieja */}
           <div className="card space-y-2 relative pb-6">
