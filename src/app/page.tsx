@@ -13,7 +13,6 @@ import {
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import { format, differenceInDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
-import { buildSparkSvg } from "@/lib/sparkline";
 import { es } from "date-fns/locale";
 
 type ArenaHistRow = Pick<RegistroArena,
@@ -29,11 +28,11 @@ const INV_TARGET = 7500;
 const INV_WARN   = 6500;
 
 const DENSIDAD = 1.4;
+const CAP_CANCHA_NUEVA = 16150;
+const CAP_RINONES      = 1500;
 const MESES    = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
-// Parsear fecha-only como medianoche local (no UTC) para evitar que
-// "2026-06-22" se interprete como 21/06 en Chile (UTC-4).
 function pd(dateStr: string): Date {
   return new Date(dateStr + "T12:00:00");
 }
@@ -147,16 +146,12 @@ export default function Dashboard() {
   }, [arenaHistorico, periodoComp]);
 
   const maxCanchas = useMemo(() => {
-    let vieja = 0, nueva = 0, rinones = 0;
+    let vieja = 0;
     arenaHistorico.forEach(r => {
-      const v  = ((r.cono_1??0)+(r.cono_2??0)+(r.cono_3??0))*DENSIDAD;
-      const n  = ((r.pila_1??0)+(r.pila_2??0)+(r.pila_3??0)+(r.pila_4??0))*DENSIDAD;
-      const ri = ((r.pila_5??0)+(r.pila_6??0)+(r.pila_7??0))*DENSIDAD;
-      if (v  > vieja)   vieja   = v;
-      if (n  > nueva)   nueva   = n;
-      if (ri > rinones) rinones = ri;
+      const v = ((r.cono_1??0)+(r.cono_2??0)+(r.cono_3??0))*DENSIDAD;
+      if (v > vieja) vieja = v;
     });
-    return { vieja, nueva, rinones };
+    return { vieja };
   }, [arenaHistorico]);
 
   useEffect(() => {
@@ -175,10 +170,6 @@ export default function Dashboard() {
   const canchaViejaTon = conosTon.reduce((a,b)=>a+b,0);
   const canchaNuevaTon = pilasTon.slice(0,4).reduce((a,b)=>a+b,0);
   const rinoesTon      = pilasTon.slice(4).reduce((a,b)=>a+b,0);
-
-  const sk = (field: keyof RegistroArena): number[] =>
-    [...arenaRows].slice(0, 7).reverse().map(r => (r[field] as number | null) ?? 0);
-  const skCuarzo = [...cuarzoRows].slice(0, 7).reverse().map(r => r.inventario_ton ?? 0);
 
   if(loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
@@ -226,24 +217,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <KpiCard label="Productividad" value={fmt(sel?.productividad_drone)}  unit="ton/h" color="prod"   icon=""
             info="Toneladas producidas por hora de horometro. Meta: >=32 t/h · Amarillo: 28.8-32 (dentro del 10%) · Rojo: <28.8 t/h."
-            trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}
-            sparkData={sk("productividad_drone")} refVal={32}/>
+            trend={trend(sel?.productividad_drone, prev?.productividad_drone)} prodVal={sel?.productividad_drone}/>
           <KpiCard label="Producción Drone"   value={fmt(sel?.produccion_drone)}     unit="ton"   color="green"  icon=""
             info="Produccion por diferencia de inventario entre droneos consecutivos + despachos del periodo."
-            trend={trend(sel?.produccion_drone, prev?.produccion_drone)}
-            sparkData={sk("produccion_drone")}/>
+            trend={trend(sel?.produccion_drone, prev?.produccion_drone)}/>
           <KpiCard label="Inventario"    value={fmt(sel?.inventario_ton)}        unit="ton"   color="inv"    icon=""
             info="Suma de acopios Cancha Vieja + Cancha Nueva x densidad 1.4 ton/m3. Meta de control: 7.500 ton · Amarillo: 6.500-7.500 · Rojo: <6.500 ton."
-            trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}
-            sparkData={sk("inventario_ton")}/>
+            trend={trend(sel?.inventario_ton, prev?.inventario_ton)} invVal={sel?.inventario_ton}/>
           <KpiCard label="Despachos"     value={fmt(sel?.despachos_ton)}         unit="ton"   color="gray"   icon=""
             info="Total toneladas despachadas entre el droneo anterior y este, segun datos SAP."
-            trend={trend(sel?.despachos_ton, prev?.despachos_ton)}
-            sparkData={sk("despachos_ton")}/>
+            trend={trend(sel?.despachos_ton, prev?.despachos_ton)}/>
           <KpiCard label="Prod. Pesómetro"  value={fmt(sel?.produccion_pesometro)} unit="ton"   color="migrin" icon=""
             info="Produccion segun diferencia de lecturas del pesometro x factor de humedad 0.85. Referencia complementaria al calculo por drone."
-            trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}
-            sparkData={sk("produccion_pesometro")}/>
+            trend={trend(sel?.produccion_pesometro, prev?.produccion_pesometro)}/>
         </div>
       </section>
 
@@ -253,8 +239,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
 
           <KpiCard label="Inventario Cuarzo" value={fmt(ultimoCuarzo?.inventario_ton)} unit="ton" color="blue" icon=""
-            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}
-            sparkData={skCuarzo}/>
+            info={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Calculado como volumen de conos x 1.65 ton/m3.`}/>
 
           {/* Cancha Vieja */}
           <div className="card space-y-2 relative pb-6">
@@ -283,7 +268,7 @@ export default function Dashboard() {
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cancha Nueva</span>
               <span className="text-sm font-bold text-gray-800">{fmt(canchaNuevaTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
-            {maxCanchas.nueva > 0 && <CapacityBar current={canchaNuevaTon} max={maxCanchas.nueva}/>}
+            <CapacityBar current={canchaNuevaTon} max={CAP_CANCHA_NUEVA}/>
             <div className="grid grid-cols-4 gap-1">
               {["Acopio 4","Acopio 5","Acopio 6","Acopio 7"].map((lbl,n)=>(
                 <div key={n} className="bg-gray-50 rounded-lg px-1 py-1.5 text-center">
@@ -304,7 +289,7 @@ export default function Dashboard() {
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rinones</span>
               <span className="text-sm font-bold text-gray-800">{fmt(rinoesTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
-            {maxCanchas.rinones > 0 && <CapacityBar current={rinoesTon} max={maxCanchas.rinones}/>}
+            <CapacityBar current={rinoesTon} max={CAP_RINONES}/>
             <div className="grid grid-cols-3 gap-1">
               {["R1","R2","R3"].map((lbl,n)=>(
                 <div key={n} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
@@ -533,11 +518,6 @@ export default function Dashboard() {
   );
 }
 
-function Sparkline({ data, color, refVal }: { data: number[]; color: string; refVal?: number }) {
-  if (data.filter(v => v > 0).length < 2) return null;
-  return <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: buildSparkSvg(data, color, refVal) }}/>;
-}
-
 function CapacityBar({ current, max }: { current: number; max: number }) {
   const pct = Math.min(100, Math.round((current / max) * 100));
   let barColor = "#ef4444";
@@ -576,10 +556,9 @@ function KpiInfoTooltip({ text }: { text: string }) {
   );
 }
 
-function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodVal, invVal, sparkData, refVal }: {
+function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodVal, invVal }: {
   label:string; value:string; unit:string; color:string; icon:string;
   trend?:number|null; info?:string; prodVal?:number|null; invVal?:number|null;
-  sparkData?:number[]; refVal?:number;
 }) {
   const isProd = color === "prod";
   const isInv  = color === "inv";
@@ -591,14 +570,9 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
     blue:"bg-blue-50", green:"bg-green-50", migrin:"bg-green-50",
     purple:"bg-purple-50", gray:"bg-gray-50",
   }[color]??"bg-gray-50");
-  const sparkHex: string =
-    isProd ? prodHex(prodVal) :
-    isInv  ? ((!invVal||invVal===0)?"#9ca3af":invVal>=INV_TARGET?"#22c55e":invVal>=INV_WARN?"#eab308":"#ef4444") :
-    ({blue:"#3b82f6",green:"#22c55e",migrin:"#6BCF7F",purple:"#8b5cf6",gray:"#9ca3af"}[color]??"#9ca3af");
-  const hasSpark = sparkData && sparkData.filter(v => v > 0).length >= 2;
 
   return (
-    <div className={"stat-card relative " + (hasSpark ? "pb-8" : "pb-6") + " " + bgClass + " border border-transparent hover:border-gray-200 transition-colors items-center text-center"}>
+    <div className={"stat-card relative pb-6 " + bgClass + " border border-transparent hover:border-gray-200 transition-colors items-center text-center"}>
       <span className="stat-label w-full">{label}</span>
       <div className="flex items-baseline justify-center gap-1">
         <span className={"stat-value " + colorClass}>{value}</span>
@@ -609,9 +583,6 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
           {trendVal >= 0 ? "↑" : "↓"} {Math.abs(trendVal).toFixed(1)}%{" "}
           <span className="font-normal text-gray-400">vs ant.</span>
         </span>
-      )}
-      {hasSpark && (
-        <Sparkline data={sparkData!} color={sparkHex} refVal={refVal}/>
       )}
       {info && (
         <div className="absolute bottom-2 right-2">
