@@ -522,6 +522,9 @@ export default function ArenaPage() {
           <button className="btn-primary w-full py-3 text-base" onClick={handleSave} disabled={saving}>
             {saving ? "Guardando..." : " Guardar Registro"}
           </button>
+
+          {/* Destinatarios del informe */}
+          <MiniDestinatarios />
         </div>
 
         {/* Columna derecha */}
@@ -753,8 +756,6 @@ export default function ArenaPage() {
             )}
           </div>
 
-          {/* Destinatarios del informe */}
-          <MiniDestinatarios />
         </div>
       </div>
 
@@ -825,14 +826,26 @@ function PreviewRow({ label, value, unit, colorClass }: {
 interface Dest { email: string; nombre: string; activo: boolean; }
 
 function MiniDestinatarios() {
-  const [list,    setList]    = useState<Dest[]>([]);
-  const [saving,  setSaving]  = useState(false);
-  const [msg,     setMsg]     = useState<string | null>(null);
+  const [list,          setList]          = useState<Dest[]>([]);
+  const [saving,        setSaving]        = useState(false);
+  const [msg,           setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
+  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
+
+  function flash(ok: boolean, text: string) {
+    setMsg({ ok, text });
+    setTimeout(() => setMsg(null), 3000);
+  }
 
   useEffect(() => {
     fetch("/api/informe/recipients")
       .then(r => r.json())
-      .then(d => setList(d.recipients ?? []))
+      .then(d => {
+        setList(d.recipients ?? []);
+        try {
+          const raw = localStorage.getItem("dest_default");
+          if (raw) setDefaultEmails(JSON.parse(raw));
+        } catch { /* */ }
+      })
       .catch(() => {});
   }, []);
 
@@ -846,8 +859,8 @@ function MiniDestinatarios() {
       });
       const d = await r.json();
       if (d.ok) { setList(updated); setMsg(null); }
-      else       { setMsg(d.error ?? "Error"); setTimeout(() => setMsg(null), 3000); }
-    } catch { setMsg("Error de conexion"); setTimeout(() => setMsg(null), 3000); }
+      else       flash(false, d.error ?? "Error");
+    } catch { flash(false, "Error de conexion"); }
     setSaving(false);
   }
 
@@ -857,15 +870,61 @@ function MiniDestinatarios() {
     persist(updated);
   }
 
+  function setAll(activo: boolean) {
+    const updated = list.map(d => ({ ...d, activo }));
+    setList(updated);
+    persist(updated);
+  }
+
+  function guardarPredeterminado() {
+    const emails = list.filter(d => d.activo).map(d => d.email);
+    localStorage.setItem("dest_default", JSON.stringify(emails));
+    setDefaultEmails(emails);
+    flash(true, "Predeterminado guardado");
+  }
+
+  function cargarPredeterminado() {
+    if (defaultEmails.length === 0) return;
+    const updated = list.map(d => ({ ...d, activo: defaultEmails.includes(d.email) }));
+    setList(updated);
+    persist(updated);
+  }
+
   const activos = list.filter(d => d.activo).length;
+  const todosActivos   = list.length > 0 && activos === list.length;
+  const todosInactivos = list.length > 0 && activos === 0;
   if (list.length === 0) return null;
 
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold text-gray-700 text-sm">Destinatarios del informe</h2>
         <span className="text-[10px] text-gray-400">{activos} activo{activos !== 1 ? "s" : ""}</span>
       </div>
+
+      {/* Acciones masivas */}
+      <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-gray-100">
+        <button onClick={() => setAll(true)} disabled={todosActivos || saving}
+          className="text-[10px] px-2 py-1 rounded border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
+          Activar todos
+        </button>
+        <button onClick={() => setAll(false)} disabled={todosInactivos || saving}
+          className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+          Desactivar todos
+        </button>
+        <div className="flex-1"/>
+        {defaultEmails.length > 0 && (
+          <button onClick={cargarPredeterminado} disabled={saving}
+            className="text-[10px] px-2 py-1 rounded border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition-colors">
+            Cargar pred.
+          </button>
+        )}
+        <button onClick={guardarPredeterminado}
+          className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-white hover:bg-gray-50 transition-colors">
+          Guardar pred.
+        </button>
+      </div>
+
+      {/* Lista */}
       <div className="space-y-1.5">
         {list.map((d, i) => (
           <div key={d.email} className="flex items-center justify-between gap-2">
@@ -873,9 +932,7 @@ function MiniDestinatarios() {
               <p className={"text-xs font-medium truncate " + (d.activo ? "text-gray-700" : "text-gray-300")}>{d.nombre}</p>
               <p className={"text-[10px] truncate " + (d.activo ? "text-gray-400" : "text-gray-200")}>{d.email}</p>
             </div>
-            <button
-              onClick={() => toggle(i)}
-              disabled={saving}
+            <button onClick={() => toggle(i)} disabled={saving}
               className={"relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}
             >
               <span className={"inline-block h-3 w-3 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-3.5" : "translate-x-0.5")}/>
@@ -883,7 +940,10 @@ function MiniDestinatarios() {
           </div>
         ))}
       </div>
-      {msg && <p className="mt-2 text-[10px] text-red-500">{msg}</p>}
+
+      {msg && (
+        <p className={"mt-2 text-[10px] " + (msg.ok ? "text-green-600" : "text-red-500")}>{msg.text}</p>
+      )}
     </div>
   );
 }
