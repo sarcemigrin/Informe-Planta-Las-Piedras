@@ -845,6 +845,9 @@ export default function InformePage() {
         </section>
       )}
 
+      {/* ── Destinatarios del Informe (solo admin) ── */}
+      {isAdmin && <DestinatariosPanel />}
+
     </div>
 
     {editRow && (
@@ -856,5 +859,130 @@ export default function InformePage() {
       />
     )}
     </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Panel de gestión de destinatarios del informe
+───────────────────────────────────────────────*/
+interface Destinatario { email: string; nombre: string; activo: boolean; }
+
+function DestinatariosPanel() {
+  const [list,     setList]     = useState<Destinatario[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [msg,      setMsg]      = useState<{ok:boolean;text:string}|null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [newNombre,setNewNombre]= useState("");
+  const [open,     setOpen]     = useState(false);
+
+  useEffect(() => {
+    fetch("/api/informe/recipients")
+      .then(r => r.json())
+      .then(d => { setList(d.recipients ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  async function save(updated: Destinatario[]) {
+    setSaving(true); setMsg(null);
+    try {
+      const r = await fetch("/api/informe/recipients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipients: updated }),
+      });
+      const d = await r.json();
+      if (d.ok) { setList(updated); setMsg({ ok: true, text: "Guardado correctamente" }); }
+      else       setMsg({ ok: false, text: d.error ?? "Error al guardar" });
+    } catch { setMsg({ ok: false, text: "Error de conexión" }); }
+    setSaving(false);
+    setTimeout(() => setMsg(null), 3000);
+  }
+
+  function toggle(idx: number) {
+    const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
+    save(updated);
+  }
+
+  function remove(idx: number) {
+    if (!confirm("¿Eliminar este destinatario?")) return;
+    save(list.filter((_,i) => i !== idx));
+  }
+
+  function add() {
+    const email = newEmail.trim().toLowerCase();
+    const nombre = newNombre.trim();
+    if (!email || !email.includes("@")) return;
+    if (list.some(d => d.email === email)) return;
+    save([...list, { email, nombre: nombre || email, activo: true }]);
+    setNewEmail(""); setNewNombre(""); setOpen(false);
+  }
+
+  const activos = list.filter(d => d.activo).length;
+
+  return (
+    <section className="card mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="font-semibold text-gray-800">Destinatarios del Informe</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{activos} activo{activos !== 1 ? "s" : ""} de {list.length} · el PDF les llega al enviar</p>
+        </div>
+        <button onClick={() => setOpen(o => !o)} className="btn-secondary text-xs px-3 py-1.5">+ Agregar</button>
+      </div>
+
+      {open && (
+        <div className="mb-4 p-3 bg-gray-50 rounded-xl flex flex-wrap gap-2 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Nombre</label>
+            <input className="input text-sm w-44" placeholder="Juan Pérez"
+              value={newNombre} onChange={e => setNewNombre(e.target.value)}/>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500">Correo</label>
+            <input className="input text-sm w-52" placeholder="email@empresa.com" type="email"
+              value={newEmail} onChange={e => setNewEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && add()}/>
+          </div>
+          <button onClick={add} className="btn-primary text-xs px-4 py-2">Agregar</button>
+          <button onClick={() => setOpen(false)} className="btn-secondary text-xs px-3 py-2">Cancelar</button>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-gray-400 py-4 text-center">Cargando...</p>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {list.map((d, i) => (
+            <div key={d.email} className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => toggle(i)}
+                  className={"relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}
+                  title={d.activo ? "Desactivar" : "Activar"}
+                >
+                  <span className={"inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-4" : "translate-x-0.5")}/>
+                </button>
+                <div>
+                  <p className={"text-sm font-medium " + (d.activo ? "text-gray-800" : "text-gray-400")}>{d.nombre}</p>
+                  <p className={"text-xs " + (d.activo ? "text-gray-500" : "text-gray-300")}>{d.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (d.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400")}>
+                  {d.activo ? "Activo" : "Inactivo"}
+                </span>
+                <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-400 transition-colors text-xs px-1" title="Eliminar">x</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(saving || msg) && (
+        <div className={"mt-3 text-xs px-3 py-2 rounded-lg " + (saving ? "bg-gray-50 text-gray-400" : msg?.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
+          {saving ? "Guardando..." : msg?.text}
+        </div>
+      )}
+    </section>
   );
 }
