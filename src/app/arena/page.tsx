@@ -752,6 +752,9 @@ export default function ArenaPage() {
               <p className="text-sm text-gray-400">Ingresa Pesómetro y Horómetro para ver preview</p>
             )}
           </div>
+
+          {/* Destinatarios del informe */}
+          <MiniDestinatarios />
         </div>
       </div>
 
@@ -818,3 +821,69 @@ function PreviewRow({ label, value, unit, colorClass }: {
   );
 }
 
+/* ── Mini panel destinatarios ─────────────────────────────────── */
+interface Dest { email: string; nombre: string; activo: boolean; }
+
+function MiniDestinatarios() {
+  const [list,    setList]    = useState<Dest[]>([]);
+  const [saving,  setSaving]  = useState(false);
+  const [msg,     setMsg]     = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/informe/recipients")
+      .then(r => r.json())
+      .then(d => setList(d.recipients ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function persist(updated: Dest[]) {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/informe/recipients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipients: updated }),
+      });
+      const d = await r.json();
+      if (d.ok) { setList(updated); setMsg(null); }
+      else       { setMsg(d.error ?? "Error"); setTimeout(() => setMsg(null), 3000); }
+    } catch { setMsg("Error de conexion"); setTimeout(() => setMsg(null), 3000); }
+    setSaving(false);
+  }
+
+  function toggle(idx: number) {
+    const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
+    setList(updated);
+    persist(updated);
+  }
+
+  const activos = list.filter(d => d.activo).length;
+  if (list.length === 0) return null;
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold text-gray-700 text-sm">Destinatarios del informe</h2>
+        <span className="text-[10px] text-gray-400">{activos} activo{activos !== 1 ? "s" : ""}</span>
+      </div>
+      <div className="space-y-1.5">
+        {list.map((d, i) => (
+          <div key={d.email} className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className={"text-xs font-medium truncate " + (d.activo ? "text-gray-700" : "text-gray-300")}>{d.nombre}</p>
+              <p className={"text-[10px] truncate " + (d.activo ? "text-gray-400" : "text-gray-200")}>{d.email}</p>
+            </div>
+            <button
+              onClick={() => toggle(i)}
+              disabled={saving}
+              className={"relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}
+            >
+              <span className={"inline-block h-3 w-3 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-3.5" : "translate-x-0.5")}/>
+            </button>
+          </div>
+        ))}
+      </div>
+      {msg && <p className="mt-2 text-[10px] text-red-500">{msg}</p>}
+    </div>
+  );
+}
