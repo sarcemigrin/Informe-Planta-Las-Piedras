@@ -572,6 +572,7 @@ function KpiInfoTooltip({ text }: { text: string }) {
 }
 
 function CuarzoSparkline({ rows }: { rows: import("@/types/database").RegistroCuarzo[] }) {
+  const [hovered, setHovered] = useState<number|null>(null);
   const pts = [...rows].reverse().filter(r => (r.inventario_ton ?? 0) > 0);
   if (pts.length < 2) return null;
   const W = 200, H = 72;
@@ -582,12 +583,25 @@ function CuarzoSparkline({ rows }: { rows: import("@/types/database").RegistroCu
   const ys = vals.map(v => H - ((v - mn) / rng) * (H - 14) - 4);
   const linePts = xs.map((x,i) => (i === 0 ? "M" : "L") + x.toFixed(1) + "," + ys[i].toFixed(1)).join(" ");
   const areaPts = linePts + " L" + xs[xs.length-1].toFixed(1) + "," + H + " L0," + H + " Z";
-  const lx = xs[xs.length-1], ly = ys[ys.length-1];
+  const hi = hovered ?? pts.length - 1;
+  const hx = xs[hi], hy = ys[hi];
+  const hDate = pts[hi]?.fecha ? pts[hi].fecha.slice(5,10).replace("-","/") : "";
   const firstDate = pts[0]?.fecha ? pts[0].fecha.slice(5,10).replace("-","/") : "";
   const lastDate  = pts[pts.length-1]?.fecha ? pts[pts.length-1].fecha.slice(5,10).replace("-","/") : "";
+  const tooltipLeft = hx > W * 0.65;
   return (
-    <div style={{width:"100%"}}>
-      <svg width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" style={{overflow:"visible"}}>
+    <div style={{width:"100%", position:"relative"}}>
+      <svg width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none"
+        style={{overflow:"visible", cursor:"crosshair", display:"block"}}
+        onMouseLeave={()=>setHovered(null)}
+        onMouseMove={e=>{
+          const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+          const px = ((e.clientX - rect.left) / rect.width) * W;
+          let best = 0;
+          xs.forEach((x,i)=>{ if(Math.abs(x-px)<Math.abs(xs[best]-px)) best=i; });
+          setHovered(best);
+        }}
+      >
         <defs>
           <linearGradient id="czGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25}/>
@@ -596,7 +610,26 @@ function CuarzoSparkline({ rows }: { rows: import("@/types/database").RegistroCu
         </defs>
         <path d={areaPts} fill="url(#czGrad)"/>
         <path d={linePts} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx={lx} cy={ly} r={4} fill="#2563eb" stroke="white" strokeWidth={1.5}/>
+        {/* vertical guide */}
+        {hovered !== null && (
+          <line x1={hx} y1={0} x2={hx} y2={H} stroke="#3b82f6" strokeWidth={1} strokeDasharray="3 2" opacity={0.5}/>
+        )}
+        {/* dots — all faint, hovered/last highlighted */}
+        {xs.map((x,i)=>(
+          <circle key={i} cx={x} cy={ys[i]} r={i===hi ? 5 : 2.5}
+            fill={i===hi ? "#2563eb" : "#93c5fd"}
+            stroke="white" strokeWidth={i===hi ? 2 : 1}
+            style={{transition:"r 0.1s"}}/>
+        ))}
+        {/* tooltip box */}
+        {hovered !== null && (
+          <g transform={"translate(" + (tooltipLeft ? hx - 72 : hx + 6) + "," + Math.max(4, hy - 22) + ")"}>
+            <rect x={0} y={0} width={66} height={20} rx={4} fill="#1e40af" opacity={0.92}/>
+            <text x={33} y={13} textAnchor="middle" fontSize={9} fill="white" fontWeight={600}>
+              {hDate} · {fmt(vals[hi],0)} t
+            </text>
+          </g>
+        )}
       </svg>
       <div style={{display:"flex", justifyContent:"space-between", fontSize:9, color:"#94a3b8", marginTop:2}}>
         <span>{firstDate}</span>
