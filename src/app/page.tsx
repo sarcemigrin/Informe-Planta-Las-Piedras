@@ -85,7 +85,7 @@ export default function Dashboard() {
     async function load() {
       const [{ data: arena }, { data: cuarzo }, { data: historico }] = await Promise.all([
         supabase.from("registros_arena").select("*").order("fecha_hora",{ascending:false}).limit(30),
-        supabase.from("registros_cuarzo").select("*").order("fecha_hora",{ascending:false}).limit(5),
+        supabase.from("registros_cuarzo").select("*").order("fecha_hora",{ascending:false}).limit(20),
         supabase.from("registros_arena")
           .select("fecha,produccion_drone,productividad_drone,horas_reales,cono_1,cono_2,cono_3,pila_1,pila_2,pila_3,pila_4,pila_5,pila_6,pila_7")
           .order("fecha_hora",{ascending:true})
@@ -313,15 +313,7 @@ export default function Dashboard() {
               <span className="text-lg font-bold text-blue-700">{fmt(cuarzoTotalTon,0)} <span className="text-xs font-normal text-gray-400">ton</span></span>
             </div>
             {ultimoCuarzo && <CapacityBar current={cuarzoTotalTon} max={CAP_CUARZO}/>}
-            <div className="grid grid-cols-3 gap-2">
-              {["Cono 1","Cono 2","Cono 3"].map((lbl,n)=>(
-                <div key={n} className="bg-blue-50 rounded-lg px-2 py-2.5 text-center">
-                  <p className="text-xs text-gray-400 mb-1">{lbl}</p>
-                  <p className="text-base font-bold text-blue-700">{fmt(cuarzoConosTon[n],0)}</p>
-                  <p className="text-xs text-gray-400">ton</p>
-                </div>
-              ))}
-            </div>
+            <CuarzoSparkline rows={cuarzoRows}/>
             <div className="absolute bottom-2 right-2">
               <KpiInfoTooltip text={`Inventario cuarzo al ${ultimoCuarzo?format(new Date(ultimoCuarzo.fecha),"dd/MM/yyyy"):"--"}. Conos x 1.65 ton/m3. Capacidad máx: ${fmt(CAP_CUARZO,0)} ton.`}/>
             </div>
@@ -575,6 +567,41 @@ function KpiInfoTooltip({ text }: { text: string }) {
           {text}
         </div>
       )}
+    </div>
+  );
+}
+
+function CuarzoSparkline({ rows }: { rows: import("@/types/database").RegistroCuarzo[] }) {
+  const pts = [...rows].reverse().filter(r => (r.inventario_ton ?? 0) > 0);
+  if (pts.length < 2) return null;
+  const W = 200, H = 72;
+  const vals = pts.map(r => r.inventario_ton as number);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const rng = mx - mn || 1;
+  const xs = pts.map((_,i) => (i / (pts.length - 1)) * W);
+  const ys = vals.map(v => H - ((v - mn) / rng) * (H - 14) - 4);
+  const linePts = xs.map((x,i) => (i === 0 ? "M" : "L") + x.toFixed(1) + "," + ys[i].toFixed(1)).join(" ");
+  const areaPts = linePts + " L" + xs[xs.length-1].toFixed(1) + "," + H + " L0," + H + " Z";
+  const lx = xs[xs.length-1], ly = ys[ys.length-1];
+  const firstDate = pts[0]?.fecha ? pts[0].fecha.slice(5,10).replace("-","/") : "";
+  const lastDate  = pts[pts.length-1]?.fecha ? pts[pts.length-1].fecha.slice(5,10).replace("-","/") : "";
+  return (
+    <div style={{width:"100%"}}>
+      <svg width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" style={{overflow:"visible"}}>
+        <defs>
+          <linearGradient id="czGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25}/>
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02}/>
+          </linearGradient>
+        </defs>
+        <path d={areaPts} fill="url(#czGrad)"/>
+        <path d={linePts} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx={lx} cy={ly} r={4} fill="#2563eb" stroke="white" strokeWidth={1.5}/>
+      </svg>
+      <div style={{display:"flex", justifyContent:"space-between", fontSize:9, color:"#94a3b8", marginTop:2}}>
+        <span>{firstDate}</span>
+        <span style={{color:"#3b82f6", fontWeight:600}}>{lastDate} · {fmt(vals[vals.length-1],0)} t</span>
+      </div>
     </div>
   );
 }
