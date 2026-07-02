@@ -31,23 +31,32 @@ const SEED: Destinatario[] = [
   { email: "fpollock@gestionelalto.cl",  nombre: "Felipe Pollock",          activo: false },
 ];
 
-function serviceClient() {
+function anonClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
 
-async function loadRecipients(): Promise<Destinatario[]> {
-  const { data } = await serviceClient()
-    .from("configuracion")
-    .select("valor")
-    .eq("clave", "report_recipients")
-    .maybeSingle();
+function serviceClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY no configurada en Vercel");
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
+}
 
-  if (!data?.valor) return SEED;
-  try { return JSON.parse(data.valor) as Destinatario[]; }
-  catch { return SEED; }
+async function loadRecipients(): Promise<Destinatario[]> {
+  try {
+    const { data } = await anonClient()
+      .from("configuracion")
+      .select("valor")
+      .eq("clave", "report_recipients")
+      .maybeSingle();
+
+    if (!data?.valor) return SEED;
+    return JSON.parse(data.valor) as Destinatario[];
+  } catch {
+    return SEED;
+  }
 }
 
 export async function GET() {
