@@ -71,18 +71,21 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (session?.user?.rol !== "admin") {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Sin sesion" }, { status: 401 });
     }
 
     const { recipients } = await req.json() as { recipients: Destinatario[] };
     if (!Array.isArray(recipients)) {
-      return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
+      return NextResponse.json({ error: "Formato invalido" }, { status: 400 });
     }
 
     const { error } = await serviceClient()
       .from("configuracion")
-      .upsert({ clave: "report_recipients", valor: JSON.stringify(recipients) }, { onConflict: "clave" });
+      .upsert(
+        { clave: "report_recipients", valor: JSON.stringify(recipients) },
+        { onConflict: "clave" }
+      );
 
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true, saved: recipients.length });

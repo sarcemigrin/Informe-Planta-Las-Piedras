@@ -868,22 +868,35 @@ export default function InformePage() {
 interface Destinatario { email: string; nombre: string; activo: boolean; }
 
 function DestinatariosPanel() {
-  const [list,     setList]     = useState<Destinatario[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [msg,      setMsg]      = useState<{ok:boolean;text:string}|null>(null);
-  const [newEmail, setNewEmail] = useState("");
-  const [newNombre,setNewNombre]= useState("");
-  const [open,     setOpen]     = useState(false);
+  const [list,      setList]      = useState<Destinatario[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [msg,       setMsg]       = useState<{ok:boolean;text:string}|null>(null);
+  const [newEmail,  setNewEmail]  = useState("");
+  const [newNombre, setNewNombre] = useState("");
+  const [open,      setOpen]      = useState(false);
+  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
+
+  function flash(ok: boolean, text: string) {
+    setMsg({ ok, text });
+    setTimeout(() => setMsg(null), 3500);
+  }
 
   useEffect(() => {
     fetch("/api/informe/recipients")
       .then(r => r.json())
-      .then(d => { setList(d.recipients ?? []); setLoading(false); })
+      .then(d => {
+        const recips: Destinatario[] = d.recipients ?? [];
+        setList(recips);
+        // cargar predeterminado si existe
+        const raw = localStorage.getItem("dest_default");
+        if (raw) { try { setDefaultEmails(JSON.parse(raw)); } catch { /* */ } }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
-  async function save(updated: Destinatario[]) {
+  async function persist(updated: Destinatario[]) {
     setSaving(true); setMsg(null);
     try {
       const r = await fetch("/api/informe/recipients", {
@@ -892,44 +905,69 @@ function DestinatariosPanel() {
         body: JSON.stringify({ recipients: updated }),
       });
       const d = await r.json();
-      if (d.ok) { setList(updated); setMsg({ ok: true, text: "Guardado correctamente" }); }
-      else       setMsg({ ok: false, text: d.error ?? "Error al guardar" });
-    } catch { setMsg({ ok: false, text: "Error de conexión" }); }
+      if (d.ok) { setList(updated); flash(true, "Guardado"); }
+      else       flash(false, d.error ?? "Error al guardar");
+    } catch { flash(false, "Error de conexión"); }
     setSaving(false);
-    setTimeout(() => setMsg(null), 3000);
   }
 
+  // Optimistic toggle: actualiza UI de inmediato, persiste en background
   function toggle(idx: number) {
     const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
-    save(updated);
+    setList(updated);        // UI instantánea
+    persist(updated);
+  }
+
+  function setAll(activo: boolean) {
+    const updated = list.map(d => ({ ...d, activo }));
+    setList(updated);
+    persist(updated);
+  }
+
+  function cargarPredeterminado() {
+    if (defaultEmails.length === 0) return;
+    const updated = list.map(d => ({ ...d, activo: defaultEmails.includes(d.email) }));
+    setList(updated);
+    persist(updated);
+  }
+
+  function guardarPredeterminado() {
+    const activos = list.filter(d => d.activo).map(d => d.email);
+    localStorage.setItem("dest_default", JSON.stringify(activos));
+    setDefaultEmails(activos);
+    flash(true, "Selección guardada como predeterminada");
   }
 
   function remove(idx: number) {
     if (!confirm("¿Eliminar este destinatario?")) return;
-    save(list.filter((_,i) => i !== idx));
+    persist(list.filter((_,i) => i !== idx));
   }
 
   function add() {
     const email = newEmail.trim().toLowerCase();
     const nombre = newNombre.trim();
     if (!email || !email.includes("@")) return;
-    if (list.some(d => d.email === email)) return;
-    save([...list, { email, nombre: nombre || email, activo: true }]);
+    if (list.some(d => d.email === email)) { flash(false, "El correo ya existe"); return; }
+    persist([...list, { email, nombre: nombre || email, activo: true }]);
     setNewEmail(""); setNewNombre(""); setOpen(false);
   }
 
   const activos = list.filter(d => d.activo).length;
+  const todosActivos   = list.length > 0 && activos === list.length;
+  const todosInactivos = list.length > 0 && activos === 0;
 
   return (
     <section className="card mt-6">
-      <div className="flex items-center justify-between mb-3">
+      {/* Cabecera */}
+      <div className="flex items-start justify-between mb-3 gap-3">
         <div>
           <h2 className="font-semibold text-gray-800">Destinatarios del Informe</h2>
           <p className="text-xs text-gray-400 mt-0.5">{activos} activo{activos !== 1 ? "s" : ""} de {list.length} · el PDF les llega al enviar</p>
         </div>
-        <button onClick={() => setOpen(o => !o)} className="btn-secondary text-xs px-3 py-1.5">+ Agregar</button>
+        <button onClick={() => setOpen(o => !o)} className="btn-secondary text-xs px-3 py-1.5 shrink-0">+ Agregar</button>
       </div>
 
+      {/* Formulario agregar */}
       {open && (
         <div className="mb-4 p-3 bg-gray-50 rounded-xl flex flex-wrap gap-2 items-end">
           <div className="flex flex-col gap-1">
@@ -948,6 +986,39 @@ function DestinatariosPanel() {
         </div>
       )}
 
+      {/* Acciones masivas */}
+      {!loading && list.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-gray-100">
+          <button
+            onClick={() => setAll(true)}
+            disabled={todosActivos || saving}
+            className="text-xs px-3 py-1.5 rounded-lg border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
+            Activar todos
+          </button>
+          <button
+            onClick={() => setAll(false)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+            Desactivar todos
+          </button>
+          <div className="flex-1"/>
+          {defaultEmails.length > 0 && (
+            <button
+              onClick={cargarPredeterminado}
+              disabled={saving}
+              className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition-colors"
+              title={"Activa: " + defaultEmails.join(", ")}>
+              Cargar predeterminado
+            </button>
+          )}
+          <button
+            onClick={guardarPredeterminado}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 bg-white hover:bg-gray-50 transition-colors">
+            Guardar como predeterminado
+          </button>
+        </div>
+      )}
+
+      {/* Lista */}
       {loading ? (
         <p className="text-xs text-gray-400 py-4 text-center">Cargando...</p>
       ) : (
@@ -957,7 +1028,8 @@ function DestinatariosPanel() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => toggle(i)}
-                  className={"relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}
+                  disabled={saving}
+                  className={"relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:cursor-wait " + (d.activo ? "bg-green-500" : "bg-gray-200")}
                   title={d.activo ? "Desactivar" : "Activar"}
                 >
                   <span className={"inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-4" : "translate-x-0.5")}/>
@@ -978,6 +1050,7 @@ function DestinatariosPanel() {
         </div>
       )}
 
+      {/* Feedback */}
       {(saving || msg) && (
         <div className={"mt-3 text-xs px-3 py-2 rounded-lg " + (saving ? "bg-gray-50 text-gray-400" : msg?.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
           {saving ? "Guardando..." : msg?.text}
