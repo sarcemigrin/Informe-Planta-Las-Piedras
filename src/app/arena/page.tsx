@@ -760,6 +760,9 @@ export default function ArenaPage() {
       </div>
 
       {/* Historial */}
+      {/* Panel Reenviar Informe */}
+      <ReenviarPanel historial={historial} />
+
       <section className="card overflow-auto">
         <h2 className="font-semibold text-gray-800 mb-3">Historial reciente</h2>
         <table className="w-full min-w-[700px] text-sm">
@@ -945,5 +948,90 @@ function MiniDestinatarios() {
         <p className={"mt-2 text-[10px] " + (msg.ok ? "text-green-600" : "text-red-500")}>{msg.text}</p>
       )}
     </div>
+  );
+}
+
+/* ── Panel Reenviar Informe ───────────────────────────────────────────────── */
+function ReenviarPanel({ historial }: { historial: RegistroArena[] }) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [sending,    setSending]    = useState(false);
+  const [result,     setResult]     = useState<{ ok: boolean; text: string } | null>(null);
+
+  if (historial.length === 0) return null;
+
+  async function reenviar() {
+    if (!selectedId) return;
+    setSending(true); setResult(null);
+    try {
+      const r = await fetch("/api/informe/reenviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registroId: selectedId }),
+      });
+      const d = await r.json() as { ok?: boolean; emailOk?: boolean; driveUrl?: string | null; error?: string };
+      if (d.ok && d.emailOk) {
+        setResult({ ok: true, text: "Informe reenviado correctamente" });
+      } else if (d.ok && !d.emailOk) {
+        setResult({ ok: false, text: d.error ?? "PDF generado pero email no enviado" });
+      } else {
+        setResult({ ok: false, text: d.error ?? "Error al reenviar" });
+      }
+    } catch {
+      setResult({ ok: false, text: "Error de conexion" });
+    }
+    setSending(false);
+    setTimeout(() => setResult(null), 5000);
+  }
+
+  const sel = historial.find(r => r.id === selectedId);
+
+  return (
+    <section className="card">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-gray-800 mb-1">Reenviar Informe</h2>
+          <p className="text-xs text-gray-400 mb-2">Selecciona un registro para regenerar su PDF y reenviarlo a los destinatarios activos</p>
+          <select
+            className="input text-sm w-full"
+            value={selectedId}
+            onChange={e => { setSelectedId(e.target.value); setResult(null); }}
+          >
+            <option value="">{"— Seleccionar registro —"}</option>
+            {historial.map(r => {
+              const fecha = r.fecha.split("-").reverse().join("/");
+              const hora  = r.hora?.slice(0,5) ?? "";
+              const prod  = r.produccion_drone != null ? Math.round(r.produccion_drone) + " ton" : "—";
+              const kpi   = r.productividad_drone != null ? r.productividad_drone.toFixed(1) + " t/h" : "—";
+              return (
+                <option key={r.id} value={r.id}>
+                  {fecha} {hora} - {prod} - {kpi}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        <div className="shrink-0 flex flex-col gap-1 items-end">
+          {sel && (
+            <p className="text-xs text-gray-500 text-right">
+              {"Inv. "}{sel.inventario_ton != null ? Math.round(sel.inventario_ton).toLocaleString("es-CL") : "—"}{" ton · "}{sel.horas_reales?.toFixed(1)}{" h"}
+            </p>
+          )}
+          <button
+            onClick={reenviar}
+            disabled={!selectedId || sending}
+            className="btn-primary px-5 py-2 text-sm disabled:opacity-40"
+          >
+            {sending ? "Enviando..." : "Reenviar PDF"}
+          </button>
+        </div>
+      </div>
+
+      {result && (
+        <div className={"mt-3 text-sm px-3 py-2 rounded-lg " + (result.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
+          {result.text}
+        </div>
+      )}
+    </section>
   );
 }
