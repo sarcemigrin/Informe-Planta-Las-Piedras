@@ -16,6 +16,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions }      from "@/lib/authOptions";
 import { createClient }     from "@supabase/supabase-js";
 import { generarInformePDF, type InformeData } from "@/lib/informe-pdf";
+import { generarImagenEmail } from "@/lib/email-image";
 
 function getSupabase() {
   return createClient(
@@ -80,81 +81,74 @@ async function sendEmailWithPDF(
   data: InformeData,
   driveUrl: string | null,
 ): Promise<boolean> {
-  const toRaw     = await getConfig("report_email_to", process.env.REPORT_EMAIL_TO ?? "");
-  const recipients = toRaw
-    .split(",")
-    .map(e => e.trim())
-    .filter(Boolean)
-    .map(address => ({ emailAddress: { address } }));
+  // Leer destinatarios desde report_recipients (JSON), fallback a report_email_to CSV
+  const recipientsRaw = await getConfig("report_recipients", "");
+  let activeList: { email: string; nombre: string; activo: boolean }[] = [];
+  if (recipientsRaw) {
+    try { activeList = JSON.parse(recipientsRaw); } catch { /* */ }
+  }
+  if (activeList.length === 0) {
+    const toRaw = await getConfig("report_email_to", process.env.REPORT_EMAIL_TO ?? "");
+    activeList = toRaw.split(",").map(e => e.trim()).filter(Boolean)
+      .map(email => ({ email, nombre: "", activo: true }));
+  }
+  const recipients = activeList
+    .filter(r => r.activo && r.email)
+    .map(r => ({ emailAddress: { address: r.email } }));
 
   if (recipients.length === 0) {
-    console.warn("[generate-report] REPORT_EMAIL_TO no configurado — email omitido");
+    console.warn("[generate-report] Sin destinatarios activos — email omitido");
     return false;
   }
 
   const fechaFmt = data.fecha.split("-").reverse().join("/");
   const subject  = `Informe Cubicación Arena — ${fechaFmt} ${data.hora}`;
 
-  const bodyHtml = `
-    <div style="font-family:Arial,sans-serif;color:#374151;max-width:560px">
-      <div style="background:#374151;padding:20px 24px;border-left:5px solid #6BCF7F">
-        <h2 style="color:#fff;margin:0;font-size:18px">Informe de Cubicación Arena</h2>
-        <p style="color:#94a3b8;margin:4px 0 0;font-size:13px">${fechaFmt} &nbsp;·&nbsp; ${data.hora}</p>
-      </div>
-      <div style="padding:20px 24px;background:#f6f8fb">
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Productividad Drone</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${data.productividad_drone.toFixed(1)} t/h</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Productividad Pesómetro</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${data.productividad_pesometro.toFixed(1)} t/h</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Producción Drone</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${Math.round(data.produccion_drone).toLocaleString("es-CL")} ton</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Inventario</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${Math.round(data.inventario_ton).toLocaleString("es-CL")} ton</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Despachos</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${Math.round(data.despachos_ton).toLocaleString("es-CL")} ton · ${data.cantidad_despachos} viajes</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Horas producción</td>
-            <td style="padding:6px 0;font-weight:bold;color:#374151;text-align:right">${data.horas_reales.toFixed(1)} hrs</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;color:#6b7280">Detención</td>
-            <td style="padding:6px 0;font-weight:bold;color:#ef4444;text-align:right">${data.detencion.toFixed(1)} hrs</td>
-          </tr>
-        </table>
-        ${driveUrl ? `<p style="margin-top:16px;font-size:12px;color:#6b7280">
-          PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a>
-        </p>` : ""}
-        <p style="margin-top:8px;font-size:11px;color:#9ca3af">
-          Registrado por: ${data.usuario_email ?? "sistema"} — generado automáticamente.
-        </p>
-      </div>
-    </div>
-  `;
+  // Generar imagen PNG del informe
+  const cardBuffer = await generarImagenEmail({
+    fecha:               data.fecha,
+    hora:                data.hora,
+    productividad_drone: data.productividad_drone,
+    produccion_drone:    data.produccion_drone,
+    inventario_ton:      data.inventario_ton,
+    despachos_ton:       data.despachos_ton,
+    cantidad_despachos:  data.cantidad_despachos,
+    horas_reales:        data.horas_reales,
+    detencion:           data.detencion,
+    usuario_email:       data.usuario_email,
+    isReenvio:           false,
+  });
+  const cardBase64 = cardBuffer.toString("base64");
+  const pdfBase64  = Buffer.from(pdfBytes).toString("base64");
 
-  const pdfBase64 = Buffer.from(pdfBytes).toString("base64");
+  const driveLink = driveUrl
+    ? `<p style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
+    : "";
+
+  const bodyHtml =
+    `<div style="background:#f8fafc;padding:24px 0;text-align:center">` +
+    `<img src="cid:informe-card@migrin" alt="Informe Cubicacion Arena" ` +
+    `style="display:block;margin:0 auto;max-width:560px;width:100%;border:0" />` +
+    driveLink +
+    `</div>`;
 
   const body = {
     message: {
       subject,
-      body:          { contentType: "HTML", content: bodyHtml },
-      toRecipients:  recipients,
-      attachments:   [
+      body:         { contentType: "HTML", content: bodyHtml },
+      toRecipients: recipients,
+      attachments:  [
         {
           "@odata.type": "#microsoft.graph.fileAttachment",
-          name:          fileName,
-          contentType:   "application/pdf",
-          contentBytes:  pdfBase64,
+          name: fileName, contentType: "application/pdf", contentBytes: pdfBase64,
+        },
+        {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name:          "informe-card.png",
+          contentType:   "image/png",
+          contentBytes:  cardBase64,
+          contentId:     "informe-card@migrin",
+          isInline:      true,
         },
       ],
     },
