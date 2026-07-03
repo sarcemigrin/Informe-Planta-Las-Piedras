@@ -1,5 +1,5 @@
 /**
- * generarImagenEmail — genera un PNG vertical (560×660 px) del informe
+ * generarImagenEmail — genera un PNG vertical (560x660 px) del informe
  * usando next/og (ImageResponse + Satori, ya incluidos en Next.js 14).
  * Se embebe en el correo como imagen CID inline.
  */
@@ -26,10 +26,10 @@ const H = 660;
 function fmt(v: number, dec = 1) {
   return isFinite(v)
     ? v.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec })
-    : "—";
+    : "-";
 }
 function fmtInt(v: number) {
-  return isFinite(v) ? Math.round(v).toLocaleString("es-CL") : "—";
+  return isFinite(v) ? Math.round(v).toLocaleString("es-CL") : "-";
 }
 
 export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
@@ -38,9 +38,8 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
   const invColor  = d.inventario_ton >= 7500 ? "#16a34a" : d.inventario_ton >= 6500 ? "#d97706" : "#dc2626";
   const detColor  = d.detencion > 0 ? "#dc2626" : "#16a34a";
   const totalHrs  = d.horas_reales + d.detencion;
-  const detPct    = totalHrs > 0 ? ((d.detencion / totalHrs) * 100).toFixed(0) + "%" : "—";
+  const detPct    = totalHrs > 0 ? ((d.detencion / totalHrs) * 100).toFixed(0) + "%" : "-";
 
-  // --- filas de datos -------------------------------------------------------
   interface RowProps { label: string; value: string; color?: string; last?: boolean }
   function DataRow({ label, value, color = "#1e293b", last = false }: RowProps) {
     return (
@@ -59,58 +58,49 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
     );
   }
 
+  const badge = d.isReenvio ? "REENVIO - PLANTA LAS PIEDRAS" : "PLANTA LAS PIEDRAS";
+  const dateStr = `${fechaFmt}  -  ${d.hora}`;
+
   const element = (
     <div
       style={{
-        width:           W,
-        height:          H,
-        display:         "flex",
-        flexDirection:   "column",
-        fontFamily:      "Arial, sans-serif",
+        width: W,
+        height: H,
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: "Arial, sans-serif",
         backgroundColor: "#f8fafc",
       }}
     >
-      {/* ── Header oscuro ── */}
       <div
         style={{
           backgroundColor: "#374151",
-          padding:         "22px 28px 18px",
-          borderLeft:      "7px solid #6BCF7F",
-          display:         "flex",
-          flexDirection:   "column",
+          padding: "22px 28px 18px",
+          borderLeft: "7px solid #6BCF7F",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <div
-          style={{
-            fontSize:      10,
-            color:         "#6BCF7F",
-            fontWeight:    "bold",
-            letterSpacing: 2,
-            marginBottom:  7,
-            fontFamily:    "Arial, sans-serif",
-          }}
-        >
-          {d.isReenvio ? "REENVÍO  ·  PLANTA LAS PIEDRAS" : "PLANTA LAS PIEDRAS"}
+        <div style={{ fontSize: 10, color: "#6BCF7F", fontWeight: "bold", letterSpacing: 2, marginBottom: 7, fontFamily: "Arial, sans-serif" }}>
+          {badge}
         </div>
         <div style={{ fontSize: 20, color: "#ffffff", fontWeight: "bold", marginBottom: 4, fontFamily: "Arial, sans-serif" }}>
-          Informe de Cubicación Arena
+          Informe de Cubicacion Arena
         </div>
         <div style={{ fontSize: 13, color: "#94a3b8", fontFamily: "Arial, sans-serif" }}>
-          {`${fechaFmt}  ·  ${d.hora}`}
+          {dateStr}
         </div>
       </div>
 
-      {/* ── KPI hero (fondo casi-negro) ── */}
       <div
         style={{
           backgroundColor: "#1e293b",
-          padding:         "18px 28px 20px",
-          display:         "flex",
-          alignItems:      "center",
-          justifyContent:  "space-between",
+          padding: "18px 28px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        {/* Productividad */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 10, color: "#64748b", letterSpacing: 1, marginBottom: 4, fontFamily: "Arial, sans-serif" }}>
             PRODUCTIVIDAD DRONE
@@ -123,10 +113,9 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
           </div>
         </div>
 
-        {/* Producción */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
           <div style={{ fontSize: 10, color: "#64748b", letterSpacing: 1, marginBottom: 4, fontFamily: "Arial, sans-serif" }}>
-            PRODUCCIÓN
+            PRODUCCION
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
             <span style={{ fontSize: 32, fontWeight: "bold", color: "#e2e8f0", lineHeight: 1, fontFamily: "Arial, sans-serif" }}>
@@ -137,44 +126,26 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
         </div>
       </div>
 
-      {/* ── Tabla de datos (fondo claro) ── */}
-      <div style={{ padding: "12px 28px 8px", display: "flex", flexDirection: "column", flex: 1 }}>
-        <DataRow
-          label="Inventario"
-          value={fmtInt(d.inventario_ton) + " ton"}
-          color={invColor}
-        />
-        <DataRow
-          label="Despachos"
-          value={fmtInt(d.despachos_ton) + " ton  ·  " + d.cantidad_despachos + " viajes"}
-        />
-        <DataRow
-          label="Horas producción"
-          value={fmt(d.horas_reales) + " hrs"}
-        />
-        <DataRow
-          label="Detención"
-          value={fmt(d.detencion) + " hrs (" + detPct + ")"}
-          color={detColor}
-          last
-        />
+      <div style={{ padding: "12px 28px 8px", display: "flex", flexDirection: "column", flexGrow: 1 }}>
+        <DataRow label="Inventario" value={fmtInt(d.inventario_ton) + " ton"} color={invColor} />
+        <DataRow label="Despachos" value={fmtInt(d.despachos_ton) + " ton - " + d.cantidad_despachos + " viajes"} />
+        <DataRow label="Horas produccion" value={fmt(d.horas_reales) + " hrs"} />
+        <DataRow label="Detencion" value={fmt(d.detencion) + " hrs (" + detPct + ")"} color={detColor} last />
       </div>
 
-      {/* ── Separador verde ── */}
-      <div style={{ height: 3, backgroundColor: "#6BCF7F", margin: "0 28px" }} />
+      <div style={{ height: 3, backgroundColor: "#6BCF7F", marginLeft: 28, marginRight: 28 }} />
 
-      {/* ── Footer ── */}
       <div
         style={{
-          padding:         "10px 28px",
+          padding: "10px 28px",
           backgroundColor: "#f1f5f9",
-          display:         "flex",
-          justifyContent:  "space-between",
-          alignItems:      "center",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Arial, sans-serif" }}>
-          generado automáticamente — arena-control
+          generado automaticamente - arena-control
         </div>
         <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Arial, sans-serif" }}>
           {d.usuario_email ?? "sistema"}
@@ -186,3 +157,4 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
   const imageResponse = new ImageResponse(element, { width: W, height: H });
   const ab = await imageResponse.arrayBuffer();
   return Buffer.from(ab);
+}
