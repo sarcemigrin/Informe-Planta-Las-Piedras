@@ -115,6 +115,7 @@ async function sendEmailWithPDF(
     cantidad_despachos:  data.cantidad_despachos,
     horas_reales:        data.horas_reales,
     detencion:           data.detencion,
+    inventario_cuarzo:   data.inventario_cuarzo,
     usuario_email:       data.usuario_email,
     isReenvio:           false,
   });
@@ -195,24 +196,23 @@ export async function POST(req: Request) {
       const year = new Date().getFullYear();
       const yearStart = `${year}-01-01`;
 
-      const SELECT_FIELDS = "fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, diferencia_pesometro, horas_reales, detencion, despachos_ton, cantidad_despachos, inventario_ton";
+      const SELECT_FIELDS = "fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, produccion_pesometro, diferencia, diferencia_pesometro, horas_reales, detencion, despachos_ton, cantidad_despachos, inventario_ton";
 
-      // Año completo para gráficos
-      const { data: yearRows } = await sb
-        .from("registros_arena")
-        .select(SELECT_FIELDS)
-        .gte("fecha", yearStart)
-        .order("fecha_hora", { ascending: true });
-
-      // Últimos 10 para tabla de cubicación
-      const { data: last10 } = await sb
-        .from("registros_arena")
-        .select(SELECT_FIELDS)
-        .order("fecha_hora", { ascending: false })
-        .limit(10);
+      // Año completo para gráficos + últimos 10 + último cuarzo
+      const [{ data: yearRows }, { data: last10 }, { data: lastCuarzo }] = await Promise.all([
+        sb.from("registros_arena").select(SELECT_FIELDS)
+          .gte("fecha", yearStart).order("fecha_hora", { ascending: true }),
+        sb.from("registros_arena").select(SELECT_FIELDS)
+          .order("fecha_hora", { ascending: false }).limit(10),
+        sb.from("registros_cuarzo").select("inventario_ton")
+          .order("fecha_hora", { ascending: false }).limit(1),
+      ]);
 
       if (last10) {
         data.historial = (last10 as InformeData["historial"])?.reverse() ?? [];
+      }
+      if (lastCuarzo && lastCuarzo.length > 0) {
+        data.inventario_cuarzo = (lastCuarzo[0] as { inventario_ton: number | null }).inventario_ton;
       }
 
       if (yearRows && yearRows.length > 0) {
@@ -264,6 +264,7 @@ export async function POST(req: Request) {
     const driveUrl = await uploadToOneDrive(accessToken, fileName, pdfBytes);
 
     // 3. Enviar email
+
     const emailOk  = await sendEmailWithPDF(accessToken, fileName, pdfBytes, data, driveUrl);
 
     return NextResponse.json({

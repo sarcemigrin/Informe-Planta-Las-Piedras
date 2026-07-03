@@ -1,5 +1,5 @@
 /**
- * generarImagenEmail — genera un PNG vertical (560x660 px) del informe
+ * generarImagenEmail — genera un PNG vertical (560x720 px) del informe
  * usando next/og (ImageResponse + Satori, ya incluidos en Next.js 14).
  * Se embebe en el correo como imagen CID inline.
  */
@@ -16,12 +16,13 @@ export interface EmailCardData {
   cantidad_despachos:      number;
   horas_reales:            number;
   detencion:               number;
+  inventario_cuarzo?:      number | null;
   usuario_email?:          string;
   isReenvio?:              boolean;
 }
 
 const W = 560;
-const H = 660;
+const H = 700;
 
 function fmt(v: number, dec = 1) {
   return isFinite(v)
@@ -40,16 +41,17 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
   const totalHrs  = d.horas_reales + d.detencion;
   const detPct    = totalHrs > 0 ? ((d.detencion / totalHrs) * 100).toFixed(0) + "%" : "-";
 
-  interface RowProps { label: string; value: string; color?: string; last?: boolean }
-  function DataRow({ label, value, color = "#1e293b", last = false }: RowProps) {
+  interface RowProps { label: string; value: string; color?: string; last?: boolean; muted?: boolean }
+  function DataRow({ label, value, color = "#1e293b", last = false, muted = false }: RowProps) {
     return (
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "11px 0",
+          padding: "10px 0",
           borderBottom: last ? "none" : "1px solid #e2e8f0",
+          opacity: muted ? 0.7 : 1,
         }}
       >
         <span style={{ fontSize: 13, color: "#64748b", fontFamily: "Arial, sans-serif" }}>{label}</span>
@@ -58,8 +60,9 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
     );
   }
 
-  const badge = d.isReenvio ? "REENVIO - PLANTA LAS PIEDRAS" : "PLANTA LAS PIEDRAS";
-  const dateStr = `${fechaFmt}  -  ${d.hora}`;
+  const badge   = d.isReenvio ? "REENVIO - PLANTA LAS PIEDRAS" : "PLANTA LAS PIEDRAS";
+  const dateStr = fechaFmt + "  -  " + d.hora;
+  const hasCuarzo = d.inventario_cuarzo != null && isFinite(d.inventario_cuarzo);
 
   const element = (
     <div
@@ -127,7 +130,10 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
       </div>
 
       <div style={{ padding: "12px 28px 8px", display: "flex", flexDirection: "column", flexGrow: 1 }}>
-        <DataRow label="Inventario" value={fmtInt(d.inventario_ton) + " ton"} color={invColor} />
+        <DataRow label="Inventario Arena" value={fmtInt(d.inventario_ton) + " ton"} color={invColor} />
+        {hasCuarzo && (
+          <DataRow label="Inventario Cuarzo" value={fmtInt(d.inventario_cuarzo!) + " ton"} color="#374151" />
+        )}
         <DataRow label="Despachos" value={fmtInt(d.despachos_ton) + " ton - " + d.cantidad_despachos + " viajes"} />
         <DataRow label="Horas produccion" value={fmt(d.horas_reales) + " hrs"} />
         <DataRow label="Detencion" value={fmt(d.detencion) + " hrs (" + detPct + ")"} color={detColor} last />

@@ -13,7 +13,7 @@ import { generarImagenEmail } from "@/lib/email-image";
 
 export const dynamic = "force-dynamic";
 
-const SELECT_FIELDS = "fecha,hora,produccion_drone,productividad_drone,productividad_pesometro,diferencia_pesometro,horas_reales,detencion,despachos_ton,cantidad_despachos,inventario_ton";
+const SELECT_FIELDS = "fecha,hora,produccion_drone,productividad_drone,productividad_pesometro,produccion_pesometro,diferencia,diferencia_pesometro,horas_reales,detencion,despachos_ton,cantidad_despachos,inventario_ton";
 
 function getClient(useService = false) {
   const key = useService
@@ -60,12 +60,17 @@ export async function POST(req: Request) {
     const year = new Date(reg.fecha).getFullYear();
     const yearStart = `${year}-01-01`;
 
-    const [{ data: last10 }, { data: yearRows }] = await Promise.all([
+    const [{ data: last10 }, { data: yearRows }, { data: lastCuarzo }] = await Promise.all([
       sb.from("registros_arena").select(SELECT_FIELDS)
         .order("fecha_hora", { ascending: false }).limit(10),
       sb.from("registros_arena").select(SELECT_FIELDS)
         .gte("fecha", yearStart).order("fecha_hora", { ascending: true }),
+      sb.from("registros_cuarzo").select("inventario_ton")
+        .order("fecha_hora", { ascending: false }).limit(1),
     ]);
+    const inventario_cuarzo = (lastCuarzo && lastCuarzo.length > 0)
+      ? (lastCuarzo[0] as { inventario_ton: number | null }).inventario_ton
+      : null;
 
     // 3. Calcular semanalStats
     const semMap = new Map<string, { prodDrone: number; prodPeso: number; hrsProd: number; detencion: number; despachos: number; viajes: number }>();
@@ -101,6 +106,7 @@ export async function POST(req: Request) {
       despachos_ton:           reg.despachos_ton           ?? 0,
       cantidad_despachos:      reg.cantidad_despachos      ?? 0,
       inventario_ton:          reg.inventario_ton          ?? 0,
+      inventario_cuarzo,
       usuario_email:           session.user?.email ?? "sistema",
       historial:               ((last10 ?? []) as RegistroResumen[]).reverse(),
       historialChart:          (yearRows ?? []) as RegistroResumen[],
@@ -156,6 +162,7 @@ export async function POST(req: Request) {
       cantidad_despachos:      reg.cantidad_despachos   ?? 0,
       horas_reales:            reg.horas_reales         ?? 0,
       detencion:               reg.detencion            ?? 0,
+      inventario_cuarzo,
       usuario_email:           session.user?.email ?? "sistema",
       isReenvio:               true,
     });

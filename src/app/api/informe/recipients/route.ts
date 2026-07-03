@@ -1,6 +1,6 @@
 /**
  * GET  /api/informe/recipients  — lista todos los destinatarios
- * PUT  /api/informe/recipients  — guarda la lista completa (solo admin)
+ * PUT  /api/informe/recipients  — guarda la lista completa (requiere sesión)
  *
  * Almacena en tabla `configuracion`, clave `report_recipients`, como JSON string.
  */
@@ -18,7 +18,7 @@ export interface Destinatario {
   activo: boolean;
 }
 
-// Lista base — se usa como semilla si no existe registro en DB
+// Lista base — semilla si no existe registro en DB
 const SEED: Destinatario[] = [
   { email: "sarce@migrin.cl",            nombre: "Sebastian Arce",          activo: true  },
   { email: "jtorres@migrin.cl",          nombre: "J Torres",                activo: true  },
@@ -31,28 +31,22 @@ const SEED: Destinatario[] = [
   { email: "fpollock@gestionelalto.cl",  nombre: "Felipe Pollock",          activo: false },
 ];
 
-function anonClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-}
-
-function serviceClient() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY no configurada en Vercel");
+function getClient() {
+  // Usa service role si está disponible (bypasa RLS); si no, cae a anon
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key);
 }
 
 async function loadRecipients(): Promise<Destinatario[]> {
   try {
-    const { data } = await anonClient()
+    const { data, error } = await getClient()
       .from("configuracion")
       .select("valor")
       .eq("clave", "report_recipients")
       .maybeSingle();
 
-    if (!data?.valor) return SEED;
+    if (error || !data?.valor) return SEED;
     return JSON.parse(data.valor) as Destinatario[];
   } catch {
     return SEED;
@@ -80,7 +74,13 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Formato invalido" }, { status: 400 });
     }
 
-    const { error } = await serviceClient()
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) {
+      return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY no configurada" }, { status: 500 });
+    }
+
+    const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+    const { error } = await client
       .from("configuracion")
       .upsert(
         { clave: "report_recipients", valor: JSON.stringify(recipients) },
