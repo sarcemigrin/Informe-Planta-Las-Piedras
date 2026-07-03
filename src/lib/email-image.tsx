@@ -96,7 +96,7 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
           Informe de Cubicación Arena
         </div>
         <div style={{ fontSize: 13, color: "#94a3b8", fontFamily: "Arial, sans-serif" }}>
-          {fechaFmt}{"  ·  "}{d.hora}
+          {`${fechaFmt}  ·  ${d.hora}`}
         </div>
       </div>
 
@@ -186,4 +186,3 @@ export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
   const imageResponse = new ImageResponse(element, { width: W, height: H });
   const ab = await imageResponse.arrayBuffer();
   return Buffer.from(ab);
-}
