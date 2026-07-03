@@ -11,6 +11,8 @@ export interface RegistroResumen {
   produccion_drone: number; productividad_drone: number;
   productividad_pesometro: number; horas_reales: number;
   detencion: number; despachos_ton: number; cantidad_despachos: number; inventario_ton: number;
+  produccion_pesometro?: number | null;
+  diferencia?: number | null;
 }
 
 export interface SemanaStat {
@@ -24,6 +26,7 @@ export interface InformeData {
   productividad_pesometro: number; diferencia_pesometro: number;
   horas_reales: number; detencion: number;
   despachos_ton: number; cantidad_despachos: number; inventario_ton: number;
+  inventario_cuarzo?: number | null;
   usuario_email?: string;
   historial?: RegistroResumen[];      // últimos 10 para tabla
   historialChart?: RegistroResumen[]; // año completo para gráfico
@@ -242,59 +245,81 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     row.forEach((cell, ci) => {
       const cx = x0 + ci * col4 + 8;
       txt(p1, cell.l, cx, rowTop - 10, fR, 5.5, GRAY);
-      // Auto-shrink font if value is long
       const vLen = cell.v.length;
       const vSize = vLen > 16 ? 10.5 : vLen > 12 ? 12 : 14;
       txt(p1, cell.v, cx, rowTop - 10 - vSize - 4, fB, vSize, cell.c);
     });
   });
 
-  // Sparkline productividad — año completo
+  // Nota cuarzo + diferencia debajo de la tarjeta
+  {
+    const noteY = crdY - 14;
+    const difPct = data.diferencia_pesometro != null && isFinite(data.diferencia_pesometro)
+      ? (data.diferencia_pesometro * 100).toFixed(1) + "%" : "-";
+    let noteStr = `Dif. Drone vs Pesometro: ${difPct}`;
+    if (data.inventario_cuarzo != null && isFinite(data.inventario_cuarzo)) {
+      noteStr += `     Inv. Cuarzo: ${fmtN(data.inventario_cuarzo, 0)} ton`;
+    }
+    txt(p1, noteStr, M + 6, noteY, fR, 7, GRAY);
+  }
+
+  // Gráfico KPI + inventario — igual que página informe
   const hist = data.historial ?? [];
-  const histChart = data.historialChart ?? hist; // usa historialChart si existe, sino los 10 del historial
+  const histChart = data.historialChart ?? hist;
+  const INV_COLOR = rgb(0.580, 0.635, 0.722); // #94a3b8 slate
   if (histChart.length >= 2) {
     const chartY = 370; const chartH = 230;
+    const cX = M + 24; const cW = usable - 54; // 24px left para labels, 30px right
     const yearLabel = histChart[0]?.fecha?.slice(0, 4) ?? new Date().getFullYear();
-    txt(p1, `PRODUCTIVIDAD DRONE/PESOMETRO - AÑO ${yearLabel}`, M, chartY + chartH + 10, fB, 7.5, DARK);
+    txt(p1, `KPI PRODUCTIVIDAD - AÑO ${yearLabel}`, cX, chartY + chartH + 10, fB, 7.5, DARK);
 
-    const kpiVals  = histChart.map(r => r.productividad_drone ?? null);
-    const kpiPVals = histChart.map(r => r.productividad_pesometro ?? null);
+    const kpiVals  = histChart.map(r => r.productividad_drone       ?? null);
+    const kpiPVals = histChart.map(r => r.productividad_pesometro   ?? null);
     const labels   = histChart.map(r => `${r.fecha.slice(5).replace("-","/")} ${r.hora.slice(0,5)}`);
 
-    // Draw background
-    rect(p1, M, chartY, usable, chartH, LIGHT, rgb(0.88, 0.90, 0.92));
+    // Background + ejes
+    rect(p1, cX, chartY, cW, chartH, LIGHT, rgb(0.88, 0.90, 0.92));
+    line(p1, cX, chartY, cX, chartY + chartH, GRAY, 0.5);
+    line(p1, cX, chartY, cX + cW, chartY, GRAY, 0.5);
+    line(p1, cX + cW, chartY, cX + cW, chartY + chartH, GRAY, 0.5);
 
-    // Y axis labels
+    // Eje Y izquierdo — t/h (KPI)
     const allVals = [...kpiVals, ...kpiPVals].filter((v): v is number => v !== null && isFinite(v));
-    const minV = Math.min(...allVals, 32) * 0.9;
+    const minV = Math.max(0, Math.min(...allVals, 32) * 0.85);
     const maxV = Math.max(...allVals, 32) * 1.1;
     const range = maxV - minV || 1;
+    txt(p1, "t/h", M, chartY + chartH + 3, fR, 6, GRAY);
     for (let i = 0; i <= 4; i++) {
       const gy = chartY + (i / 4) * chartH;
-      line(p1, M, gy, M + usable, gy, rgb(0.90, 0.92, 0.94));
-      txt(p1, fmtN(minV + (i / 4) * range, 0), M - 22, gy - 3, fR, 6, GRAY);
+      line(p1, cX, gy, cX + cW, gy, rgb(0.90, 0.92, 0.94), 0.4);
+      const val = fmtN(minV + (i / 4) * range, 0);
+      const lw = fR.widthOfTextAtSize(val, 5.5);
+      txt(p1, val, cX - 3 - lw, gy - 3, fR, 5.5, GRAY);
     }
 
-    // Reference line 32
+    // Línea de control 32 t/h
     const refY = chartY + ((32 - minV) / range) * chartH;
     if (refY >= chartY && refY <= chartY + chartH) {
-      line(p1, M, refY, M + usable, refY, RED, 0.8, [4, 3]);
-      txt(p1, "Control 32", M + usable - 40, refY + 2, fR, 6, RED);
+      line(p1, cX, refY, cX + cW, refY, RED, 0.8, [4, 3]);
+      txt(p1, "Control 32 t/h", cX + cW - 56, refY + 2, fR, 5.5, RED);
     }
 
-    // X labels
-    const stepC = Math.ceil(histChart.length / 8);
-    labels.forEach((l, i) => {
+    // X labels — dd/MM + tick marks
+    const shortLabels = histChart.map(r => r.fecha.slice(5).replace("-", "/"));
+    const stepC = Math.max(1, Math.ceil(histChart.length / 8));
+    shortLabels.forEach((l, i) => {
       if (i % stepC === 0 || i === histChart.length - 1) {
-        const px = M + (i / Math.max(histChart.length - 1, 1)) * usable;
-        txt(p1, l, px - 10, chartY - 9, fR, 5.5, GRAY);
+        const px = cX + (i / Math.max(histChart.length - 1, 1)) * cW;
+        line(p1, px, chartY, px, chartY - 3, GRAY, 0.5);          // tick mark
+        const lw = fR.widthOfTextAtSize(l, 5.5);
+        txt(p1, l, px - lw / 2, chartY - 5, fR, 5.5, GRAY);      // centrado
       }
     });
 
-    // Lines
-    [[kpiVals, GREEN], [kpiPVals, BLUE]].forEach(([vals, color]) => {
+    // Líneas KPI: drone (verde) + pesóm (gris oscuro — igual que informe)
+    [[kpiVals, GREEN], [kpiPVals, DARK]].forEach(([vals, color]) => {
       const pts = (vals as (number | null)[]).map((v, i) => ({
-        px: M + (i / Math.max(histChart.length - 1, 1)) * usable,
+        px: cX + (i / Math.max(histChart.length - 1, 1)) * cW,
         py: v !== null && isFinite(v) ? chartY + ((v - minV) / range) * chartH : null,
       }));
       for (let i = 1; i < pts.length; i++) {
@@ -305,12 +330,37 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       pts.forEach(p => { if (p.py !== null) p1.drawCircle({ x: p.px, y: p.py, size: 1.5, color: color as ReturnType<typeof rgb> }); });
     });
 
-    // Legend
-    rect(p1, M, chartY + chartH + 2, 8, 4, GREEN);
-    txt(p1, "Drone", M + 11, chartY + chartH + 2, fR, 6, DARK);
-    rect(p1, M + 45, chartY + chartH + 2, 8, 4, BLUE);
-    txt(p1, "Pesometro", M + 56, chartY + chartH + 2, fR, 6, DARK);
-    txt(p1, "t/h", M + usable, chartY + chartH + 2, fR, 6, GRAY);
+    // Inventario — eje secundario derecho (ton, línea punteada slate)
+    const invVals = histChart.map(r => r.inventario_ton ?? null);
+    const validInv = invVals.filter((v): v is number => v !== null && isFinite(v) && v > 0);
+    if (validInv.length >= 2) {
+      const minInv = Math.min(...validInv) * 0.90;
+      const maxInv = Math.max(...validInv) * 1.10;
+      const rangeInv = maxInv - minInv || 1;
+      txt(p1, "ton", cX + cW + 3, chartY + chartH + 3, fR, 6, GRAY);
+      for (let i = 0; i <= 3; i++) {
+        const gy = chartY + (i / 3) * chartH;
+        const val = fmtN(minInv + (i / 3) * rangeInv, 0);
+        txt(p1, val, cX + cW + 3, gy - 3, fR, 5.5, GRAY);
+      }
+      const invPts = invVals.map((v, i) => ({
+        px: cX + (i / Math.max(histChart.length - 1, 1)) * cW,
+        py: v !== null && isFinite(v) && v > 0 ? chartY + ((v - minInv) / rangeInv) * chartH : null,
+      }));
+      for (let i = 1; i < invPts.length; i++) {
+        const p = invPts[i - 1]; const q = invPts[i];
+        if (p.py !== null && q.py !== null)
+          line(p1, p.px, p.py, q.px, q.py, INV_COLOR, 1, [4, 3]);
+      }
+    }
+
+    // Leyenda
+    rect(p1, cX, chartY + chartH + 2, 8, 4, GREEN);
+    txt(p1, "KPI Drone (t/h)", cX + 11, chartY + chartH + 2, fR, 6, DARK);
+    rect(p1, cX + 92, chartY + chartH + 2, 8, 4, DARK);
+    txt(p1, "KPI Pesometro (t/h)", cX + 103, chartY + chartH + 2, fR, 6, DARK);
+    line(p1, cX + 208, chartY + chartH + 4, cX + 216, chartY + chartH + 4, INV_COLOR, 1, [4, 3]);
+    txt(p1, "Inventario (ton, eje der.)", cX + 220, chartY + chartH + 2, fR, 6, GRAY);
   }
 
   // Tabla cubicación
@@ -319,17 +369,20 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   line(p1, M, tblTop1 - 3, M + 130, tblTop1 - 3, GREEN, 1.2);
 
   const cols1 = [
-    { l: "Fecha / Hora",    w: 93, r: false },
-    { l: "Prod. Drone",     w: 67, r: true  },
-    { l: "Kpi Drone t/h",  w: 67, r: true  },
-    { l: "Kpi Pesom. t/h", w: 67, r: true  },
-    { l: "Hrs Prod.",       w: 57, r: true  },
-    { l: "Detencion",       w: 57, r: true  },
-    { l: "Inventario",      w: 72, r: true  },
-    { l: "Viajes",          w: 59, r: true  },
+    { l: "Fecha/Hora",  w: 77, r: false },
+    { l: "KPI D.",      w: 47, r: true  },
+    { l: "Prod. D.",    w: 52, r: true  },
+    { l: "Hrs Pr.",     w: 41, r: true  },
+    { l: "Deten.",      w: 41, r: true  },
+    { l: "Inv.",        w: 52, r: true  },
+    { l: "Vj.",         w: 28, r: true  },
+    { l: "Desp.",       w: 48, r: true  },
+    { l: "KPI P.",      w: 47, r: true  },
+    { l: "Prod. P.",    w: 52, r: true  },
+    { l: "Dif.",        w: 36, r: true  },
   ];
 
-  const hdrH = 14; const rowH = 19;
+  const hdrH = 14; const rowH = 17;
   const tblY1 = tblTop1 - 10;
 
   // Header
@@ -344,31 +397,36 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   const display1 = [...hist].reverse();
   display1.forEach((r, i) => {
     const ry = tblY1 - hdrH - (i + 1) * rowH;
-    if (ry < 45) return; // No salir de la página
+    if (ry < 45) return;
     rect(p1, M, ry, usable, rowH, i % 2 === 0 ? WHITE : STRIPE);
     const isCurr = r.fecha === data.fecha && r.hora.startsWith(data.hora.slice(0, 5));
     if (isCurr) rect(p1, M, ry, 3, rowH, GREEN);
 
     const kpiD = r.horas_reales > 0 ? r.produccion_drone / r.horas_reales : 0;
+    const difStr = r.diferencia != null ? (r.diferencia * 100).toFixed(1) + "%" : "-";
+    const difCol = r.diferencia != null && Math.abs(r.diferencia) > 0.1
+      ? (r.diferencia > 0 ? RED : GREEN) : DARK;
     const cells = [
       { v: `${r.fecha.split("-").reverse().join("/")} ${r.hora.slice(0,5)}`, r: false },
-      { v: fmtN(r.produccion_drone, 0), r: true },
-      { v: fmtN(kpiD),                 r: true, color: kpiD >= 32 ? GREEN : RED },
-      { v: fmtN(r.productividad_pesometro), r: true },
-      { v: fmtN(r.horas_reales),        r: true },
-      { v: fmtN(r.detencion),           r: true, color: r.detencion > 0 ? RED : DARK },
-      { v: fmtN(r.inventario_ton, 0),   r: true },
+      { v: fmtN(kpiD),                                      r: true, color: kpiD >= 32 ? GREEN : RED },
+      { v: fmtN(r.produccion_drone, 0),                     r: true },
+      { v: fmtN(r.horas_reales),                            r: true },
+      { v: fmtN(r.detencion),                               r: true, color: r.detencion > 0 ? RED : DARK },
+      { v: fmtN(r.inventario_ton, 0),                       r: true },
       { v: r.cantidad_despachos ? String(r.cantidad_despachos) : "-", r: true },
+      { v: fmtN(r.despachos_ton, 0),                        r: true },
+      { v: fmtN(r.productividad_pesometro),                 r: true },
+      { v: fmtN(r.produccion_pesometro ?? 0, 0),            r: true },
+      { v: difStr,                                           r: true, color: difCol },
     ];
 
     cx = M + 3;
     cells.forEach((cell, ci) => {
       const col = cols1[ci];
-      const _color = cell.color ?? DARK;
       const xPos = cell.r
-        ? M + cols1.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 7.5) - 3
+        ? M + cols1.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 6.5) - 3
         : cx;
-      txt(p1, cell.v, xPos, ry + 5.5, isCurr ? fB : fR, 7.5, cell.color ?? DARK);
+      txt(p1, cell.v, xPos, ry + 4.5, isCurr ? fB : fR, 6.5, cell.color ?? DARK);
       cx += col.w;
     });
   });
@@ -415,110 +473,169 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     });
   }
 
-  // Bar chart semanal (produccion año completo)
+  // Gráfico semanal — barras produccion (eje izq. ton) + líneas KPI (eje der. t/h)
+  // Igual que página informe: ComposedChart con Bar + Line
   if (sem.length >= 2) {
-    const chartY2 = 517; const chartH2 = 80;
+    const chartY2 = 510; const chartH2 = 92;
+    const cX2 = M + 24; const cW2 = usable - 54;
     const semYear = sem[0]?.semana?.slice(0, 4) ?? new Date().getFullYear();
-    txt(p2, `PRODUCCION SEMANAL (ton) - AÑO ${semYear}`, M, chartY2 + chartH2 + 10, fB, 7.5, DARK);
-    rect(p2, M, chartY2, usable, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
+    txt(p2, `PRODUCCION SEMANAL - AÑO ${semYear}`, cX2, chartY2 + chartH2 + 10, fB, 7.5, DARK);
 
-    // Usar solo valores positivos; cap al percentil 95 para ignorar outliers extremos
-    const allProd = sem.flatMap(s => [s.prodDrone, s.prodPeso]).filter(v => v > 0).sort((a, b) => a - b);
-    const p95idx  = Math.max(0, Math.floor(allProd.length * 0.95) - 1);
-    const maxP    = allProd.length > 0 ? Math.min(allProd[allProd.length - 1], allProd[p95idx] * 1.2) : 1;
+    // Background + ejes
+    rect(p2, cX2, chartY2, cW2, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
+    line(p2, cX2, chartY2, cX2, chartY2 + chartH2, GRAY, 0.5);
+    line(p2, cX2, chartY2, cX2 + cW2, chartY2, GRAY, 0.5);
+    line(p2, cX2 + cW2, chartY2, cX2 + cW2, chartY2 + chartH2, GRAY, 0.5);
 
-    // Y-axis gridlines con labels
-    for (let gi = 1; gi <= 4; gi++) {
+    // Eje Y izquierdo — ton (barras de producción)
+    const allProd2 = sem.flatMap(s => [s.prodDrone, s.prodPeso]).filter(v => v > 0).sort((a, b) => a - b);
+    const p95idx2  = Math.max(0, Math.floor(allProd2.length * 0.95) - 1);
+    const maxP2    = allProd2.length > 0 ? Math.min(allProd2[allProd2.length - 1], allProd2[p95idx2] * 1.2) : 1;
+    txt(p2, "ton", M, chartY2 + chartH2 + 3, fR, 6, GRAY);
+    for (let gi = 0; gi <= 4; gi++) {
       const gy = chartY2 + (gi / 4) * chartH2;
-      line(p2, M, gy, M + usable, gy, rgb(0.88, 0.90, 0.93));
-      if (gi < 4) txt(p2, fmtN(maxP * gi / 4, 0), M - 24, gy - 3, fR, 5.5, GRAY);
+      line(p2, cX2, gy, cX2 + cW2, gy, rgb(0.90, 0.92, 0.94), 0.4);
+      const val = fmtN(maxP2 * gi / 4, 0);
+      const lw = fR.widthOfTextAtSize(val, 5.5);
+      txt(p2, val, cX2 - 3 - lw, gy - 3, fR, 5.5, GRAY);
     }
-    txt(p2, fmtN(maxP, 0), M - 24, chartY2 + chartH2 - 3, fR, 5.5, GRAY);
 
-    // Barras: grupo por semana, ancho calculado para llenar el área
-    const groupW = Math.max(13, Math.floor(usable / sem.length));
-    const bw = Math.max(3, Math.floor((groupW - 3) / 2));
-    const startX = M + Math.floor((usable - sem.length * groupW) / 2);
+    // Eje Y derecho — t/h (líneas KPI)
+    const allKpi2 = sem.map(s => s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0).filter(v => v > 0);
+    const maxK2   = allKpi2.length > 0 ? Math.max(...allKpi2, 32) * 1.1 : 60;
+    const minK2   = allKpi2.length > 0 ? Math.max(0, Math.min(...allKpi2) * 0.85) : 0;
+    const rangeK2 = maxK2 - minK2 || 1;
+    txt(p2, "t/h", cX2 + cW2 + 3, chartY2 + chartH2 + 3, fR, 6, GRAY);
+    for (let ki = 0; ki <= 3; ki++) {
+      const gy  = chartY2 + (ki / 3) * chartH2;
+      const val = fmtN(minK2 + (ki / 3) * rangeK2, 0);
+      txt(p2, val, cX2 + cW2 + 3, gy - 3, fR, 5.5, GRAY);
+    }
+
+    // Barras agrupadas: drone (verde) + pesóm (gris oscuro)
+    const groupW2 = Math.max(11, Math.floor(cW2 / sem.length));
+    const bw2     = Math.max(3,  Math.floor((groupW2 - 2) / 2));
+    const startX2 = cX2 + Math.floor((cW2 - sem.length * groupW2) / 2);
 
     sem.forEach((s, i) => {
-      const bh  = Math.max(0, (s.prodDrone / maxP) * chartH2);
-      const bh2 = Math.max(0, (s.prodPeso  / maxP) * chartH2);
-      const bx  = startX + i * groupW;
-      if (bh > 0)  rect(p2, bx,          chartY2, bw, bh,  GREEN);
-      if (bh2 > 0) rect(p2, bx + bw + 2, chartY2, bw, bh2, BLUE);
-      if (i % Math.ceil(sem.length / 8) === 0 || i === sem.length - 1) {
+      const bhD = Math.max(0, (s.prodDrone / maxP2) * chartH2);
+      const bhP = Math.max(0, (s.prodPeso  / maxP2) * chartH2);
+      const bx  = startX2 + i * groupW2;
+      if (bhD > 0) rect(p2, bx,          chartY2, bw2, bhD, GREEN);
+      if (bhP > 0) rect(p2, bx + bw2 + 1, chartY2, bw2, bhP, DARK);
+      if (i % Math.max(1, Math.ceil(sem.length / 10)) === 0 || i === sem.length - 1) {
         const label = s.semana.includes("-") ? s.semana.split("-")[1] : s.semana;
-        txt(p2, label, bx + bw / 2 - 4, chartY2 - 9, fR, 5.5, GRAY);
+        const cx2lbl = bx + bw2;                                    // center of bar group
+        line(p2, cx2lbl, chartY2, cx2lbl, chartY2 - 3, GRAY, 0.5); // tick mark
+        const lw2 = fR.widthOfTextAtSize(label, 5.5);
+        txt(p2, label, cx2lbl - lw2 / 2, chartY2 - 5, fR, 5.5, GRAY);
       }
     });
 
-    // Legend (sin línea KPI — confusa con eje secundario)
-    rect(p2, M, chartY2 + chartH2 + 2, 8, 4, GREEN);
-    txt(p2, "Prod. Drone (ton)", M + 11, chartY2 + chartH2 + 2, fR, 6, DARK);
-    rect(p2, M + 90, chartY2 + chartH2 + 2, 8, 4, BLUE);
-    txt(p2, "Prod. Pesometro (ton)", M + 101, chartY2 + chartH2 + 2, fR, 6, DARK);
+    // Líneas KPI sobre barras (eje derecho t/h)
+    const centerOf2 = (i: number) => startX2 + i * groupW2 + bw2;
+    type KpiPair = [(number | null)[], ReturnType<typeof rgb>];
+    const kpiSeries: KpiPair[] = [
+      [sem.map(s => s.hrsProd > 0 ? s.prodDrone / s.hrsProd : null), GREEN],
+      [sem.map(s => s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : null), DARK],
+    ];
+    kpiSeries.forEach(([vals, color]) => {
+      const pts = vals.map((v, i) => ({
+        px: centerOf2(i),
+        py: v !== null && isFinite(v) ? chartY2 + ((v - minK2) / rangeK2) * chartH2 : null,
+      }));
+      for (let i = 1; i < pts.length; i++) {
+        const p = pts[i - 1]; const q = pts[i];
+        if (p.py !== null && q.py !== null)
+          line(p2, p.px, p.py, q.px, q.py, color, 1.5);
+      }
+      pts.forEach(p => { if (p.py !== null) p2.drawCircle({ x: p.px, y: p.py, size: 1.5, color }); });
+    });
+
+    // Referencia 32 t/h en eje KPI
+    const refK2 = chartY2 + ((32 - minK2) / rangeK2) * chartH2;
+    if (refK2 >= chartY2 && refK2 <= chartY2 + chartH2) {
+      line(p2, cX2, refK2, cX2 + cW2, refK2, RED, 0.8, [4, 3]);
+      txt(p2, "32 t/h", cX2 + cW2 - 24, refK2 + 2, fR, 5.5, RED);
+    }
+
+    // Leyenda
+    rect(p2, cX2, chartY2 + chartH2 + 2, 8, 4, GREEN);
+    txt(p2, "Prod. Drone", cX2 + 11, chartY2 + chartH2 + 2, fR, 6, DARK);
+    rect(p2, cX2 + 72, chartY2 + chartH2 + 2, 8, 4, DARK);
+    txt(p2, "Prod. Pesometro", cX2 + 83, chartY2 + chartH2 + 2, fR, 6, DARK);
+    line(p2, cX2 + 172, chartY2 + chartH2 + 4, cX2 + 180, chartY2 + chartH2 + 4, GREEN, 1.5);
+    txt(p2, "KPI Drone (eje der.)", cX2 + 184, chartY2 + chartH2 + 2, fR, 6, DARK);
+    line(p2, cX2 + 278, chartY2 + chartH2 + 4, cX2 + 286, chartY2 + chartH2 + 4, DARK, 1.5);
+    txt(p2, "KPI Pesometro (eje der.)", cX2 + 290, chartY2 + chartH2 + 2, fR, 6, DARK);
   }
 
-  // Tabla semanal
-  const tblTop2 = 497;
-  const rowH2 = 14; // filas más compactas para caber el año completo
-  txt(p2, `SEMANAS AÑO ${sem[0]?.semana?.slice(0, 4) ?? new Date().getFullYear()} (${sem.length} semanas)`, M, tblTop2, fB, 7.5, DARK);
-  line(p2, M, tblTop2 - 3, M + 120, tblTop2 - 3, GREEN, 1.2);
+  // ── Tabla resumen semanal ────────────────────────────────────────────────────
+  const tblTop2 = 490;
+  txt(p2, "RESUMEN SEMANAL - AÑO COMPLETO", M, tblTop2, fB, 7.5, DARK);
+  line(p2, M, tblTop2 - 3, M + 145, tblTop2 - 3, GREEN, 1.2);
 
   const cols2 = [
-    { l: "Semana",          w: 73,  r: false },
-    { l: "Prod. Drone",     w: 66,  r: true  },
-    { l: "Kpi Drone t/h",  w: 62,  r: true  },
-    { l: "Prod. Pesom.",    w: 66,  r: true  },
-    { l: "Kpi Pesom. t/h", w: 62,  r: true  },
-    { l: "Hrs Prod.",       w: 52,  r: true  },
-    { l: "Detencion",       w: 52,  r: true  },
-    { l: "Despachos",       w: 62,  r: true  },
-    { l: "Viajes",          w: 44,  r: true  },
+    { l: "Semana",    w: 60,  r: false },
+    { l: "KPI D.",    w: 47,  r: true  },
+    { l: "Prod. D.",  w: 60,  r: true  },
+    { l: "KPI P.",    w: 47,  r: true  },
+    { l: "Prod. P.",  w: 60,  r: true  },
+    { l: "Hrs Pr.",   w: 48,  r: true  },
+    { l: "Deten.",    w: 48,  r: true  },
+    { l: "Desp.",     w: 60,  r: true  },
+    { l: "Viajes",    w: 39,  r: true  },
   ];
 
+  const hdrH2 = 14; const rowH2 = 16;
   const tblY2 = tblTop2 - 10;
-  rect(p2, M, tblY2 - hdrH, usable, hdrH, DARK);
-  cx = M + 3;
+
+  // Header
+  rect(p2, M, tblY2 - hdrH2, usable, hdrH2, DARK);
+  let cx2 = M + 3;
   cols2.forEach(c => {
-    txt(p2, c.l.toUpperCase(), cx, tblY2 - hdrH + 4, fR, 5.5, WHITE);
-    cx += c.w;
+    txt(p2, c.l.toUpperCase(), cx2, tblY2 - hdrH2 + 4, fR, 5.5, WHITE);
+    cx2 += c.w;
   });
 
-  const dispSem = [...sem].reverse();
-  dispSem.forEach((s, i) => {
-    const ry = tblY2 - hdrH - (i + 1) * rowH2;
-    if (ry < 45) return;
+  // Rows — mostrar todas las semanas, últimas primero
+  const semDisplay = [...sem].reverse();
+  semDisplay.forEach((s, i) => {
+    const ry = tblY2 - hdrH2 - (i + 1) * rowH2;
+    if (ry < 30) return;
     rect(p2, M, ry, usable, rowH2, i % 2 === 0 ? WHITE : STRIPE);
-    const kD = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
-    const kP = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
-    const isLast = i === 0;
-    if (isLast) rect(p2, M, ry, 3, rowH2, GREEN);
+
+    const isCurrentSem = s === lastSem;
+    if (isCurrentSem) rect(p2, M, ry, 3, rowH2, GREEN);
+
+    const kpiD2 = s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0;
+    const kpiP2 = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
 
     const cells2 = [
-      { v: s.semana,                r: false },
-      { v: fmtN(s.prodDrone, 0),    r: true  },
-      { v: fmtN(kD),                r: true, color: kD >= 32 ? GREEN : RED },
-      { v: fmtN(s.prodPeso, 0),     r: true  },
-      { v: fmtN(kP),                r: true, color: kP >= 32 ? GREEN : RED },
-      { v: fmtN(s.hrsProd, 1),      r: true  },
-      { v: fmtN(s.detencion, 1),    r: true, color: s.detencion > 0 ? RED : DARK },
-      { v: fmtN(s.despachos, 0),    r: true  },
-      { v: String(s.viajes),        r: true  },
+      { v: s.semana,              r: false },
+      { v: fmtN(kpiD2),           r: true, color: kpiD2 >= 32 ? GREEN : RED },
+      { v: fmtN(s.prodDrone, 0),  r: true },
+      { v: fmtN(kpiP2),           r: true, color: kpiP2 >= 32 ? GREEN : RED },
+      { v: fmtN(s.prodPeso, 0),   r: true },
+      { v: fmtN(s.hrsProd, 1),    r: true },
+      { v: fmtN(s.detencion, 1),  r: true, color: s.detencion > 0 ? RED : DARK },
+      { v: fmtN(s.despachos, 0),  r: true },
+      { v: String(s.viajes),      r: true },
     ];
 
-    cx = M + 3;
+    cx2 = M + 3;
     cells2.forEach((cell, ci) => {
       const col = cols2[ci];
       const xPos = cell.r
         ? M + cols2.slice(0, ci).reduce((a, c) => a + c.w, 0) + col.w - fR.widthOfTextAtSize(cell.v, 6.5) - 3
-        : cx;
-      txt(p2, cell.v, xPos, ry + 4, isLast ? fB : fR, 6.5, cell.color ?? DARK);
-      cx += col.w;
+        : cx2;
+      txt(p2, cell.v, xPos, ry + 4, isCurrentSem ? fB : fR, 6.5, (cell as { color?: ReturnType<typeof rgb> }).color ?? DARK);
+      cx2 += col.w;
     });
   });
 
   pageFooter(p2, fR, W, M, 2);
 
-  return pdfDoc.save();
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
 }
