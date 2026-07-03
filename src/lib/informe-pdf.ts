@@ -283,10 +283,13 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     line(p1, cX, chartY, cX + cW, chartY, GRAY, 0.5);
     line(p1, cX + cW, chartY, cX + cW, chartY + chartH, GRAY, 0.5);
 
-    // Eje Y izquierdo — t/h (KPI)
-    const allVals = [...kpiVals, ...kpiPVals].filter((v): v is number => v !== null && isFinite(v));
-    const minV = Math.max(0, Math.min(...allVals, 32) * 0.85);
-    const maxV = Math.max(...allVals, 32) * 1.1;
+    // Eje Y izquierdo — t/h (KPI) — escala robusta con percentil 90
+    const allVals = [...kpiVals, ...kpiPVals]
+      .filter((v): v is number => v !== null && isFinite(v) && v > 0)
+      .sort((a, b) => a - b);
+    const p90V = allVals[Math.min(allVals.length - 1, Math.floor(allVals.length * 0.90))];
+    const minV = Math.max(0, (allVals[0] ?? 20) * 0.85);
+    const maxV = Math.max(p90V ?? 40, 35) * 1.15;
     const range = maxV - minV || 1;
     txt(p1, "t/h", M, chartY + chartH + 3, fR, 6, GRAY);
     for (let i = 0; i <= 4; i++) {
@@ -317,10 +320,13 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     });
 
     // Líneas KPI: drone (verde) + pesóm (gris oscuro — igual que informe)
+    // Clamp valores fuera de escala para no distorsionar el gráfico
     [[kpiVals, GREEN], [kpiPVals, DARK]].forEach(([vals, color]) => {
       const pts = (vals as (number | null)[]).map((v, i) => ({
         px: cX + (i / Math.max(histChart.length - 1, 1)) * cW,
-        py: v !== null && isFinite(v) ? chartY + ((v - minV) / range) * chartH : null,
+        py: v !== null && isFinite(v) && v > 0
+          ? chartY + Math.min(chartH, Math.max(0, ((Math.min(v, maxV) - minV) / range) * chartH))
+          : null,
       }));
       for (let i = 1; i < pts.length; i++) {
         const p = pts[i - 1]; const q = pts[i];
@@ -500,11 +506,14 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       txt(p2, val, cX2 - 3 - lw, gy - 3, fR, 5.5, GRAY);
     }
 
-    // Eje Y derecho — t/h (líneas KPI)
-    const allKpi2 = sem.map(s => s.hrsProd > 0 ? s.prodDrone / s.hrsProd : 0).filter(v => v > 0);
-    const maxK2   = allKpi2.length > 0 ? Math.max(...allKpi2, 32) * 1.1 : 60;
-    const minK2   = allKpi2.length > 0 ? Math.max(0, Math.min(...allKpi2) * 0.85) : 0;
-    const rangeK2 = maxK2 - minK2 || 1;
+    // Eje Y derecho — t/h (líneas KPI) — escala robusta percentil 90 en ambas series
+    const allKpiD2 = sem.filter(s => s.hrsProd > 0).map(s => s.prodDrone / s.hrsProd).filter(v => isFinite(v) && v > 0);
+    const allKpiP2 = sem.filter(s => s.hrsProd > 0).map(s => s.prodPeso  / s.hrsProd).filter(v => isFinite(v) && v > 0);
+    const allKpi2  = [...allKpiD2, ...allKpiP2].sort((a, b) => a - b);
+    const p90K2    = allKpi2[Math.min(allKpi2.length - 1, Math.floor(allKpi2.length * 0.90))];
+    const maxK2    = Math.max(p90K2 ?? 40, 35) * 1.15;
+    const minK2    = 0;
+    const rangeK2  = maxK2 - minK2 || 1;
     txt(p2, "t/h", cX2 + cW2 + 3, chartY2 + chartH2 + 3, fR, 6, GRAY);
     for (let ki = 0; ki <= 3; ki++) {
       const gy  = chartY2 + (ki / 3) * chartH2;
@@ -542,7 +551,10 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     kpiSeries.forEach(([vals, color]) => {
       const pts = vals.map((v, i) => ({
         px: centerOf2(i),
-        py: v !== null && isFinite(v) ? chartY2 + ((v - minK2) / rangeK2) * chartH2 : null,
+        // Clamp al rango del eje; valores extremos no distorsionan el gráfico
+        py: v !== null && isFinite(v) && v > 0
+          ? chartY2 + Math.min(chartH2, Math.max(0, ((Math.min(v, maxK2) - minK2) / rangeK2) * chartH2))
+          : null,
       }));
       for (let i = 1; i < pts.length; i++) {
         const p = pts[i - 1]; const q = pts[i];
