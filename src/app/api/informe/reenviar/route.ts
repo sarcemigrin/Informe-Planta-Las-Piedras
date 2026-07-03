@@ -145,22 +145,41 @@ export async function POST(req: Request) {
 
     // 8. Enviar email
     const fechaFmt = reg.fecha.split("-").reverse().join("/");
-    const htmlContent = [
-      '<div style="font-family:Arial,sans-serif;color:#374151;max-width:520px">',
-      '<div style="background:#374151;padding:18px 22px;border-left:5px solid #6BCF7F">',
-      '<h2 style="color:#fff;margin:0;font-size:17px">Informe de Cubicacion Arena</h2>',
-      '<p style="color:#94a3b8;margin:4px 0 0;font-size:12px">Planta Las Piedras &middot; ' + fechaFmt + ' ' + reg.hora + ' &middot; REENVIO</p>',
-      '</div>',
-      '<div style="padding:18px 22px;background:#f6f8fb;font-size:13px">',
-      '<p>Reenvio del informe de cubicacion de arena del ' + fechaFmt + ' a las ' + reg.hora + '.</p>',
-      driveUrl ? '<p>Archivado en OneDrive: <a href="' + driveUrl + '" style="color:#6BCF7F">' + fileName + '</a></p>' : '',
-      '<p style="font-size:11px;color:#9ca3af">Reenviado por: ' + (session.user?.email ?? "sistema") + '</p>',
-      '</div></div>',
-    ].join("");
+    const n = (v: number | null, dec = 1) =>
+      v != null && isFinite(v) ? v.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec }) : "—";
+    const detPct = (reg.horas_reales + reg.detencion) > 0
+      ? (reg.detencion / (reg.horas_reales + reg.detencion) * 100).toFixed(0) + "%" : "—";
+    const kpiColor = (v: number | null) => v != null && v >= 32 ? "#16a34a" : "#dc2626";
+    const invColor = (v: number | null) => v != null && v >= 7500 ? "#16a34a" : v != null && v >= 6500 ? "#d97706" : "#dc2626";
+
+    function row(label: string, value: string, color = "#374151") {
+      return '<tr style="border-bottom:1px solid #e5e7eb">'
+        + '<td style="padding:8px 0;color:#6b7280;font-size:13px">' + label + '</td>'
+        + '<td style="padding:8px 0;font-weight:600;color:' + color + ';text-align:right;font-size:13px">' + value + '</td>'
+        + '</tr>';
+    }
+
+    const htmlContent = '<div style="font-family:Arial,sans-serif;color:#374151;max-width:560px">'
+      + '<div style="background:#374151;padding:20px 24px;border-left:5px solid #6BCF7F">'
+      + '<h2 style="color:#fff;margin:0;font-size:18px">Informe de Cubicacion Arena</h2>'
+      + '<p style="color:#94a3b8;margin:6px 0 0;font-size:12px">Planta Las Piedras &nbsp;&middot;&nbsp; ' + fechaFmt + ' ' + reg.hora + ' &nbsp;&middot;&nbsp; REENVIO</p>'
+      + '</div>'
+      + '<div style="padding:20px 24px;background:#f6f8fb">'
+      + '<table style="width:100%;border-collapse:collapse">'
+      + row("Productividad Drone",    n(reg.productividad_drone) + " t/h",    kpiColor(reg.productividad_drone))
+      + row("Produccion Drone",       Math.round(reg.produccion_drone ?? 0).toLocaleString("es-CL") + " ton")
+      + row("Inventario",             Math.round(reg.inventario_ton ?? 0).toLocaleString("es-CL") + " ton", invColor(reg.inventario_ton))
+      + row("Despachos",              Math.round(reg.despachos_ton ?? 0).toLocaleString("es-CL") + " ton - " + (reg.cantidad_despachos ?? 0) + " viajes")
+      + row("Horas produccion",       n(reg.horas_reales) + " hrs")
+      + row("Detencion",              n(reg.detencion) + " hrs (" + detPct + ")", reg.detencion > 0 ? "#dc2626" : "#374151")
+      + "</table>"
+      + (driveUrl ? "<p style='margin-top:16px;font-size:12px;color:#6b7280'>PDF archivado en OneDrive: <a href='" + driveUrl + "' style='color:#6BCF7F'>" + fileName + "</a></p>" : "")
+      + "<p style='margin-top:8px;font-size:11px;color:#9ca3af'>Reenviado por: " + (session.user?.email ?? "sistema") + " - generado automaticamente.</p>"
+      + "</div></div>";
 
     const mailBody = {
       message: {
-        subject: "Informe Cubicacion Arena [REENVIO] — " + fechaFmt + " " + reg.hora,
+        subject: "Informe Cubicacion Arena [REENVIO] - " + fechaFmt + " " + reg.hora,
         body: { contentType: "HTML", content: htmlContent },
         toRecipients: recipients,
         attachments: [{
