@@ -13,8 +13,7 @@ const linksViewer = [
 
 const linksAdmin = [
   { href: "/",          label: "Dashboard" },
-  { href: "/arena",     label: "Arena" },
-  { href: "/cuarzo",    label: "Cuarzo" },
+  { href: "/arena",     label: "Registros" },
   { href: "/despachos", label: "Despachos" },
   { href: "/diario",    label: "Control Vuelos" },
   { href: "/informe",   label: "Informe" },
