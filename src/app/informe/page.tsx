@@ -845,8 +845,7 @@ export default function InformePage() {
         </section>
       )}
 
-      {/* ── Destinatarios del Informe (solo admin) ── */}
-      {isAdmin && <DestinatariosPanel />}
+      {/* ── Destinatarios del Informe — movido a página Arena ── */}
 
     </div>
 
