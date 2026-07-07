@@ -188,8 +188,7 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500">Control de inventarios y productividad - Planta de Arenas</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/arena"  className="btn-primary">+ Arena</Link>
-          <Link href="/cuarzo" className="btn-secondary">+ Cuarzo</Link>
+          <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
         </div>
       </div>
 

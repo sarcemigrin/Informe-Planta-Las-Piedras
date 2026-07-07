@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
-  calcularArena, fmt, ARTICULOS_ARENA_PROD,
+  calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   type ArenaInput,
 } from "@/lib/calculations";
-import type { RegistroArena } from "@/types/database";
+import type { RegistroArena, RegistroCuarzo } from "@/types/database";
 import { format } from "date-fns";
 
 const CONOS = [1, 2, 3] as const;
@@ -57,6 +57,7 @@ function loadDraft(): Record<string, string> {
     pila_1: "", pila_2: "", pila_3: "", pila_4: "",
     pila_5: "", pila_6: "", pila_7: "",
     notas: "",
+    volumen_cuarzo: "",
   };
   try {
     const saved = typeof window !== "undefined" ? localStorage.getItem(FORM_KEY) : null;
@@ -70,6 +71,7 @@ export default function ArenaPage() {
 
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
   const [prevRow, setPrevRow]               = useState<(RegistroArena) | null>(null);
+  const [prevCuarzoRow, setPrevCuarzoRow]   = useState<RegistroCuarzo | null>(null);
   const [preview, setPreview]               = useState<ReturnType<typeof calcularArena> | null>(null);
   const [saving, setSaving]                 = useState(false);
   const [syncing, setSyncing]               = useState(false);
@@ -123,14 +125,16 @@ export default function ArenaPage() {
   }
 
   async function loadHistorial() {
-    const { data } = await supabase
-      .from("registros_arena")
-      .select("*")
-      .order("fecha_hora", { ascending: false })
-      .limit(20);
-    if (data && data.length > 0) {
-      setHistorial(data);
-      setPrevRow(data[0]);
+    const [arenaRes, cuarzoRes] = await Promise.all([
+      supabase.from("registros_arena").select("*").order("fecha_hora", { ascending: false }).limit(20),
+      supabase.from("registros_cuarzo").select("*").order("fecha_hora", { ascending: false }).limit(1),
+    ]);
+    if (arenaRes.data && arenaRes.data.length > 0) {
+      setHistorial(arenaRes.data);
+      setPrevRow(arenaRes.data[0]);
+    }
+    if (cuarzoRes.data && cuarzoRes.data.length > 0) {
+      setPrevCuarzoRow(cuarzoRes.data[0] as RegistroCuarzo);
     }
   }
 
@@ -288,7 +292,33 @@ export default function ArenaPage() {
 
       if (error) throw error;
 
-      //  Generar y enviar informe PDF (fire-and-forget, no bloquea UI) 
+      // Guardar cuarzo si se ingresó volumen
+      if (form.volumen_cuarzo) {
+        const volC = parseFloat(form.volumen_cuarzo) || 0;
+        const cuarzoInput = { fecha: input.fecha, hora: input.hora, pesometro: null, horometro: 0, cono_1: volC, cono_2: 0, cono_3: 0 };
+        const prevCuarzoInput = prevCuarzoRow
+          ? { fecha: prevCuarzoRow.fecha, hora: prevCuarzoRow.hora.slice(0, 5), pesometro: prevCuarzoRow.pesometro, horometro: prevCuarzoRow.horometro ?? 0, cono_1: prevCuarzoRow.cono_1, cono_2: prevCuarzoRow.cono_2, cono_3: prevCuarzoRow.cono_3, inventario_ton: prevCuarzoRow.inventario_ton ?? 0 }
+          : null;
+        const calcC = calcularCuarzo(cuarzoInput, prevCuarzoInput, 0, 0);
+        await supabase.from("registros_cuarzo").insert({
+          fecha: input.fecha, hora: input.hora + ":00",
+          fecha_hora: calcC.fecha_hora,
+          pesometro: null, horometro: 0,
+          cono_1: volC, cono_2: 0, cono_3: 0,
+          notas: null,
+          conos: calcC.conos,
+          inventario_m3: calcC.inventario_m3,
+          inventario_ton: calcC.inventario_ton,
+          diferencia_inventario: calcC.diferencia_inventario,
+          produccion_drone: calcC.produccion_drone,
+          productividad_drone: calcC.productividad_drone,
+          productividad_pesometro: calcC.productividad_pesometro,
+          productividad_hrs_reales: calcC.productividad_hrs_reales,
+          diferencia: calcC.diferencia,
+        });
+      }
+
+      //  Generar y enviar informe PDF (fire-and-forget, no bloquea UI)
       fetch("/api/informe/generate-report", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -317,7 +347,7 @@ export default function ArenaPage() {
         cono_1:"", cono_2:"", cono_3:"",
         pila_1:"", pila_2:"", pila_3:"", pila_4:"",
         pila_5:"", pila_6:"", pila_7:"",
-        notas:"",
+        notas:"", volumen_cuarzo:"",
       };
       setForm(reset);
       try { localStorage.setItem(FORM_KEY, JSON.stringify(reset)); } catch {}
@@ -509,6 +539,21 @@ export default function ArenaPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Inventario Cuarzo */}
+          <div className="card">
+            <h2 className="font-semibold text-gray-700 mb-1">Inventario Cuarzo – Volumen drone (m³)</h2>
+            <p className="text-xs text-gray-400 mb-3">
+              Opcional. Si se ingresa, se guarda un registro en cuarzo con esta fecha y hora.
+              {prevCuarzoRow && (
+                <span className="ml-1">Último: {prevCuarzoRow.fecha} — {fmt(prevCuarzoRow.inventario_ton)} ton</span>
+              )}
+            </p>
+            <input
+              type="number" className="input" placeholder="0.00" step="0.01"
+              value={form.volumen_cuarzo} onChange={set("volumen_cuarzo")}
+            />
           </div>
 
           {/* Notas */}
@@ -977,10 +1022,10 @@ function ReenviarPanel({ historial }: { historial: RegistroArena[] }) {
         setResult({ ok: false, text: d.error ?? "Error al reenviar" });
       }
     } catch {
-      setResult({ ok: false, text: "Error de conexion" });
+      setResult({ ok: false, text: "Error de conexión" });
+    } finally {
+      setSending(false);
     }
-    setSending(false);
-    setTimeout(() => setResult(null), 5000);
   }
 
   const sel = historial.find(r => r.id === selectedId);
