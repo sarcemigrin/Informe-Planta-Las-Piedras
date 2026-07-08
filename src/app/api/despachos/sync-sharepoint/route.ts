@@ -247,20 +247,20 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   const withoutDocEntry = despachos.filter((d) => d.doc_entry === null);
 
   for (let i = 0; i < withDocEntry.length; i += BATCH) {
-    const { error, count } = await sb
+    const { data, error } = await sb
       .from("despachos")
       .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
-      .select("id", { count: "exact", head: true });
+      .select("id");
     if (error) errors.push(error.message);
-    else total += count ?? 0;
+    else total += data?.length ?? 0;
   }
   for (let i = 0; i < withoutDocEntry.length; i += BATCH) {
-    const { error, count } = await sb
+    const { data, error } = await sb
       .from("despachos")
       .insert(withoutDocEntry.slice(i, i + BATCH))
-      .select("id", { count: "exact", head: true });
+      .select("id");
     if (error) errors.push(error.message);
-    else total += count ?? 0;
+    else total += data?.length ?? 0;
   }
   return { total, errors };
 }
