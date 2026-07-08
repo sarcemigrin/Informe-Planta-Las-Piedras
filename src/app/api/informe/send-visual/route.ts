@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const upRes = await fetch(uploadUrl, {
       method:  "PUT",
       headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/pdf" },
-      body:    pdfBytes,
+      body:    Buffer.from(pdfBytes),
     });
     let driveUrl: string | null = null;
     if (upRes.ok) {

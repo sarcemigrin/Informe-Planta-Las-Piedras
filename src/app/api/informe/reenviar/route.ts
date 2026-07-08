@@ -140,7 +140,7 @@ export async function POST(req: Request) {
     const upRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/pdf" },
-      body: pdfBytes,
+      body: Buffer.from(pdfBytes),
     });
     if (upRes.ok) { const j = await upRes.json() as { webUrl?: string }; driveUrl = j.webUrl ?? null; }
 

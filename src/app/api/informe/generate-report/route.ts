@@ -62,7 +62,7 @@ async function uploadToOneDrive(
       Authorization:  `Bearer ${accessToken}`,
       "Content-Type": "application/pdf",
     },
-    body: pdfBytes,
+    body: Buffer.from(pdfBytes),
   });
 
   if (!res.ok) {
