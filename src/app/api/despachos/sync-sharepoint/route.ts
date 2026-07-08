@@ -360,7 +360,7 @@ export async function GET(request: Request) {
   if (!accessToken) return NextResponse.json({ error: "Sin token" }, { status: 401 });
 
   try {
-    const fileUrl = await getOneDriveFileUrl(accessToken);
+    const { url: fileUrl } = await getOneDriveFileInfo(accessToken);
     const fileRes = await fetch(fileUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!fileRes.ok) return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${await fileRes.text()}` }, { status: 502 });
 
