@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { createClient } from "@supabase/supabase-js";
 
@@ -30,10 +31,10 @@ async function refreshAccessToken(token: Record<string, unknown>) {
       accessToken:          data.access_token as string,
       refreshToken:         (data.refresh_token as string | undefined) ?? token.refreshToken,
       accessTokenExpiresAt: Date.now() + (Number(data.expires_in) - 60) * 1000,
-    };
+    } as JWT;
   } catch (e) {
     console.error("[auth] refreshAccessToken error:", e);
-    return { ...token, error: "RefreshAccessTokenError" };
+    return { ...token, error: "RefreshAccessTokenError" } as JWT;
   }
 }
 
