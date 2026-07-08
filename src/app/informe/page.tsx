@@ -222,7 +222,7 @@ export default function InformePage() {
   }
   const semanalRows      = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
   const anioActual       = new Date().getFullYear();
-  const aniosDisponibles = [...new Set(semanalRows.map(s => parseInt(s.semana.split("-")[0])))].sort();
+  const aniosDisponibles = Array.from(new Set(semanalRows.map(s => parseInt(s.semana.split("-")[0])))).sort();
 
   const S1 = Array.from({ length: 26 }, (_, i) => String(i +  1).padStart(2, "0"));
   const S2 = Array.from({ length: 26 }, (_, i) => String(i + 27).padStart(2, "0"));

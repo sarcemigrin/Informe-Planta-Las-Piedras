@@ -46,7 +46,7 @@ export default function DespachosPage() {
   // ---- Materiales únicos ----
   const materiales = useMemo(() => {
     const s = new Set(rows.map((r) => r.articulo).filter(Boolean) as string[]);
-    return [...s].sort();
+    return Array.from(s).sort();
   }, [rows]);
 
   // ---- Dashboard: filtro por período + material ----

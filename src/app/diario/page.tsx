@@ -145,7 +145,7 @@ export default function DiarioPage() {
   }
 
   // ---- Datos tabla / gráfico ----
-  const meses = [...new Set(rows.map((r) => `${r.anio}-${String(r.mes).padStart(2, "0")}`))].sort().reverse();
+  const meses = Array.from(new Set(rows.map((r) => `${r.anio}-${String(r.mes).padStart(2, "0")}`))).sort().reverse();
   const filtrados = rows.filter((r) =>
     !filtroMes || `${r.anio}-${String(r.mes).padStart(2, "0")}` === filtroMes
   );
