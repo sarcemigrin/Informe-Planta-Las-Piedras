@@ -6,7 +6,9 @@
 
 import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
+import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
+import { requireJson }      from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 import { generarInformePDF, type InformeData, type RegistroResumen, type SemanaStat } from "@/lib/informe-pdf";
 import { generarImagenEmail } from "@/lib/email-image";
@@ -32,10 +34,21 @@ async function getConfig(clave: string, fallback = ""): Promise<string> {
 
 export async function POST(req: Request) {
   try {
+    const ctErr = requireJson(req);
+    if (ctErr) return ctErr;
+
     const session = await getServerSession(authOptions);
-    const accessToken = (session?.user as { accessToken?: string })?.accessToken;
+    const token   = await getToken({ req: req as Parameters<typeof getToken>[0]["req"] });
+    const accessToken = token?.accessToken as string | undefined;
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    }
+    if (session.user.rol !== "admin") {
+      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
+    }
     if (!accessToken) {
-      return NextResponse.json({ error: "Sin token de acceso" }, { status: 401 });
+      return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesión." }, { status: 401 });
     }
 
     const { registroId } = await req.json() as { registroId: string };

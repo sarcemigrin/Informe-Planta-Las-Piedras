@@ -66,7 +66,10 @@ export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json({ error: "Sin sesion" }, { status: 401 });
+      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    }
+    if (session.user.rol !== "admin") {
+      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
     }
 
     const { recipients } = await req.json() as { recipients: Destinatario[] };

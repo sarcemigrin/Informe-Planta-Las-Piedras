@@ -52,14 +52,27 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async signIn({ account }) {
-      if (account?.provider === "azure-ad") return true;
-      return false;
+    // SEC-3: Restringir login a dominio autorizado
+    async signIn({ account, profile }) {
+      if (account?.provider !== "azure-ad") return false;
+
+      const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN ?? "migrin.cl";
+      const p = profile as Record<string, unknown> | undefined;
+      const email =
+        (p?.["email"] as string | undefined) ??
+        (p?.["preferred_username"] as string | undefined) ??
+        (p?.["upn"] as string | undefined);
+
+      if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+        console.warn("[auth] signIn rechazado - dominio no autorizado");
+        return false;
+      }
+      return true;
     },
 
     async jwt({ token, account, profile }) {
-      // Primera vez que inicia sesión — guardar tokens y rol
       if (account) {
+        // SEC-2: tokens en JWT encriptado, nunca al cliente
         token.accessToken          = account.access_token;
         token.refreshToken         = account.refresh_token;
         token.accessTokenExpiresAt = account.expires_at
@@ -77,36 +90,32 @@ export const authOptions: NextAuthOptions = {
           token.email = email;
           try {
             const sb = getSupabaseServer();
-            const { data, error } = await sb
+            const { data } = await sb
               .from("usuarios")
               .select("rol, activo")
               .eq("email", email.toLowerCase())
               .maybeSingle();
-            console.log("[auth] email:", email, "data:", data, "error:", error);
             token.rol = (data?.activo ? data.rol : "sin_acceso") as "admin" | "viewer" | "sin_acceso";
-          } catch (e) {
-            console.error("[auth] supabase error:", e);
+          } catch {
             token.rol = "sin_acceso";
           }
         }
         return token;
       }
 
-      // Token vigente — devolver sin cambios
       if (Date.now() < (token.accessTokenExpiresAt as number)) {
         return token;
       }
 
-      // Token expirado — refrescar automáticamente
       return refreshAccessToken(token as Record<string, unknown>);
     },
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.email       = token.email       as string;
-        session.user.name        = token.name        as string;
-        session.user.rol         = token.rol         ?? "sin_acceso";
-        session.user.accessToken = token.accessToken as string | undefined;
+        session.user.email = token.email as string;
+        session.user.name  = token.name  as string;
+        session.user.rol   = token.rol   ?? "sin_acceso";
+        // SEC-2: accessToken NO al cliente - usar getToken({ req }) en API routes
       }
       return session;
     },
