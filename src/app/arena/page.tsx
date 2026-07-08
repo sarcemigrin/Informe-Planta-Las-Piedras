@@ -9,7 +9,7 @@ import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   type ArenaInput,
 } from "@/lib/calculations";
-import type { RegistroArena, RegistroCuarzo } from "@/types/database";
+import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo } from "@/types/database";
 import { format } from "date-fns";
 
 const CONOS = [1, 2, 3] as const;
@@ -288,7 +288,7 @@ export default function ArenaPage() {
         diferencia:              calc.diferencia,
         cancha_vieja_ton:        calc.cancha_vieja_ton,
         cancha_nueva_ton:        calc.cancha_nueva_ton,
-      });
+      } as RegistroArenaInsert);
 
       if (error) throw error;
 
