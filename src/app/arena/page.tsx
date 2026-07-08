@@ -170,7 +170,7 @@ export default function ArenaPage() {
       .then(({ data }) => {
         if (data) {
           type D = { fecha: string; hora: string; articulo: string | null; toneladas: number | null; ton_final: number | null; folio: number | null };
-          const rows = data as D[];
+          const rows = (data as D[]).map(d => ({ ...d, articulo: d.articulo ?? "" }));
           const a36 = rows.filter(d => d.articulo === "A36LGC");
           const a39 = rows.filter(d => d.articulo === "A39LGC");
           // Usar toneladas (romana) igual que Query1!O en el Excel
