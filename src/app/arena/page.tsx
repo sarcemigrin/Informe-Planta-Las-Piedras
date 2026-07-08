@@ -154,7 +154,7 @@ export default function ArenaPage() {
   // ---- Despachos del período para el preview ----
   useEffect(() => {
     if (!prevRow || !form.fecha || !form.hora) {
-      setPreviewDespachos({ ton: 0, viajes: 0 });
+      setPreviewDespachos({ ton: 0, viajes: 0, a36ton: 0, a36viajes: 0, a39ton: 0, a39viajes: 0, rows: [] });
       return;
     }
     // Usar hora local (sin conversión UTC) — despachos en DB están en hora local
