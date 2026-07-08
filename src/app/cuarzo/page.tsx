@@ -131,8 +131,7 @@ export default function CuarzoPage() {
 
       const calc = calcularCuarzo(input, prevInput, despachosTon, despachosViajes);
 
-      const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("registros_cuarzo").insert({
+      const { error } =       await supabase.from("registros_cuarzo").insert({
         fecha: input.fecha, hora: input.hora + ":00",
         fecha_hora: calc.fecha_hora,
         pesometro:  input.pesometro,

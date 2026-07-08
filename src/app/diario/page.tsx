@@ -132,8 +132,7 @@ export default function DiarioPage() {
     if (!modalFecha || !modalMotivo.trim()) return;
     setModalGuardando(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("anotaciones_diario").upsert(
+            await supabase.from("anotaciones_diario").upsert(
         { fecha: modalFecha, motivo: modalMotivo.trim() },
         { onConflict: "fecha" }
       );

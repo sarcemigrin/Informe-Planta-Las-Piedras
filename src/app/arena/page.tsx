@@ -301,8 +301,7 @@ export default function ArenaPage() {
           ? { fecha: prevCuarzoRow.fecha, hora: prevCuarzoRow.hora.slice(0, 5), pesometro: prevCuarzoRow.pesometro, horometro: prevCuarzoRow.horometro ?? 0, cono_1: prevCuarzoRow.cono_1, cono_2: prevCuarzoRow.cono_2, cono_3: prevCuarzoRow.cono_3, inventario_ton: prevCuarzoRow.inventario_ton ?? 0 }
           : null;
         const calcC = calcularCuarzo(cuarzoInput, prevCuarzoInput, 0, 0);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from("registros_cuarzo").insert({
+                await supabase.from("registros_cuarzo").insert({
           fecha: input.fecha, hora: input.hora + ":00",
           fecha_hora: calcC.fecha_hora,
           pesometro: null, horometro: 0,
