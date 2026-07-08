@@ -257,7 +257,8 @@ export default function ArenaPage() {
 
       const calc = calcularArena(input, prevInput, despachosTon, despachosViajes);
 
-      const { error } = await supabase.from("registros_arena").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("registros_arena").insert({
         fecha: input.fecha, hora: input.hora + ":00",
         fecha_hora: calc.fecha_hora,
         pesometro: input.pesometro,
@@ -288,7 +289,7 @@ export default function ArenaPage() {
         diferencia:              calc.diferencia,
         cancha_vieja_ton:        calc.cancha_vieja_ton,
         cancha_nueva_ton:        calc.cancha_nueva_ton,
-      } as RegistroArenaInsert);
+      });
 
       if (error) throw error;
 
