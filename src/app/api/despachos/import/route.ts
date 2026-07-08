@@ -158,21 +158,21 @@ export async function POST(request: Request) {
   const withoutFolio = despachos.filter((d) => d.folio === null);
 
   for (let i = 0; i < withFolio.length; i += BATCH) {
-    const { error, count } = await sb
+    const { data, error } = await sb
       .from("despachos")
       .upsert(withFolio.slice(i, i + BATCH), { onConflict: "folio", ignoreDuplicates: false })
-      .select("id", { count: "exact", head: true });
+      .select("id");
     if (error) errors.push(error.message);
-    else total += count ?? withFolio.slice(i, i + BATCH).length;
+    else total += data?.length ?? withFolio.slice(i, i + BATCH).length;
   }
 
   for (let i = 0; i < withoutFolio.length; i += BATCH) {
-    const { error, count } = await sb
+    const { data, error } = await sb
       .from("despachos")
       .upsert(withoutFolio.slice(i, i + BATCH), { onConflict: "fecha_hora,articulo", ignoreDuplicates: true })
-      .select("id", { count: "exact", head: true });
+      .select("id");
     if (error) errors.push(error.message);
-    else total += count ?? 0;
+    else total += data?.length ?? 0;
   }
 
   return NextResponse.json({
