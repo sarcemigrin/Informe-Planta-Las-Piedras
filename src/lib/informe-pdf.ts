@@ -1,11 +1,11 @@
-/**
- * informe-pdf.ts  —  pdf-lib, sin canvas, serverless-safe
- * Genera 3 páginas A4: Portada + Cubicación + Semanal
+﻿/**
+ * informe-pdf.ts  â€”  pdf-lib, sin canvas, serverless-safe
+ * Genera 3 pÃ¡ginas A4: Portada + CubicaciÃ³n + Semanal
  */
 
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Interfaces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface RegistroResumen {
   fecha: string; hora: string;
   produccion_drone: number; productividad_drone: number;
@@ -29,11 +29,11 @@ export interface InformeData {
   inventario_cuarzo?: number | null;
   usuario_email?: string;
   historial?: RegistroResumen[];      // registros para tabla
-  historialChart?: RegistroResumen[]; // año completo para gráfico
-  semanalStats?: SemanaStat[];        // semanas del año para gráfico y tabla
+  historialChart?: RegistroResumen[]; // aÃ±o completo para grÃ¡fico
+  semanalStats?: SemanaStat[];        // semanas del aÃ±o para grÃ¡fico y tabla
 }
 
-// ─── Colores ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Colores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DARK   = rgb(0.216, 0.255, 0.318);   // #374151
 const GREEN  = rgb(0.420, 0.812, 0.498);   // #6BCF7F
 const LIGHT  = rgb(0.965, 0.973, 0.984);   // fondo tarjeta
@@ -43,10 +43,10 @@ const WHITE  = rgb(1, 1, 1);
 const RED    = rgb(0.937, 0.267, 0.267);
 const AMBER  = rgb(0.970, 0.650, 0.200);
 const BLUE   = rgb(0.380, 0.490, 0.690);   // pesometro
-const HEADER_BG  = rgb(0.972, 0.980, 0.988); // #f8fafc — fondo header claro
+const HEADER_BG  = rgb(0.972, 0.980, 0.988); // #f8fafc â€” fondo header claro
 const SUBHDR_BG  = rgb(0.941, 0.949, 0.961); // franja subheader
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtN(n: number, dec = 1): string {
   if (!isFinite(n) || isNaN(n)) return "-";
   return n.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -69,7 +69,7 @@ function line(page: PDFPage, x1: number, y1: number, x2: number, y2: number,
     thickness, color, ...(dash ? { dashArray: dash, dashPhase: 0 } : {}) });
 }
 
-// ─── KPI card (página 2) ─────────────────────────────────────────────────────
+// â”€â”€â”€ KPI card (pÃ¡gina 2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function kpiCard(page: PDFPage, fR: PDFFont, fB: PDFFont,
   x: number, y: number, w: number, h: number,
   label: string, value: string, unit: string, accent: ReturnType<typeof rgb>) {
@@ -83,7 +83,7 @@ function kpiCard(page: PDFPage, fR: PDFFont, fB: PDFFont,
   }
 }
 
-// ─── Sparkline (mantenida para compatibilidad) ────────────────────────────────
+// â”€â”€â”€ Sparkline (mantenida para compatibilidad) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function sparkline(page: PDFPage, fR: PDFFont,
   values: (number | null)[], labels: string[],
   x: number, y: number, w: number, h: number,
@@ -128,7 +128,7 @@ function sparkline(page: PDFPage, fR: PDFFont,
   });
 }
 
-// ─── Mini bar chart (mantenida para compatibilidad) ──────────────────────────
+// â”€â”€â”€ Mini bar chart (mantenida para compatibilidad) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function barChart(page: PDFPage, fR: PDFFont,
   values: number[], labels: string[],
   x: number, y: number, w: number, h: number,
@@ -146,7 +146,7 @@ function barChart(page: PDFPage, fR: PDFFont,
   });
 }
 
-// ─── Page header — claro / blanco ────────────────────────────────────────────
+// â”€â”€â”€ Page header â€” claro / blanco â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function pageHeader(page: PDFPage, fR: PDFFont, fB: PDFFont,
   W: number, M: number, subtitle: string,
   fecha: string, hora: string, userEmail?: string) {
@@ -154,13 +154,13 @@ function pageHeader(page: PDFPage, fR: PDFFont, fB: PDFFont,
   rect(page, 0, 792, W, 50, HEADER_BG);
   // Franja subheader
   rect(page, 0, 778, W, 14, SUBHDR_BG);
-  // Barra verde izquierda — cubre toda la altura (header + subheader)
+  // Barra verde izquierda â€” cubre toda la altura (header + subheader)
   rect(page, 0, 778, 5, 64, GREEN);
-  // Línea verde separadora inferior
+  // LÃ­nea verde separadora inferior
   line(page, 5, 778, W, 778, GREEN, 1.5);
   // Textos del header
   txt(page, "MIGRIN", M + 8, 826, fB, 15, DARK);
-  txt(page, `Informe Produccion Arena  —  ${subtitle}`, M + 8, 811, fR, 8.5, GRAY);
+  txt(page, `Informe Produccion Arena  â€”  ${subtitle}`, M + 8, 811, fR, 8.5, GRAY);
   const dl = `${fecha.split("-").reverse().join("/")}   ${hora}`;
   const dw = fB.widthOfTextAtSize(dl, 10);
   txt(page, dl, W - M - dw, 824, fB, 10, DARK);
@@ -176,7 +176,7 @@ function pageFooter(page: PDFPage, fR: PDFFont, W: number, M: number, pageNum: n
   txt(page, `Sistema de Control Arena - Migrin  -  ${now}  -  Pagina ${pageNum}`, M, 24, fR, 7, GRAY);
 }
 
-// ─── Portada simple ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Portada simple â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function coverPage(page: PDFPage, fR: PDFFont, fB: PDFFont,
   W: number, M: number,
   fecha: string, hora: string, userEmail?: string, semana?: string) {
@@ -189,16 +189,16 @@ function coverPage(page: PDFPage, fR: PDFFont, fB: PDFFont,
   txt(page, "MIGRIN", M + 8, 826, fB, 15, WHITE);
   txt(page, "Sistema de Control Arena", M + 8, 812, fR, 8, rgb(0.70, 0.75, 0.80));
 
-  // Título principal
+  // TÃ­tulo principal
   const titleY = 590;
   txt(page, "INFORME DE", M + 8, titleY, fB, 28, DARK);
   txt(page, "PRODUCCION ARENA", M + 8, titleY - 36, fB, 24, DARK);
-  // Acento verde bajo el título
+  // Acento verde bajo el tÃ­tulo
   rect(page, M + 8, titleY - 52, 90, 4, GREEN);
-  // Subtítulo
+  // SubtÃ­tulo
   txt(page, "Planta Las Piedras", M + 8, titleY - 74, fR, 14, GREEN);
 
-  // Línea divisoria
+  // LÃ­nea divisoria
   line(page, M + 8, titleY - 96, W - M, titleY - 96, rgb(0.882, 0.902, 0.925), 1);
 
   // Fecha de registro
@@ -223,7 +223,7 @@ function coverPage(page: PDFPage, fR: PDFFont, fB: PDFFont,
   txt(page, "CONFIDENCIAL  -  Uso interno exclusivo  -  Migrin S.A.", M + 8, 54, fR, 8, GRAY);
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function generarInformePDF(data: InformeData): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const fR = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -231,27 +231,24 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
   const W = 595; const M = 28; const usable = W - 2 * M;
 
-  // ════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  PORTADA
-  // ════════════════════════════════════════════════════════════════
-  const pCover = pdfDoc.addPage([W, 842]);
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   const sem = data.semanalStats ?? [];
-  const lastSemLabel = sem.length > 0 ? sem[sem.length - 1].semana : undefined;
-  coverPage(pCover, fR, fB, W, M, data.fecha, data.hora, data.usuario_email, lastSemLabel);
 
-  // ════════════════════════════════════════════════════════════════
-  //  PAGINA 1 — POR CUBICACION
-  // ════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  PAGINA 1 â€” POR CUBICACION
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   const p1 = pdfDoc.addPage([W, 842]);
 
   pageHeader(p1, fR, fB, W, M, "Por Cubicacion",
     data.fecha, data.hora, data.usuario_email);
 
-  // ── KPI grande + mini ─────────────────────────────────────────────────────
+  // â”€â”€ KPI grande + mini â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const detPct = (data.horas_reales + data.detencion) > 0
     ? data.detencion / (data.horas_reales + data.detencion) * 100 : 0;
 
-  const crdY = 622; const crdH = 142; const crdW = usable;
+  const crdY = 636; const crdH = 128; const crdW = usable;
   const hStripH = 28;
   const bodyH = crdH - hStripH; // 114px
 
@@ -270,7 +267,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     txt(p1, `Registrado por: ${data.usuario_email}`, x0 + 6, crdY + crdH - 19, fR, 7, rgb(0.58, 0.66, 0.76));
   }
 
-  // ── Bloque KPI drone grande (izquierda, fondo oscuro) ────────────────────
+  // â”€â”€ Bloque KPI drone grande (izquierda, fondo oscuro) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const bigW = 195;
   const bigX = M + 4;
   const bigBodyY = crdY + 2;      // 624
@@ -282,17 +279,17 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   // Etiqueta
   txt(p1, "KPI DRONE", bigX + 8, bigTop - 12, fB, 7, GREEN);
 
-  // Valor grande (font 22, baseline en y≈700)
+  // Valor grande (font 22, baseline en yâ‰ˆ700)
   const bigKpiVal  = fmtN(data.productividad_drone);
-  const bigKpiSize = 22;
-  const bigKpiY    = bigBodyY + bigBodyH / 2 + 21; // ≈700
+  const bigKpiSize = 20;
+  const bigKpiY    = bigBodyY + Math.round(bigBodyH / 2) + 16; // â‰ˆ700
   txt(p1, bigKpiVal, bigX + 8, bigKpiY, fB, bigKpiSize, WHITE);
   const bigKpiVw = fB.widthOfTextAtSize(bigKpiVal, bigKpiSize);
   txt(p1, "t/h", bigX + 8 + bigKpiVw + 3, bigKpiY + 3, fR, 9, GRAY);
 
   // Indicador de cumplimiento
   const kpiOk = data.productividad_drone >= 32;
-  txt(p1, kpiOk ? "≥ 32 t/h   OK" : "< 32 t/h   BAJO META",
+  txt(p1, kpiOk ? "â‰¥ 32 t/h   OK" : "< 32 t/h   BAJO META",
     bigX + 8, bigKpiY - 20, fR, 7, kpiOk ? GREEN : RED);
 
   // Separador + produccion drone
@@ -300,13 +297,13 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   txt(p1, "Produccion Drone", bigX + 8, bigBodyY + 32, fR, 6.5, GRAY);
   txt(p1, `${fmtN(data.produccion_drone, 0)} ton`, bigX + 8, bigBodyY + 17, fB, 11, WHITE);
 
-  // ── Celdas pequeñas (3×2) ────────────────────────────────────────────────
+  // â”€â”€ Celdas pequeÃ±as (3Ã—2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const smallX0 = bigX + bigW + 4;
   const smallTW  = crdW - 4 - bigW - 4; // ancho disponible (~336)
   const nCols    = 3;
   const cellGap  = 3;
-  const smallW2  = Math.floor((smallTW - (nCols - 1) * cellGap) / nCols); // ≈110
-  const smallH2  = Math.floor((bodyH - 4 - cellGap) / 2);                 // ≈53
+  const smallW2  = Math.floor((smallTW - (nCols - 1) * cellGap) / nCols); // â‰ˆ110
+  const smallH2  = Math.floor((bodyH - 4 - cellGap) / 2);                 // â‰ˆ53
 
   const smallItems = [
     // Fila superior visual (idx 0-2)
@@ -352,7 +349,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     txt(p1, noteStr, M + 6, noteY, fR, 7, GRAY);
   }
 
-  // ── Gráfico página 1: barras producción + línea KPI ───────────────────────
+  // â”€â”€ GrÃ¡fico pÃ¡gina 1: barras producciÃ³n + lÃ­nea KPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const hist      = data.historial ?? [];
   const histChart = data.historialChart ?? hist;
 
@@ -360,22 +357,23 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     const chartY = 370; const chartH = 230;
     const cX = M + 24; const cW = usable - 54;
     const yearLabel = histChart[0]?.fecha?.slice(0, 4) ?? new Date().getFullYear();
-    txt(p1, `PRODUCCION HISTORICA - AÑO ${yearLabel}`, cX, chartY + chartH + 10, fB, 7.5, DARK);
+    txt(p1, `PRODUCCION HISTORICA - AÃ‘O ${yearLabel}`, cX, chartY + chartH + 10, fB, 7.5, DARK);
 
-    // Fondo + ejes
+    // Fondo + ejes (4 lados)
     rect(p1, cX, chartY, cW, chartH, LIGHT, rgb(0.88, 0.90, 0.92));
-    line(p1, cX, chartY, cX, chartY + chartH, GRAY, 0.5);
-    line(p1, cX, chartY, cX + cW, chartY, GRAY, 0.5);
-    line(p1, cX + cW, chartY, cX + cW, chartY + chartH, GRAY, 0.5);
+    line(p1, cX,      chartY,          cX,      chartY + chartH, GRAY, 0.5);
+    line(p1, cX,      chartY,          cX + cW, chartY,          GRAY, 0.5);
+    line(p1, cX + cW, chartY,          cX + cW, chartY + chartH, GRAY, 0.5);
+    line(p1, cX,      chartY + chartH, cX + cW, chartY + chartH, GRAY, 0.8);
 
-    // Eje Y izquierdo — produccion (ton)
+    // Eje Y izquierdo â€” produccion (ton)
     const prodVals = histChart.flatMap(r => [
       r.produccion_drone,
       r.produccion_pesometro ?? (r.productividad_pesometro * r.horas_reales),
     ]).filter(v => v !== null && isFinite(v as number) && (v as number) > 0) as number[];
     const sortedProd = [...prodVals].sort((a, b) => a - b);
     const maxProd = sortedProd.length > 0
-      ? (sortedProd[Math.floor(sortedProd.length * 0.95)] ?? sortedProd[sortedProd.length - 1]) * 1.15
+      ? (sortedProd[sortedProd.length - 1]) * 1.08
       : 500;
     txt(p1, "ton", M, chartY + chartH + 3, fR, 6, GRAY);
     for (let i = 0; i <= 4; i++) {
@@ -407,21 +405,20 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     histChart.forEach((r, i) => {
       const prodD = r.produccion_drone;
       const prodP = r.produccion_pesometro ?? (r.productividad_pesometro * r.horas_reales);
-      const bhD   = maxProd > 0 && isFinite(prodD) ? Math.max(0, (prodD / maxProd) * chartH) : 0;
-      const bhP   = maxProd > 0 && isFinite(prodP) ? Math.max(0, (prodP / maxProd) * chartH) : 0;
+      const bhD   = maxProd > 0 && isFinite(prodD) ? Math.min(chartH, Math.max(0, (prodD / maxProd) * chartH)) : 0;
+      const bhP   = maxProd > 0 && isFinite(prodP) ? Math.min(chartH, Math.max(0, (prodP / maxProd) * chartH)) : 0;
       const bx    = stX + i * grpW;
       if (bhD > 0) rect(p1, bx,        chartY, bw, bhD, GREEN);
       if (bhP > 0) rect(p1, bx + bw + 1, chartY, bw, bhP, DARK);
     });
 
-    // Eje Y derecho — KPI drone (t/h) — escala robusta
+    // Eje Y derecho â€” KPI drone (t/h) â€” escala robusta
     const kpiVals = histChart
       .map(r => r.productividad_drone ?? null)
       .filter((v): v is number => v !== null && isFinite(v) && v > 0);
     if (kpiVals.length >= 2) {
       const sortedKpi = [...kpiVals].sort((a, b) => a - b);
-      const p90 = sortedKpi[Math.min(sortedKpi.length - 1, Math.floor(sortedKpi.length * 0.9))];
-      const maxKpi   = Math.max(p90 ?? 40, 35) * 1.15;
+      const maxKpi   = Math.max(sortedKpi[sortedKpi.length - 1] ?? 40, 35) * 1.08;
       const minKpi   = 0;
       const rangeKpi = maxKpi - minKpi || 1;
       txt(p1, "t/h", cX + cW + 3, chartY + chartH + 3, fR, 6, GRAY);
@@ -431,7 +428,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
         txt(p1, val, cX + cW + 3, gy - 3, fR, 5.5, GRAY);
       }
 
-      // Línea KPI drone (ámbar)
+      // LÃ­nea KPI drone (Ã¡mbar)
       const kpiPts = histChart.map((r, i) => {
         const v = r.productividad_drone ?? null;
         return {
@@ -450,7 +447,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
         if (p.py !== null) p1.drawCircle({ x: p.px, y: p.py, size: 1.5, color: AMBER });
       });
 
-      // Línea de control 32 t/h
+      // LÃ­nea de control 32 t/h
       const refY = chartY + ((32 - minKpi) / rangeKpi) * chartH;
       if (refY >= chartY && refY <= chartY + chartH) {
         line(p1, cX, refY, cX + cW, refY, RED, 0.8, [4, 3]);
@@ -467,7 +464,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     txt(p1, "KPI Drone (t/h, eje der.)", cX + 242, chartY + chartH + 2, fR, 6, DARK);
   }
 
-  // ── Tabla cubicación — compacta ───────────────────────────────────────────
+  // â”€â”€ Tabla cubicaciÃ³n â€” compacta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const tblTop1 = 345;
   txt(p1, `ULTIMOS ${hist.length} REGISTROS DE CUBICACION`, M, tblTop1, fB, 7.5, DARK);
   line(p1, M, tblTop1 - 3, M + 130, tblTop1 - 3, GREEN, 1.2);
@@ -486,7 +483,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     { l: "Dif.",        w: 36, r: true  },
   ];
 
-  const hdrH = 12; const rowH = 12; // compacto — cabe más registros
+  const hdrH = 12; const rowH = 12; // compacto â€” cabe mÃ¡s registros
   const tblY1 = tblTop1 - 10;
 
   // Encabezado tabla
@@ -537,13 +534,13 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
   pageFooter(p1, fR, W, M, 1);
 
-  // ════════════════════════════════════════════════════════════════
-  //  PAGINA 2 — POR SEMANA
-  // ════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  PAGINA 2 â€” POR SEMANA
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   const p2 = pdfDoc.addPage([W, 842]);
   pageHeader(p2, fR, fB, W, M, "Por Semana", data.fecha, data.hora, data.usuario_email);
 
-  const gap = 7; const cw = (usable - 3 * gap) / 4; const ch = 60;
+  const gap = 7; const cw = (usable - 3 * gap) / 4; const ch = 52;
 
   const lastSem = sem[sem.length - 1];
 
@@ -575,23 +572,23 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     });
   }
 
-  // Gráfico semanal — barras produccion + líneas KPI
+  // GrÃ¡fico semanal â€” barras produccion + lÃ­neas KPI
   if (sem.length >= 2) {
     const chartY2 = 510; const chartH2 = 92;
     const cX2 = M + 24; const cW2 = usable - 54;
     const semYear = sem[0]?.semana?.slice(0, 4) ?? new Date().getFullYear();
-    txt(p2, `PRODUCCION SEMANAL - AÑO ${semYear}`, cX2, chartY2 + chartH2 + 10, fB, 7.5, DARK);
+    txt(p2, `PRODUCCION SEMANAL - AÃ‘O ${semYear}`, cX2, chartY2 + chartH2 + 10, fB, 7.5, DARK);
 
     // Fondo + ejes
     rect(p2, cX2, chartY2, cW2, chartH2, LIGHT, rgb(0.88, 0.90, 0.92));
-    line(p2, cX2, chartY2, cX2, chartY2 + chartH2, GRAY, 0.5);
-    line(p2, cX2, chartY2, cX2 + cW2, chartY2, GRAY, 0.5);
-    line(p2, cX2 + cW2, chartY2, cX2 + cW2, chartY2 + chartH2, GRAY, 0.5);
+    line(p2, cX2,       chartY2,           cX2,       chartY2 + chartH2, GRAY, 0.5);
+    line(p2, cX2,       chartY2,           cX2 + cW2, chartY2,           GRAY, 0.5);
+    line(p2, cX2 + cW2, chartY2,           cX2 + cW2, chartY2 + chartH2, GRAY, 0.5);
+    line(p2, cX2,       chartY2 + chartH2, cX2 + cW2, chartY2 + chartH2, GRAY, 0.8);
 
-    // Eje Y izquierdo — ton
+    // Eje Y izquierdo â€” ton
     const allProd2 = sem.flatMap(s => [s.prodDrone, s.prodPeso]).filter(v => v > 0).sort((a, b) => a - b);
-    const p95idx2  = Math.max(0, Math.floor(allProd2.length * 0.95) - 1);
-    const maxP2    = allProd2.length > 0 ? Math.min(allProd2[allProd2.length - 1], allProd2[p95idx2] * 1.2) : 1;
+    const maxP2    = allProd2.length > 0 ? allProd2[allProd2.length - 1] * 1.08 : 1;
     txt(p2, "ton", M, chartY2 + chartH2 + 3, fR, 6, GRAY);
     for (let gi = 0; gi <= 4; gi++) {
       const gy = chartY2 + (gi / 4) * chartH2;
@@ -601,13 +598,12 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       txt(p2, val, cX2 - 3 - lw, gy - 3, fR, 5.5, GRAY);
     }
 
-    // Eje Y derecho — t/h
+    // Eje Y derecho â€” t/h
     const allKpiD2 = sem.filter(s => s.hrsProd > 0).map(s => s.prodDrone / s.hrsProd).filter(v => isFinite(v) && v > 0);
     const allKpiP2 = sem.filter(s => s.hrsProd > 0).map(s => s.prodPeso  / s.hrsProd).filter(v => isFinite(v) && v > 0);
     const allKpi2  = [...allKpiD2, ...allKpiP2].sort((a, b) => a - b);
-    const p90K2    = allKpi2[Math.min(allKpi2.length - 1, Math.floor(allKpi2.length * 0.90))];
-    const maxK2    = Math.max(p90K2 ?? 40, 35) * 1.15;
-    const minK2    = 0;
+    const maxK2    = Math.max(allKpi2[allKpi2.length - 1] ?? 40, 35) * 1.08;
+    const minK2    = 0
     const rangeK2  = maxK2 - minK2 || 1;
     txt(p2, "t/h", cX2 + cW2 + 3, chartY2 + chartH2 + 3, fR, 6, GRAY);
     for (let ki = 0; ki <= 3; ki++) {
@@ -622,10 +618,10 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     const startX2 = cX2 + Math.floor((cW2 - sem.length * groupW2) / 2);
 
     sem.forEach((s, i) => {
-      const bhD = Math.max(0, (s.prodDrone / maxP2) * chartH2);
-      const bhP = Math.max(0, (s.prodPeso  / maxP2) * chartH2);
+      const bhD = Math.min(chartH2, Math.max(0, (s.prodDrone / maxP2) * chartH2));
+      const bhP = Math.min(chartH2, Math.max(0, (s.prodPeso  / maxP2) * chartH2));
       const bx  = startX2 + i * groupW2;
-      if (bhD > 0) rect(p2, bx,          chartY2, bw2, bhD, GREEN);
+      if (bhD > 0) rect(p2, bx,           chartY2, bw2, bhD, GREEN);
       if (bhP > 0) rect(p2, bx + bw2 + 1, chartY2, bw2, bhP, DARK);
       if (i % Math.max(1, Math.ceil(sem.length / 10)) === 0 || i === sem.length - 1) {
         const label = s.semana.includes("-") ? s.semana.split("-")[1] : s.semana;
@@ -636,7 +632,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       }
     });
 
-    // Líneas KPI sobre barras
+    // Lineas KPI sobre barras
     const centerOf2 = (i: number) => startX2 + i * groupW2 + bw2;
     const kpiSeriesD = sem.map(s => s.hrsProd > 0 ? s.prodDrone / s.hrsProd : null);
     const kpiSeriesP = sem.map(s => s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : null);
@@ -656,8 +652,8 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       }
       pts.forEach(pt => { if (pt.py !== null) p2.drawCircle({ x: pt.px, y: pt.py, size: 1.5, color }); });
     };
-    drawKpiLine2(kpiSeriesD, GREEN);
-    drawKpiLine2(kpiSeriesP, DARK);
+    drawKpiLine2(kpiSeriesD, AMBER);
+    drawKpiLine2(kpiSeriesP, BLUE);
 
     // Referencia 32 t/h
     const refK2 = chartY2 + ((32 - minK2) / rangeK2) * chartH2;
@@ -668,13 +664,13 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
     // Leyenda
     rect(p2, cX2, chartY2 + chartH2 + 2, 8, 4, GREEN);
-    txt(p2, "Prod. Drone", cX2 + 11, chartY2 + chartH2 + 2, fR, 6, DARK);
-    rect(p2, cX2 + 72, chartY2 + chartH2 + 2, 8, 4, DARK);
-    txt(p2, "Prod. Pesometro", cX2 + 83, chartY2 + chartH2 + 2, fR, 6, DARK);
-    line(p2, cX2 + 172, chartY2 + chartH2 + 4, cX2 + 180, chartY2 + chartH2 + 4, GREEN, 1.5);
-    txt(p2, "KPI Drone (eje der.)", cX2 + 184, chartY2 + chartH2 + 2, fR, 6, DARK);
-    line(p2, cX2 + 278, chartY2 + chartH2 + 4, cX2 + 286, chartY2 + chartH2 + 4, DARK, 1.5);
-    txt(p2, "KPI Pesometro (eje der.)", cX2 + 290, chartY2 + chartH2 + 2, fR, 6, DARK);
+    txt(p2, "Prod. Drone (ton)", cX2 + 11, chartY2 + chartH2 + 2, fR, 6, DARK);
+    rect(p2, cX2 + 92, chartY2 + chartH2 + 2, 8, 4, DARK);
+    txt(p2, "Prod. Pesometro (ton)", cX2 + 103, chartY2 + chartH2 + 2, fR, 6, DARK);
+    line(p2, cX2 + 200, chartY2 + chartH2 + 4, cX2 + 208, chartY2 + chartH2 + 4, AMBER, 1.5);
+    txt(p2, "KPI Drone (t/h, eje der.)", cX2 + 212, chartY2 + chartH2 + 2, fR, 6, DARK);
+    line(p2, cX2 + 318, chartY2 + chartH2 + 4, cX2 + 326, chartY2 + chartH2 + 4, BLUE, 1.5);
+    txt(p2, "KPI Pesometro (t/h, eje der.)", cX2 + 330, chartY2 + chartH2 + 2, fR, 6, DARK);
   }
 
   // Tabla resumen semanal
@@ -683,15 +679,15 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   line(p2, M, tblTop2 - 3, M + 145, tblTop2 - 3, GREEN, 1.2);
 
   const cols2 = [
-    { l: "Semana",    w: 60,  r: false },
-    { l: "KPI D.",    w: 47,  r: true  },
-    { l: "Prod. D.",  w: 60,  r: true  },
-    { l: "KPI P.",    w: 47,  r: true  },
-    { l: "Prod. P.",  w: 60,  r: true  },
-    { l: "Hrs Pr.",   w: 48,  r: true  },
-    { l: "Deten.",    w: 48,  r: true  },
-    { l: "Desp.",     w: 60,  r: true  },
-    { l: "Viajes",    w: 39,  r: true  },
+    { l: "Semana",   w: 60, r: false },
+    { l: "KPI D.",   w: 47, r: true  },
+    { l: "Prod. D.", w: 60, r: true  },
+    { l: "KPI P.",   w: 47, r: true  },
+    { l: "Prod. P.", w: 60, r: true  },
+    { l: "Hrs Pr.",  w: 48, r: true  },
+    { l: "Deten.",   w: 48, r: true  },
+    { l: "Desp.",    w: 60, r: true  },
+    { l: "Viajes",   w: 39, r: true  },
   ];
 
   const hdrH2 = 14; const rowH2 = 16;
@@ -717,15 +713,15 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     const kpiP2 = s.hrsProd > 0 ? s.prodPeso  / s.hrsProd : 0;
 
     const cells2 = [
-      { v: s.semana,              r: false },
-      { v: fmtN(kpiD2),           r: true, color: kpiD2 >= 32 ? GREEN : RED },
-      { v: fmtN(s.prodDrone, 0),  r: true },
-      { v: fmtN(kpiP2),           r: true, color: kpiP2 >= 32 ? GREEN : RED },
-      { v: fmtN(s.prodPeso, 0),   r: true },
-      { v: fmtN(s.hrsProd, 1),    r: true },
-      { v: fmtN(s.detencion, 1),  r: true, color: s.detencion > 0 ? RED : DARK },
-      { v: fmtN(s.despachos, 0),  r: true },
-      { v: String(s.viajes),      r: true },
+      { v: s.semana,             r: false },
+      { v: fmtN(kpiD2),          r: true, color: kpiD2 >= 32 ? GREEN : RED },
+      { v: fmtN(s.prodDrone, 0), r: true },
+      { v: fmtN(kpiP2),          r: true, color: kpiP2 >= 32 ? GREEN : RED },
+      { v: fmtN(s.prodPeso, 0),  r: true },
+      { v: fmtN(s.hrsProd, 1),   r: true },
+      { v: fmtN(s.detencion, 1), r: true, color: s.detencion > 0 ? RED : DARK },
+      { v: fmtN(s.despachos, 0), r: true },
+      { v: String(s.viajes),     r: true },
     ];
 
     cx2 = M + 3;

@@ -27,6 +27,7 @@ export default function DespachosPage() {
   const [periodo, setPeriodo]     = useState<Periodo>("mes");
 
   const [material, setMaterial]   = useState<string>("todos");
+  const [importData, setImportData] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
     loadDespachos();
@@ -103,22 +104,21 @@ export default function DespachosPage() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb   = XLSX.read(ev.target?.result, { type: "binary", cellDates: true });
+        const wb   = XLSX.read(new Uint8Array(ev.target?.result as ArrayBuffer), { type: "array", cellDates: true });
         const ws   = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
         setPreview(data.slice(0, 5));
         setMsg({ type: "info", text: `${data.length} filas leídas. Presiona "Importar" para subir.` });
-        (fileRef.current as unknown as { _data: Record<string, unknown>[] })._data = data;
+        setImportData(data);
       } catch (err) {
         setMsg({ type: "err", text: `Error leyendo archivo: ${(err as Error).message}` });
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   }
 
   async function handleImport() {
-    const data: Record<string, unknown>[] | undefined =
-      (fileRef.current as unknown as { _data?: Record<string, unknown>[] })?._data;
+    const data = importData;
     if (!data || data.length === 0) { setMsg({ type: "err", text: "No hay datos cargados." }); return; }
 
     setUploading(true);
