@@ -223,7 +223,7 @@ export default function ImportarPage() {
   }
 
   async function importDespachos(ws: XLSX.WorkSheet) {
-    const raw = XLSX.utils.sheet_to_json<Record<string,unknown>>(ws, {
+    const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, {
       defval: null, header: 1,
     }) as unknown[][];
 
