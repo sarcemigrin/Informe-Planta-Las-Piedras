@@ -157,7 +157,8 @@ export default function DespachosPage() {
         };
       }).filter((r) => r.fecha && r.fecha_hora);
 
-      const { error } = await supabase.from("despachos").upsert(lote, { onConflict: "doc_entry" });
+      const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("despachos").upsert(lote, { onConflict: "doc_entry" });
       if (error) { errors += lote.length; }
       else       { ok     += lote.length; }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });

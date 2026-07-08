@@ -205,7 +205,8 @@ export default function ImportarPage() {
 
       if (lote.length >= 100) {
         const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
-        const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
+        const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
         if (error) { err += lote.length; addLog(`   Cuarzo error: ${error.message}`); }
         else ok += dedup.length;
         lote.length = 0;
@@ -215,7 +216,8 @@ export default function ImportarPage() {
 
     if (lote.length > 0) {
       const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
-      const { error } = await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
+      const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
       if (error) { err += lote.length; addLog(`   Último lote cuarzo: ${error.message}`); }
       else ok += dedup.length;
     }
@@ -271,7 +273,8 @@ export default function ImportarPage() {
       });
 
       if (lote.length >= 500) {
-        const { error } = await supabase.from("despachos").insert(lote);
+        const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("despachos").insert(lote);
         if (error) {
           err += lote.length;
           if (err <= 500) addLog(`   Error (lote): ${error.message}`);
@@ -282,7 +285,8 @@ export default function ImportarPage() {
     }
 
     if (lote.length > 0) {
-      const { error } = await supabase.from("despachos").insert(lote);
+      const { error } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("despachos").insert(lote);
       if (error) { err += lote.length; addLog(`   Error (último lote): ${error.message}`); }
       else       ok  += lote.length;
     }
@@ -297,7 +301,8 @@ export default function ImportarPage() {
       const fecha0 = parseDate(rowObj["Fecha"]);
       const hora0  = parseTime(rowObj["Hora"]);
       addLog(`   Fecha: ${fecha0}, Hora: ${hora0}`);
-      const { error: e1 } = await supabase.from("despachos").insert([{
+      const { error: e1 } = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("despachos").insert([{
         fecha: fecha0,
         hora: (hora0 ?? "00:00") + ":00",
         fecha_hora: `${fecha0}T${hora0 ?? "00:00"}:00+00:00`,
