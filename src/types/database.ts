@@ -24,10 +24,28 @@ export interface Database {
         Insert: Parametro;
         Update: Partial<Parametro>;
       };
+      usuarios: {
+        Row:    { id: string; email: string; nombre: string | null; rol: string; activo: boolean; created_at: string };
+        Insert: { email: string; nombre?: string | null; rol?: string; activo?: boolean };
+        Update: { email?: string; nombre?: string | null; rol?: string; activo?: boolean };
+      };
+      configuracion: {
+        Row:    { id: string; clave: string; valor: string; created_at: string };
+        Insert: { clave: string; valor: string };
+        Update: { clave?: string; valor?: string };
+      };
+      diario_anotaciones: {
+        Row:    { id: string; fecha: string; texto: string; created_at: string };
+        Insert: { fecha: string; texto: string };
+        Update: { fecha?: string; texto?: string };
+      };
     };
     Views: {
       vista_diario_arena: { Row: VistaDiarioArena };
     };
+    Functions: Record<string, never>;
+    Enums:     Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
 
