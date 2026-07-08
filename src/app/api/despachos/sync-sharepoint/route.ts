@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { getToken } from "next-auth/jwt";
 import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
@@ -267,10 +268,11 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
+  const token   = await getToken({ req: request as Parameters<typeof getToken>[0]["req"] });
   if (!session?.user)               return NextResponse.json({ error: "No autenticado" },  { status: 401 });
   if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },    { status: 403 });
 
-  const accessToken = session.user.accessToken;
+  const accessToken = token?.accessToken as string | undefined;
   if (!accessToken) {
     return NextResponse.json(
       { error: "Sin token de acceso. Cierra sesión y vuelve a entrar para autorizar Files.Read." },
@@ -350,10 +352,11 @@ export async function POST(request: Request) {
 // GET — debug: muestra hojas y primeras filas del archivo
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
+  const token   = await getToken({ req: request as Parameters<typeof getToken>[0]["req"] });
   if (!session?.user || session.user.rol !== "admin")
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
 
-  const accessToken = session.user.accessToken;
+  const accessToken = token?.accessToken as string | undefined;
   if (!accessToken) return NextResponse.json({ error: "Sin token" }, { status: 401 });
 
   try {
