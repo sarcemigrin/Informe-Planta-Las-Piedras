@@ -208,7 +208,7 @@ export async function POST(req: Request) {
       const year = new Date().getFullYear();
       const yearStart = `${year}-01-01`;
 
-      const SELECT_FIELDS = "fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, produccion_pesometro, diferencia, diferencia_pesometro, horas_reales, detencion, despachos_ton, cantidad_despachos, inventario_ton";
+      const SELECT_FIELDS = "fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, produccion_pesometro, diferencia, diferencia_pesometro, horas_reales, diferencia_horometro, detencion, despachos_ton, cantidad_despachos, inventario_ton";
 
       // Año completo para gráficos + últimos 10 + último cuarzo
       const [{ data: yearRows }, { data: last10 }, { data: lastCuarzo }] = await Promise.all([
@@ -230,24 +230,53 @@ export async function POST(req: Request) {
       if (yearRows && yearRows.length > 0) {
         data.historialChart = yearRows as InformeData["historialChart"];
 
-        // Agrupar por semana ISO para semanalStats (año completo)
-        const semMap = new Map<string, { prodDrone: number; prodPeso: number; hrsProd: number; detencion: number; despachos: number; viajes: number }>();
-        for (const r of yearRows) {
-          const d = new Date(r.fecha + "T12:00:00");
-          // Semana ISO: lunes como primer día
-          const startOfYear = new Date(year, 0, 1);
-          const dayOfYear = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000);
-          const weekNum = Math.floor(dayOfYear / 7) + 1;
-          const key = `${year}-S${String(weekNum).padStart(2, "0")}`;
-          const cur = semMap.get(key) ?? { prodDrone: 0, prodPeso: 0, hrsProd: 0, detencion: 0, despachos: 0, viajes: 0 };
-          cur.prodDrone  += r.produccion_drone ?? 0;
-          // prodPeso = productividad (t/h) × horas reales — evita valores extremos de diferencia_pesometro
-          cur.prodPeso   += (r.productividad_pesometro ?? 0) * (r.horas_reales ?? 0);
-          cur.hrsProd    += r.horas_reales      ?? 0;
-          cur.detencion  += r.detencion         ?? 0;
-          cur.despachos  += r.despachos_ton     ?? 0;
-          cur.viajes     += r.cantidad_despachos ?? 0;
-          semMap.set(key, cur);
+        // Agrupar por semana ISO — mismo algoritmo que informe/page.tsx
+        // ISO week key: lunes como primer día, año ISO (puede diferir del año calendario)
+        function isoWeekKey(date: Date): string {
+          const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+          const dayNum = d.getUTCDay() || 7; // 1=Lun … 7=Dom
+          d.setUTCDate(d.getUTCDate() + 4 - dayNum); // jueves de la semana
+          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+          return `${d.getUTCFullYear()}-S${String(weekNo).padStart(2, "0")}`;
+        }
+
+        type SemEntry = { prodDrone: number; prodPeso: number; hrsProd: number; detencion: number; despachos: number; viajes: number };
+        const semMap = new Map<string, SemEntry>();
+
+        // Distribuir producción por días entre droneos (igual que web)
+        for (let si = 1; si < yearRows.length; si++) {
+          const r    = yearRows[si] as Record<string, number | string | null>;
+          const prev = yearRows[si - 1] as Record<string, number | string | null>;
+
+          const prevDate = new Date((prev.fecha as string) + "T12:00:00");
+          const currDate = new Date((r.fecha    as string) + "T12:00:00");
+
+          // Días: desde el día siguiente al droneo anterior hasta el droneo actual (inclusive)
+          const days: Date[] = [];
+          const cur = new Date(prevDate);
+          cur.setDate(cur.getDate() + 1);
+          while (cur <= currDate) { days.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+          const n = Math.max(days.length, 1);
+
+          const prodDrone = (r.produccion_drone    as number) ?? 0;
+          const prodPeso  = (r.produccion_pesometro as number | null) ?? ((r.productividad_pesometro as number ?? 0) * (r.horas_reales as number ?? 0));
+          const hrsProd   = (r.diferencia_horometro as number | null) ?? (r.horas_reales as number ?? 0);
+          const detencion = (r.detencion            as number) ?? 0;
+          const despachos = (r.despachos_ton        as number) ?? 0;
+          const viajes    = (r.cantidad_despachos   as number) ?? 0;
+
+          for (const day of days) {
+            const key  = isoWeekKey(day);
+            const acc  = semMap.get(key) ?? { prodDrone: 0, prodPeso: 0, hrsProd: 0, detencion: 0, despachos: 0, viajes: 0 };
+            acc.prodDrone  += prodDrone / n;
+            acc.prodPeso   += prodPeso  / n;
+            acc.hrsProd    += hrsProd   / n;
+            acc.detencion  += detencion / n;
+            acc.despachos  += despachos / n;
+            acc.viajes     += viajes    / n;
+            semMap.set(key, acc);
+          }
         }
 
         data.semanalStats = Array.from(semMap.entries())
