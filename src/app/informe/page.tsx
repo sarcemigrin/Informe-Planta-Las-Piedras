@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
@@ -130,6 +130,10 @@ export default function InformePage() {
   const [historial, setHistorial]     = useState<HistorialCambio[]>([]);
   const [showHistorial, setShowHistorial] = useState(false);
 
+  const [generandoPdf, setGenerandoPdf] = useState(false);
+  const cubRef = useRef<HTMLElement>(null);
+  const semRef = useRef<HTMLElement>(null);
+
   // Cubicación
   const [cubLimit, setCubLimit]       = useState(CUB_INIT);
   const [selectedCubId, setSelectedCubId] = useState<string | null>(null);
@@ -142,6 +146,48 @@ export default function InformePage() {
 
 
   useEffect(() => { loadData(); }, []);
+
+  async function generarPDF() {
+    if (!cubRef.current || !semRef.current) return;
+    setGenerandoPdf(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF }   = await import("jspdf");
+
+      // Capturar cada sección
+      const opts = { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false };
+      const [c1, c2] = await Promise.all([
+        html2canvas(cubRef.current, opts),
+        html2canvas(semRef.current, opts),
+      ]);
+
+      // A4 landscape: 297 × 210 mm
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pw  = pdf.internal.pageSize.getWidth();
+      const ph  = pdf.internal.pageSize.getHeight();
+
+      const addImg = (canvas: HTMLCanvasElement, first: boolean) => {
+        if (!first) pdf.addPage();
+        const ratio   = canvas.width / canvas.height;
+        const imgW    = pw;
+        const imgH    = imgW / ratio;
+        const y       = imgH < ph ? (ph - imgH) / 2 : 0;
+        const drawH   = Math.min(imgH, ph);
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, y, imgW, drawH);
+      };
+
+      addImg(c1, true);
+      addImg(c2, false);
+
+      const fechaStr = new Date().toISOString().slice(0, 10);
+      pdf.save(`Informe_Arena_${fechaStr}.pdf`);
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+      alert("Error al generar el PDF. Intenta de nuevo.");
+    } finally {
+      setGenerandoPdf(false);
+    }
+  }
 
   async function loadData() {
     const { data } = await supabase
@@ -309,13 +355,31 @@ export default function InformePage() {
             </svg>
             Exportar Excel
           </button>
+          <button
+            className="btn-secondary"
+            onClick={generarPDF}
+            disabled={generandoPdf}
+            style={{ opacity: generandoPdf ? 0.6 : 1 }}
+          >
+            {generandoPdf ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} strokeDasharray="32" strokeDashoffset="12" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            )}
+            {generandoPdf ? "Generando…" : "Exportar PDF"}
+          </button>
         </div>
       </div>
 
       {/* 
           SECCIÓN 1 — POR CUBICACIÓN
        */}
-      <section>
+      <section ref={cubRef}>
         <SectionHeader title="Por Cubicación" sub={`últimos ${cubRows.length} registros`} />
 
         {/* Panel 8 tarjetas — 4+4 grid */}
@@ -528,7 +592,7 @@ export default function InformePage() {
       {/* 
           SECCIÓN 2 — SEMANAL
        */}
-      <section>
+      <section ref={semRef}>
         <SectionHeader
           title="Por Semana"
           action={
