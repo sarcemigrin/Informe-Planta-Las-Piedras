@@ -10,10 +10,12 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  "¿Cuál fue la mejor semana de producción este año?",
-  "¿Cómo va el inventario de arena?",
-  "¿Cuál es la productividad promedio del drone?",
-  "¿Cuántas toneladas se han despachado este mes?",
+  "¿Cuál es la productividad de la última semana?",
+  "¿Cuál es la producción de la última semana?",
+  "¿Cuál es el inventario actual de arena?",
+  "¿Cuál es el inventario actual de cuarzo?",
+  "¿Cuántas horas de operación hubo la última semana?",
+  "¿Cuántas horas de detención hubo la última semana?",
 ];
 
 const TOOLTIP_KEY = "arena-chat-tooltip-v1";
