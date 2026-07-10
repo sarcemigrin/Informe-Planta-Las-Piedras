@@ -198,4 +198,5 @@ export async function POST(req: Request) {
       "Cache-Control":          "no-cache",
       "X-Content-Type-Options": "nosniff",
     },
-  }
+  });
+}
