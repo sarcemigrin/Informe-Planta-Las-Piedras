@@ -398,5 +398,5 @@ export function ChatBot() {
         )}
       </button>
     </>
-  );
+  )
 }
