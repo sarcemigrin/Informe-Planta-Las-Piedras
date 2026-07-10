@@ -196,4 +196,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type":           "text/plain; charset=utf-8",
       "Cache-Control":          "no-cache",
-      "X-
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
