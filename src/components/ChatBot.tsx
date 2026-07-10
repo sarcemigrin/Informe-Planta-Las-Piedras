@@ -17,17 +17,15 @@ const SUGGESTIONS = [
 ];
 
 function MarkdownText({ text }: { text: string }) {
-  // Simple Markdown: **bold**, *italic*, listas con -
   const lines = text.split("\n");
   return (
     <>
       {lines.map((line, i) => {
         const isList = line.startsWith("- ") || line.startsWith("• ");
         const content = isList ? line.slice(2) : line;
-
-        const formatted = content.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        const formatted = content
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
           .replace(/\*(.+?)\*/g, "<em>$1</em>");
-
         if (isList) {
           return (
             <div key={i} className="flex gap-1.5 my-0.5">
@@ -36,9 +34,7 @@ function MarkdownText({ text }: { text: string }) {
             </div>
           );
         }
-        if (line.startsWith("## ")) {
-          return <p key={i} className="font-bold text-sm mt-2 mb-0.5">{line.slice(3)}</p>;
-        }
+        if (line.startsWith("## ")) return <p key={i} className="font-bold text-sm mt-2 mb-0.5">{line.slice(3)}</p>;
         if (line === "") return <div key={i} className="h-1.5" />;
         return <p key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
       })}
@@ -47,29 +43,24 @@ function MarkdownText({ text }: { text: string }) {
 }
 
 export function ChatBot() {
-  const { data: session } = useSession();
-  const [open, setOpen]   = useState(false);
-  const [messages, setMessages]   = useState<Message[]>([]);
-  const [input, setInput]         = useState("");
-  const [loading, setLoading]     = useState(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const inputRef   = useRef<HTMLInputElement>(null);
-  const abortRef   = useRef<AbortController | null>(null);
+  const { data: session }                         = useSession();
+  const [open, setOpen]                           = useState(false);
+  const [messages, setMessages]                   = useState<Message[]>([]);
+  const [input, setInput]                         = useState("");
+  const [loading, setLoading]                     = useState(false);
+  const bottomRef                                 = useRef<HTMLDivElement>(null);
+  const inputRef                                  = useRef<HTMLInputElement>(null);
+  const abortRef                                  = useRef<AbortController | null>(null);
 
-  // Solo visible si hay sesión
-  if (!session?.user) return null;
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // ── Hooks ALWAYS called (before any conditional return) ──────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
 
@@ -79,7 +70,6 @@ export function ChatBot() {
     setInput("");
     setLoading(true);
 
-    // Placeholder del asistente
     const assistantIdx = newHistory.length;
     setMessages(prev => [...prev, { role: "assistant", content: "", streaming: true }]);
 
@@ -96,9 +86,9 @@ export function ChatBot() {
 
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const reader      = res.body.getReader();
+      const decoder     = new TextDecoder();
+      let accumulated   = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -112,7 +102,6 @@ export function ChatBot() {
         );
       }
 
-      // Marcar como terminado
       setMessages(prev =>
         prev.map((m, idx) =>
           idx === assistantIdx ? { ...m, streaming: false } : m
@@ -133,11 +122,11 @@ export function ChatBot() {
     }
   }, [messages, loading]);
 
+  // ── Early return AFTER all hooks ─────────────────────────────────────────
+  if (!session?.user) return null;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
   const clearChat = () => {
@@ -163,15 +152,9 @@ export function ChatBot() {
           }}
         >
           {/* Header */}
-          <div
-            className="flex items-center justify-between px-4 py-3 shrink-0"
-            style={{ background: "#374151", color: "white" }}
-          >
+          <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: "#374151", color: "white" }}>
             <div className="flex items-center gap-2.5">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: "#6BCF7F" }}
-              >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: "#6BCF7F" }}>
                 <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
                 </svg>
@@ -183,21 +166,13 @@ export function ChatBot() {
             </div>
             <div className="flex items-center gap-1">
               {messages.length > 0 && (
-                <button
-                  onClick={clearChat}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white"
-                  title="Limpiar chat"
-                >
+                <button onClick={clearChat} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white" title="Limpiar chat">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 </button>
               )}
-              <button
-                onClick={() => setOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white"
-                title="Cerrar"
-              >
+              <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white" title="Cerrar">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -209,10 +184,7 @@ export function ChatBot() {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: "#f8fafc" }}>
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center gap-4 pb-4">
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={{ background: "#6BCF7F20" }}
-                >
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "#6BCF7F20" }}>
                   <svg className="w-6 h-6" style={{ color: "#6BCF7F" }} fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
                   </svg>
@@ -223,11 +195,8 @@ export function ChatBot() {
                 </div>
                 <div className="w-full space-y-2">
                   {SUGGESTIONS.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => sendMessage(s)}
-                      className="w-full text-left text-xs px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition-all"
-                    >
+                    <button key={i} onClick={() => sendMessage(s)}
+                      className="w-full text-left text-xs px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition-all">
                       {s}
                     </button>
                   ))}
@@ -235,10 +204,7 @@ export function ChatBot() {
               </div>
             ) : (
               messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className="max-w-[85%] text-xs leading-relaxed px-3 py-2.5 rounded-2xl"
                     style={
@@ -254,9 +220,7 @@ export function ChatBot() {
                           <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle rounded-sm animate-pulse" style={{ background: "#6BCF7F" }} />
                         )}
                       </>
-                    ) : (
-                      msg.content
-                    )}
+                    ) : msg.content}
                   </div>
                 </div>
               ))
@@ -281,10 +245,7 @@ export function ChatBot() {
                 onClick={() => sendMessage(input)}
                 disabled={loading || !input.trim()}
                 className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-40"
-                style={{
-                  background: input.trim() && !loading ? "#6BCF7F" : "#e5e7eb",
-                  color: input.trim() && !loading ? "white" : "#9ca3af",
-                }}
+                style={{ background: input.trim() && !loading ? "#6BCF7F" : "#e5e7eb", color: input.trim() && !loading ? "white" : "#9ca3af" }}
               >
                 {loading ? (
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
