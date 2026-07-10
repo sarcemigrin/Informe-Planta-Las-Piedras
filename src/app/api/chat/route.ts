@@ -1,12 +1,6 @@
 /**
- * POST /api/chat
- *
- * Chatbot de Arena Control.
- * KPI semanal calculado con el MISMO criterio que la seccion Informe:
- * distribucion proporcional de produccion/horas entre dias del periodo
- * (igual a calcularDiario en calculations.ts).
- *
- * Formula: KPI semana = sum(prod_dia) / sum((horas-detencion)_dia)
+ * POST /api/chat — Chatbot Arena Control.
+ * KPI semanal = distribucion proporcional entre dias (mismo criterio que Informe).
  */
 
 import { NextResponse }      from "next/server";
@@ -25,7 +19,6 @@ function getSupabase() {
   );
 }
 
-// ISO week (identico a getWeek en calculations.ts)
 function isoWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -33,79 +26,64 @@ function isoWeek(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-type Rec = { fecha: string; hora: string; produccion_drone: number; horas_reales: number; detencion: number; inventario_ton: number; despachos_ton: number; productividad_drone: number };
+type Rec = {
+  fecha: string; hora: string;
+  produccion_drone: number; productividad_drone: number;
+  inventario_ton: number; horas_reales: number;
+  detencion: number; despachos_ton: number;
+};
 
-// Distribuye produccion/horas entre dias del periodo (igual que calcularDiario)
-function agruparPorSemana(records: Rec[]): Record<number, { prod: number; hrOp: number; desp: number; inv: number; firstDate: string; lastDate: string }> {
+function agruparPorSemana(records: Rec[]) {
   const byWeek: Record<number, { prod: number; hrOp: number; desp: number; inv: number; firstDate: string; lastDate: string }> = {};
-
   for (let i = 1; i < records.length; i++) {
     const prev = records[i - 1];
     const curr = records[i];
-
     const prevDate = new Date(prev.fecha + "T12:00:00");
     const currDate = new Date(curr.fecha + "T12:00:00");
-    const diasPeriodo = Math.max(
-      1,
-      Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24))
-    );
-
-    const prodDia = (curr.produccion_drone ?? 0) / diasPeriodo;
-    const hrsDia  = (curr.horas_reales    ?? 0) / diasPeriodo;
-    const detDia  = (curr.detencion       ?? 0) / diasPeriodo;
-    const despDia = (curr.despachos_ton   ?? 0) / diasPeriodo;
-
-    for (let d = 1; d <= diasPeriodo; d++) {
+    const dias = Math.max(1, Math.round((currDate.getTime() - prevDate.getTime()) / 86400000));
+    const prodD = (curr.produccion_drone ?? 0) / dias;
+    const hrsD  = (curr.horas_reales    ?? 0) / dias;
+    const detD  = (curr.detencion       ?? 0) / dias;
+    const despD = (curr.despachos_ton   ?? 0) / dias;
+    for (let d = 1; d <= dias; d++) {
       const dia = new Date(prevDate);
       dia.setDate(dia.getDate() + d);
-      const wk = isoWeek(dia);
-      const fechaStr = dia.toISOString().slice(0, 10);
-
-      if (!byWeek[wk]) byWeek[wk] = { prod: 0, hrOp: 0, desp: 0, inv: 0, firstDate: fechaStr, lastDate: fechaStr };
-      byWeek[wk].prod  += prodDia;
-      byWeek[wk].hrOp  += Math.max(0, hrsDia - detDia);
-      byWeek[wk].desp  += despDia;
-      byWeek[wk].lastDate = fechaStr;
+      const wk  = isoWeek(dia);
+      const fStr = dia.toISOString().slice(0, 10);
+      if (!byWeek[wk]) byWeek[wk] = { prod: 0, hrOp: 0, desp: 0, inv: 0, firstDate: fStr, lastDate: fStr };
+      byWeek[wk].prod += prodD;
+      byWeek[wk].hrOp += Math.max(0, hrsD - detD);
+      byWeek[wk].desp += despD;
+      byWeek[wk].lastDate = fStr;
     }
-    // Inventario: usar el del ultimo registro de la semana
-    const wkCurr = isoWeek(currDate);
-    if (byWeek[wkCurr]) byWeek[wkCurr].inv = curr.inventario_ton ?? 0;
+    const wkC = isoWeek(currDate);
+    if (byWeek[wkC]) byWeek[wkC].inv = curr.inventario_ton ?? 0;
   }
-
   return byWeek;
 }
 
-function agruparPorMes(records: Rec[]): Record<number, { prod: number; hrOp: number; desp: number }> {
+function agruparPorMes(records: Rec[]) {
   const byMonth: Record<number, { prod: number; hrOp: number; desp: number }> = {};
-
   for (let i = 1; i < records.length; i++) {
     const prev = records[i - 1];
     const curr = records[i];
-
     const prevDate = new Date(prev.fecha + "T12:00:00");
     const currDate = new Date(curr.fecha + "T12:00:00");
-    const diasPeriodo = Math.max(
-      1,
-      Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24))
-    );
-
-    const prodDia = (curr.produccion_drone ?? 0) / diasPeriodo;
-    const hrsDia  = (curr.horas_reales    ?? 0) / diasPeriodo;
-    const detDia  = (curr.detencion       ?? 0) / diasPeriodo;
-    const despDia = (curr.despachos_ton   ?? 0) / diasPeriodo;
-
-    for (let d = 1; d <= diasPeriodo; d++) {
+    const dias = Math.max(1, Math.round((currDate.getTime() - prevDate.getTime()) / 86400000));
+    const prodD = (curr.produccion_drone ?? 0) / dias;
+    const hrsD  = (curr.horas_reales    ?? 0) / dias;
+    const detD  = (curr.detencion       ?? 0) / dias;
+    const despD = (curr.despachos_ton   ?? 0) / dias;
+    for (let d = 1; d <= dias; d++) {
       const dia = new Date(prevDate);
       dia.setDate(dia.getDate() + d);
       const m = dia.getMonth() + 1;
-
       if (!byMonth[m]) byMonth[m] = { prod: 0, hrOp: 0, desp: 0 };
-      byMonth[m].prod  += prodDia;
-      byMonth[m].hrOp  += Math.max(0, hrsDia - detDia);
-      byMonth[m].desp  += despDia;
+      byMonth[m].prod += prodD;
+      byMonth[m].hrOp += Math.max(0, hrsD - detD);
+      byMonth[m].desp += despD;
     }
   }
-
   return byMonth;
 }
 
@@ -113,26 +91,16 @@ async function getDataContext(): Promise<string> {
   const sb   = getSupabase();
   const year = new Date().getFullYear();
 
-  const [
-    { data: arenaAll },
-    { data: cuarzoAll },
-    despachoResult,
-  ] = await Promise.all([
+  const [{ data: arenaAll }, { data: cuarzoAll }, despachoResult] = await Promise.all([
     sb.from("registros_arena")
       .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton")
-      .gte("fecha", `${year}-01-01`)
-      .order("fecha_hora", { ascending: true })
-      .limit(500),
+      .gte("fecha", `${year}-01-01`).order("fecha_hora", { ascending: true }).limit(500),
     sb.from("registros_cuarzo")
       .select("fecha, hora, inventario_ton, produccion_drone, productividad_drone, despachos_ton, horas_reales, detencion")
-      .gte("fecha", `${year}-01-01`)
-      .order("fecha_hora", { ascending: true })
-      .limit(200),
+      .gte("fecha", `${year}-01-01`).order("fecha_hora", { ascending: true }).limit(200),
     Promise.resolve(
-      sb.from("despachos")
-        .select("fecha, hora, destino, toneladas")
-        .order("fecha", { ascending: false })
-        .limit(10)
+      sb.from("despachos").select("fecha, hora, destino, toneladas")
+        .order("fecha", { ascending: false }).limit(10)
     ).catch(() => ({ data: [] as Record<string, string | number | null>[] })),
   ]);
 
@@ -140,22 +108,20 @@ async function getDataContext(): Promise<string> {
     n == null || isNaN(n as number) ? "sin dato"
       : (n as number).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
-  const arena  = (arenaAll  ?? []) as unknown as Rec[];
-  const cuarzo = (cuarzoAll ?? []) as unknown as Rec[];
-  const despRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
-
-  // ---- Semanas (distribucion proporcional = mismo criterio que Informe) ----
   const MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const arena    = (arenaAll  ?? []) as unknown as Rec[];
+  const cuarzo   = (cuarzoAll ?? []) as unknown as Rec[];
+  const despRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
 
   const byWeek  = agruparPorSemana(arena);
   const byMonth = agruparPorMes(arena);
 
-  const weekEntries  = Object.entries(byWeek).sort(([a], [b]) => Number(a) - Number(b));
-  const monthEntries = Object.entries(byMonth).sort(([a], [b]) => Number(a) - Number(b));
+  const weekEntries  = Object.entries(byWeek).sort(([a],[b]) => Number(a)-Number(b));
+  const monthEntries = Object.entries(byMonth).sort(([a],[b]) => Number(a)-Number(b));
 
   const weekLines = weekEntries.map(([wk, v]) => {
     const kpi = v.hrOp > 0 ? v.prod / v.hrOp : 0;
-    return `  [S${wk}] ${v.firstDate}~${v.lastDate} | kpi: ${f(kpi)} t/h | prod: ${f(v.prod)} t | desp: ${f(v.desp)} t | inv final: ${f(v.inv)} t`;
+    return `  [S${wk}] ${v.firstDate}~${v.lastDate} | kpi: ${f(kpi)} t/h | prod: ${f(v.prod)} t | desp: ${f(v.desp)} t | inv: ${f(v.inv)} t`;
   }).join("\n");
 
   const monthLines = monthEntries.map(([m, v]) => {
@@ -163,28 +129,22 @@ async function getDataContext(): Promise<string> {
     return `  ${MESES[Number(m)].padEnd(12)} | kpi: ${f(kpi)} t/h | prod: ${f(v.prod)} t | desp: ${f(v.desp)} t`;
   }).join("\n");
 
-  // Resumen anio
   let aProd = 0, aDesp = 0;
   for (const v of Object.values(byMonth)) { aProd += v.prod; aDesp += v.desp; }
 
-  // Semana actual (ultima semana con datos)
-  const lastWk = weekEntries.length ? weekEntries[weekEntries.length - 1] : null;
-  const lastWkNum = lastWk ? lastWk[0] : "?";
-  const lastWkV   = lastWk ? lastWk[1] : null;
+  const lastWk  = weekEntries.length ? weekEntries[weekEntries.length - 1] : null;
+  const lastWkN = lastWk ? lastWk[0] : "?";
+  const lastWkV = lastWk ? lastWk[1] : null;
   const lastWkKpi = lastWkV && lastWkV.hrOp > 0 ? lastWkV.prod / lastWkV.hrOp : null;
 
-  // Ultimo registro arena
-  const a0 = arena.length ? arena[arena.length - 1] : ({} as Partial<Rec>);
+  const a0   = arena.length  ? arena[arena.length - 1]   : ({} as Partial<Rec>);
+  const c0   = cuarzo.length ? cuarzo[cuarzo.length - 1] : ({} as Partial<Rec>);
   const a0wk = a0.fecha ? isoWeek(new Date(a0.fecha + "T12:00:00")) : "?";
-
-  // Ultimo registro cuarzo
-  const c0 = cuarzo.length ? cuarzo[cuarzo.length - 1] : ({} as Partial<Rec>);
   const c0wk = c0.fecha ? isoWeek(new Date(c0.fecha + "T12:00:00")) : "?";
 
-  // Historial de droneos (para consultas por fecha puntual — muestra el ultimo mes)
   const arenaHist = [...arena].reverse().slice(0, 20).map(r => {
     const wk = isoWeek(new Date(r.fecha + "T12:00:00"));
-    return `  [S${wk}] ${r.fecha} ${r.hora} | prod droneo: ${f(r.produccion_drone)} t | kpi droneo: ${f(r.productividad_drone)} t/h | inv: ${f(r.inventario_ton)} t`;
+    return `  [S${wk}] ${r.fecha} ${r.hora} | prod: ${f(r.produccion_drone)} t | kpi droneo: ${f(r.productividad_drone)} t/h | inv: ${f(r.inventario_ton)} t`;
   }).join("\n");
 
   const cuarzoHist = [...cuarzo].reverse().slice(0, 10).map(r => {
@@ -197,43 +157,35 @@ async function getDataContext(): Promise<string> {
   ).join("\n");
 
   return [
-    `=== DATOS EN TIEMPO REAL — PLANTA LAS PIEDRAS (${new Date().toLocaleDateString("es-CL")}) ===`,
-    `Criterio KPI: mismo que seccion Informe (distribucion proporcional entre dias del periodo).`,
-    `KPI = sum(produccion_dia) / sum((horas_reales - detencion)_dia), agrupado por semana ISO.`,
+    `=== DATOS EN TIEMPO REAL (${new Date().toLocaleDateString("es-CL")}) ===`,
+    "KPI = sum(prod_dia) / sum((horas-detencion)_dia) — mismo criterio que seccion Informe.",
     "",
-    `--- SEMANA EN CURSO: S${lastWkNum} (${lastWkV?.firstDate ?? ""}~${lastWkV?.lastDate ?? ""}) ---`,
-    lastWkV ? `  KPI semana     : ${f(lastWkKpi as number)} t/h` : "  Sin datos",
-    lastWkV ? `  Produccion     : ${f(lastWkV.prod)} ton`        : "",
-    lastWkV ? `  Inventario     : ${f(lastWkV.inv)} ton`         : "",
+    `[SEMANA EN CURSO S${lastWkN}: ${lastWkV?.firstDate ?? ""}~${lastWkV?.lastDate ?? ""}]`,
+    lastWkV ? `  KPI: ${f(lastWkKpi as number)} t/h | prod: ${f(lastWkV.prod)} t | inv: ${f(lastWkV.inv)} t` : "  sin datos",
     "",
-    `--- ULTIMO REGISTRO ARENA | ${a0.fecha ?? "sin fecha"} ${a0.hora ?? ""} | Semana ISO ${a0wk} ---`,
-    `  Productividad droneo : ${f(a0.productividad_drone)} t/h`,
-    `  Produccion droneo    : ${f(a0.produccion_drone)} ton`,
-    `  Inventario           : ${f(a0.inventario_ton)} ton`,
+    `[ULTIMO REGISTRO ARENA: ${a0.fecha ?? "?"} ${a0.hora ?? ""} S${a0wk}]`,
+    `  kpi droneo: ${f(a0.productividad_drone)} t/h | prod: ${f(a0.produccion_drone)} t | inv: ${f(a0.inventario_ton)} t`,
     "",
-    `--- ULTIMO REGISTRO CUARZO | ${c0.fecha ?? "sin fecha"} ${c0.hora ?? ""} | Semana ISO ${c0wk} ---`,
-    `  Inventario    : ${f(c0.inventario_ton)} ton`,
-    `  Produccion    : ${f(c0.produccion_drone)} ton`,
-    `  Productividad : ${f(c0.productividad_drone)} t/h`,
+    `[ULTIMO REGISTRO CUARZO: ${c0.fecha ?? "?"} ${c0.hora ?? ""} S${c0wk}]`,
+    `  inv: ${f(c0.inventario_ton)} t | prod: ${f(c0.produccion_drone)} t | kpi: ${f(c0.productividad_drone)} t/h`,
     "",
-    `--- KPIS SEMANALES ARENA ${year} (distribucion proporcional, mismo que Informe) ---`,
-    weekLines || "  (sin datos)",
+    `[KPIS SEMANALES ARENA ${year}]`,
+    weekLines || "  sin datos",
     "",
-    `--- KPIS MENSUALES ARENA ${year} ---`,
-    monthLines || "  (sin datos)",
+    `[KPIS MENSUALES ARENA ${year}]`,
+    monthLines || "  sin datos",
     "",
-    `--- RESUMEN ANIO ${year} ---`,
-    `  Produccion acumulada: ${f(aProd)} ton`,
-    `  Despachos acumulados: ${f(aDesp)} ton`,
+    `[RESUMEN ANIO ${year}]`,
+    `  prod acumulada: ${f(aProd)} t | despachos: ${f(aDesp)} t`,
     "",
-    "--- HISTORIAL DE DRONEOS (para consultas por fecha puntual) ---",
-    arenaHist || "  (sin datos)",
+    "[HISTORIAL DRONEOS — para consultas por fecha puntual]",
+    arenaHist || "  sin datos",
     "",
-    "--- HISTORIAL CUARZO ---",
-    cuarzoHist || "  (sin datos)",
+    "[HISTORIAL CUARZO]",
+    cuarzoHist || "  sin datos",
     "",
-    "--- DESPACHOS RECIENTES ---",
-    despHist || "  (sin datos)",
+    "[DESPACHOS RECIENTES]",
+    despHist || "  sin datos",
   ].join("\n").trim();
 }
 
@@ -252,40 +204,38 @@ async function getCachedDataContext(): Promise<string> {
 function buildSystemPrompt(dataContext: string): string {
   return [
     "Eres el asistente de Arena Control de Migrin, planta Las Piedras.",
+    "Los datos provienen de la base de datos en tiempo real. Son reales, no ejemplos.",
+    "Nunca digas que no tienes acceso a datos reales o que son un documento de texto.",
     "",
-    "FUENTE DE DATOS: Los datos provienen de la base de datos de la planta en tiempo real.",
-    "Son identicos a los que muestra la seccion Informe de la aplicacion.",
-    "NUNCA digas que son un documento de ejemplo o que no tienes acceso a datos reales.",
+    "Puedes responder sobre: Dashboard, Control de vuelos, Informe, Inventario, Despachos y operacion de la planta.",
     "",
-    "Puedes responder sobre: Dashboard, Control de vuelos, Informe, Inventario, Despachos y operacion general.",
+    "--- COMO RESPONDER ---",
     "",
-    "REGLAS (en orden de prioridad):",
+    "A) DATO PUNTUAL (el usuario pide el valor de una semana, mes, fecha o el actual):",
+    "   Lee directamente del contexto sin recalcular el KPI.",
+    "   - Semana especifica (ej. S27): busca [S27] en KPIS SEMANALES. Reporta kpi y produccion.",
+    "     Si no existe: 'No tengo datos de la semana XX para este anio.'",
+    "   - Semana actual: usa SEMANA EN CURSO.",
+    "   - Mes: usa KPIS MENSUALES.",
+    "   - Anio: usa RESUMEN ANIO.",
+    "   - Fecha puntual: busca en HISTORIAL DRONEOS.",
+    "     Si no hay registro exacto, di: 'No hay droneo el DD/MM.'",
+    "     Luego ofrece los 2 droneos mas proximos del historial.",
+    "   - Valor actual: usa ULTIMO REGISTRO ARENA o CUARZO.",
     "",
-    "1. SEMANA ESPECIFICA (ej. semana 27, S27):",
-    "   -> Busca [S27] en KPIS SEMANALES ARENA. Lee el kpi y produccion de esa linea.",
-    "   -> Di exactamente: La semana 27 tuvo un KPI de X,X t/h y produccion de X.XXX,X ton.",
-    "   -> Si no existe esa semana, di: No tengo datos de la semana XX.",
+    "B) ANALISIS, PROMEDIOS O TENDENCIAS (el usuario pide comparar, promediar o analizar un periodo):",
+    "   Puedes calcular usando los datos ya disponibles en el contexto.",
+    "   - Promedio de produccion: suma las producciones de las semanas/meses indicados y divide.",
+    "   - Tendencia: compara KPI semanales y describe si sube, baja o se mantiene.",
+    "   - Mejor/peor semana o mes: revisa KPIS SEMANALES o MENSUALES y reporta el extremo.",
+    "   - Siempre menciona que semanas o meses usaste en el calculo.",
     "",
-    "2. SEMANA ACTUAL / EN CURSO:",
-    "   -> Usa la seccion SEMANA EN CURSO directamente.",
+    "REGLA CRITICA: para el KPI de una semana o mes especifico, usa SIEMPRE el valor",
+    "pre-calculado del contexto (calculado con el mismo criterio que el Informe).",
+    "Solo cuando el usuario pide un promedio o analisis de MULTIPLES periodos puedes operar sobre esos valores.",
     "",
-    "3. MES (ej. junio, mes 6):",
-    "   -> Busca en KPIS MENSUALES. Reporta kpi y produccion.",
-    "",
-    "4. ANIO:",
-    "   -> Usa RESUMEN ANIO.",
-    "",
-    "5. FECHA PUNTUAL (ej. 3 de julio):",
-    "   -> Busca en HISTORIAL DE DRONEOS si hay registro de esa fecha.",
-    "   -> Si no hay, di: No hay droneo registrado el DD/MM. Los mas cercanos son: [menciona 2 fechas del historial].",
-    "",
-    "6. VALOR ACTUAL / ULTIMO:",
-    "   -> Usa ULTIMO REGISTRO ARENA o CUARZO.",
-    "",
-    "7. NUNCA calcules, sumes ni promedies. Los KPI ya estan calculados con el mismo criterio que el Informe.",
-    "",
-    "Responde en espanol. Se breve. Incluye la unidad (ton, t/h, h).",
-    "Objetivos: productividad 32 t/h | inventario arena 7.500 ton",
+    "Responde en espanol. Se claro y directo. Incluye la unidad (ton, t/h, h).",
+    "Referencia: objetivo KPI 32 t/h | objetivo inventario arena 7.500 ton",
     "",
     dataContext,
   ].join("\n");
@@ -338,8 +288,8 @@ export async function POST(req: Request) {
           model:       "llama-3.3-70b-versatile",
           messages:    groqMessages,
           stream:      true,
-          max_tokens:  300,
-          temperature: 0.05,
+          max_tokens:  400,
+          temperature: 0.1,
         });
         for await (const chunk of completion) {
           const text = chunk.choices[0]?.delta?.content ?? "";
@@ -348,7 +298,7 @@ export async function POST(req: Request) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("[chat] Groq error:", msg);
-        controller.enqueue(encoder.encode(`[Error: ${msg}]`));
+        controller.enqueue(encoder.encode("[Error: " + msg + "]"));
       } finally {
         controller.close();
       }
