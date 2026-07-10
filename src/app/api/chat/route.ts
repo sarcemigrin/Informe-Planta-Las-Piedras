@@ -36,29 +36,30 @@ async function getDataContext(): Promise<string> {
     despachoResult,
   ] = await Promise.all([
     sb.from("registros_arena")
-      .select("fecha, hora, produccion_drone, productividad_drone, productividad_pesometro, produccion_pesometro, inventario_ton, horas_reales, detencion, despachos_ton, cantidad_despachos")
+      .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton")
       .order("fecha_hora", { ascending: false })
-      .limit(20),
+      .limit(8),
     sb.from("registros_arena")
       .select("fecha, produccion_drone, despachos_ton")
       .gte("fecha", `${year}-01-01`)
-      .order("fecha_hora", { ascending: true }),
+      .order("fecha_hora", { ascending: false })
+      .limit(90),
     sb.from("registros_cuarzo")
       .select("fecha, hora, inventario_ton, produccion, despachos")
       .order("fecha_hora", { ascending: false })
-      .limit(10),
+      .limit(5),
     Promise.resolve(
       sb.from("despachos")
-        .select("fecha, hora, destino, toneladas, camiones")
+        .select("fecha, hora, destino, toneladas")
         .order("fecha", { ascending: false })
-        .limit(20)
+        .limit(8)
     ).catch(() => ({ data: [] as Record<string, string | number | null>[] })),
   ]);
 
   const fmt = (n: number | null | undefined) =>
     n == null ? "–" : n.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-  // Resumen año
+  // Resumen año (sobre los registros más recientes, max 90)
   let totalProd = 0, totalDesp = 0, count = 0;
   for (const r of (arenaYear ?? []) as Record<string, number>[] ) {
     totalProd += r.produccion_drone ?? 0;
@@ -66,37 +67,53 @@ async function getDataContext(): Promise<string> {
     count++;
   }
 
-  const arenaRows = (arenaRecent ?? []) as Record<string, string | number | null>[];
-  const cuarzoRows = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
+  const arenaRows    = (arenaRecent ?? []) as Record<string, string | number | null>[];
+  const cuarzoRows   = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
   const despachoRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
 
   const arenaTable = arenaRows.map(r =>
-    `  ${r.fecha} ${r.hora} | prod_drone: ${fmt(r.produccion_drone as number)} ton | kpi_drone: ${fmt(r.productividad_drone as number)} t/h | prod_peso: ${fmt(r.produccion_pesometro as number)} ton | kpi_peso: ${fmt(r.productividad_pesometro as number)} t/h | inventario: ${fmt(r.inventario_ton as number)} ton | horas: ${fmt(r.horas_reales as number)} h | detencion: ${fmt(r.detencion as number)} h | despachos: ${fmt(r.despachos_ton as number)} ton (${r.cantidad_despachos ?? 0} viajes)`
+    `  ${r.fecha} ${r.hora} | prod: ${fmt(r.produccion_drone as number)} t | kpi: ${fmt(r.productividad_drone as number)} t/h | inv: ${fmt(r.inventario_ton as number)} t | hr: ${fmt(r.horas_reales as number)} h | det: ${fmt(r.detencion as number)} h | desp: ${fmt(r.despachos_ton as number)} t`
   ).join("\n");
 
   const cuarzoTable = cuarzoRows.map(r =>
-    `  ${r.fecha} ${r.hora} | inventario: ${fmt(r.inventario_ton as number)} ton | produccion: ${fmt(r.produccion as number)} ton | despachos: ${fmt(r.despachos as number)} ton`
+    `  ${r.fecha} ${r.hora} | inv: ${fmt(r.inventario_ton as number)} t | prod: ${fmt(r.produccion as number)} t | desp: ${fmt(r.despachos as number)} t`
   ).join("\n");
 
   const despachoTable = despachoRows.map(r =>
-    `  ${r.fecha} ${r.hora} | destino: ${r.destino ?? "–"} | toneladas: ${fmt(r.toneladas as number)} | camiones: ${r.camiones ?? "–"}`
+    `  ${r.fecha} ${r.hora} | ${r.destino ?? "–"} | ${fmt(r.toneladas as number)} t`
   ).join("\n");
 
-  return `
-DATOS ACTUALES (${new Date().toLocaleDateString("es-CL")}):
+  // Resumen últimos 90 días vs año completo
+  const periodLabel = count >= 90
+    ? `últimos 90 registros (aprox. 90 días)`
+    : `año ${year} (${count} cubicaciones)`;
 
-ARENA — últimos 20 registros (más reciente primero):
+  return `DATOS (${new Date().toLocaleDateString("es-CL")}):
+
+ARENA — 8 registros recientes:
 ${arenaTable || "  (sin datos)"}
 
-ARENA — resumen año ${year}:
-  Total producción: ${fmt(totalProd)} ton | Total despachos: ${fmt(totalDesp)} ton | Cubicaciones: ${count}
+ARENA — resumen ${periodLabel}:
+  Producción acum: ${fmt(totalProd)} ton | Despachos acum: ${fmt(totalDesp)} ton
 
-CUARZO — últimos 10 registros:
+CUARZO — 5 registros recientes:
 ${cuarzoTable || "  (sin datos)"}
 
-DESPACHOS — últimos 20 registros:
-${despachoTable || "  (sin datos)"}
-`.trim();
+DESPACHOS — 8 más recientes:
+${despachoTable || "  (sin datos)"}`.trim();
+}
+
+// Variable para deduplicar llamadas en la misma instancia
+let _lastContextTime = 0;
+let _cachedContext   = "";
+const CACHE_MS = 2 * 60 * 1000; // 2 minutos
+
+async function getCachedDataContext(): Promise<string> {
+  const now = Date.now();
+  if (now - _lastContextTime < CACHE_MS && _cachedContext) return _cachedContext;
+  _cachedContext   = await getDataContext();
+  _lastContextTime = now;
+  return _cachedContext;
 }
 
 // ── System prompt ────────────────────────────────────────────────────────────
@@ -152,7 +169,7 @@ export async function POST(req: Request) {
 
   let dataContext = "";
   try {
-    dataContext = await getDataContext();
+    dataContext = await getCachedDataContext();
   } catch (e) {
     console.warn("[chat] No se pudo obtener contexto:", e);
     dataContext = "(No se pudieron cargar los datos en este momento)";
