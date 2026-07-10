@@ -160,7 +160,7 @@ export async function POST(req: Request) {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
     systemInstruction: buildSystemPrompt(dataContext),
   });
 
@@ -183,8 +183,9 @@ export async function POST(req: Request) {
           if (text) controller.enqueue(encoder.encode(text));
         }
       } catch (e) {
-        console.error("[chat] Gemini error:", e);
-        controller.enqueue(encoder.encode("\n\n[Error al generar respuesta]"));
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[chat] Gemini error:", msg);
+        controller.enqueue(encoder.encode(`[Error: ${msg}]`));
       } finally {
         controller.close();
       }
@@ -195,7 +196,4 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type":           "text/plain; charset=utf-8",
       "Cache-Control":          "no-cache",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
+      "X-
