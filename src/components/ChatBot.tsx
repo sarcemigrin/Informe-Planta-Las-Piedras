@@ -84,7 +84,17 @@ export function ChatBot() {
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const errMsg  = errBody?.error ?? `HTTP ${res.status}`;
+        setMessages(prev =>
+          prev.map((m, idx) =>
+            idx === assistantIdx ? { ...m, content: `Error del servidor: ${errMsg}`, streaming: false } : m
+          )
+        );
+        return;
+      }
+      if (!res.body) throw new Error("Sin cuerpo en la respuesta");
 
       const reader      = res.body.getReader();
       const decoder     = new TextDecoder();
@@ -109,10 +119,11 @@ export function ChatBot() {
       );
     } catch (e: unknown) {
       if ((e as Error).name !== "AbortError") {
+        const msg = e instanceof Error ? e.message : "Error desconocido";
         setMessages(prev =>
           prev.map((m, idx) =>
             idx === assistantIdx
-              ? { ...m, content: "Lo siento, ocurrió un error. Intenta de nuevo.", streaming: false }
+              ? { ...m, content: `Error: ${msg}`, streaming: false }
               : m
           )
         );
