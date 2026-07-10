@@ -10,12 +10,12 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  "¿Cuál es la productividad de la última semana?",
-  "¿Cuál es la producción de la última semana?",
+  "¿Cuál es la productividad del último registro?",
+  "¿Cuál es la producción del último droneo?",
   "¿Cuál es el inventario actual de arena?",
   "¿Cuál es el inventario actual de cuarzo?",
-  "¿Cuántas horas de operación hubo la última semana?",
-  "¿Cuántas horas de detención hubo la última semana?",
+  "¿Cuántas horas de operación tiene el último registro?",
+  "¿Cuántas horas de detención tiene el último registro?",
 ];
 
 const TOOLTIP_KEY = "arena-chat-tooltip-v1";

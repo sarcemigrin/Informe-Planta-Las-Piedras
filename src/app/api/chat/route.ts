@@ -2,11 +2,8 @@
  * POST /api/chat
  *
  * Chatbot de Arena Control — responde preguntas en lenguaje natural.
- * Usa Groq llama-3.3-70b-versatile (free tier: 1.000 req/día).
- *
- * Criterio semana: igual que vista Diario — distribuye producción,
- * horas y detención proporcionalmente entre los días del período,
- * luego agrupa por semana ISO.
+ * Estrategia: el servidor entrega los valores ya listos (último registro),
+ * el LLM solo los lee y reporta. Sin cálculos en el modelo.
  */
 
 import { NextResponse }      from "next/server";
@@ -25,75 +22,12 @@ function getSupabase() {
   );
 }
 
-// ── Semana ISO ───────────────────────────────────────────────────────────────
-function isoWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
-
-// ── Distribución diaria (igual que calcularDiario) ───────────────────────────
-// Para cada período entre droneos, reparte proporcionalmente entre los días.
-// weekMap[isoWeek] acumula: prod, horasReales, detencion
-type WeekAgg = {
-  prod: number; horasReal: number; det: number;
-  fechaMin: string; fechaMax: string;
-};
-
-function distribuirEnSemanas(
-  records: { fecha: string; produccion_drone: number; horas_reales: number; detencion: number }[]
-): Record<number, WeekAgg> {
-  const weekMap: Record<number, WeekAgg> = {};
-
-  const add = (date: Date, prod: number, hr: number, det: number) => {
-    const w = isoWeek(date);
-    const ds = date.toISOString().split("T")[0];
-    if (!weekMap[w]) weekMap[w] = { prod: 0, horasReal: 0, det: 0, fechaMin: ds, fechaMax: ds };
-    weekMap[w].prod      += prod;
-    weekMap[w].horasReal += hr;
-    weekMap[w].det       += det;
-    if (ds < weekMap[w].fechaMin) weekMap[w].fechaMin = ds;
-    if (ds > weekMap[w].fechaMax) weekMap[w].fechaMax = ds;
-  };
-
-  // records deben estar ordenados ascendente
-  for (let i = 1; i < records.length; i++) {
-    const prev = records[i - 1];
-    const curr = records[i];
-
-    const prevDate = new Date(prev.fecha + "T12:00:00");
-    const currDate = new Date(curr.fecha + "T12:00:00");
-    const diasPeriodo = Math.max(
-      1,
-      Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24))
-    );
-
-    const prodDia = curr.produccion_drone / diasPeriodo;
-    const hrDia   = curr.horas_reales    / diasPeriodo;
-    const detDia  = curr.detencion       / diasPeriodo;
-
-    // Distribuir día a día (día 1 = día siguiente al droneo anterior;
-    // día diasPeriodo = día del droneo actual)
-    for (let d = 1; d <= diasPeriodo; d++) {
-      const dia = new Date(prevDate);
-      dia.setDate(dia.getDate() + d);
-      add(dia, prodDia, hrDia, detDia);
-    }
-  }
-
-  return weekMap;
-}
-
-// ── Contexto de datos ────────────────────────────────────────────────────────
-
 async function getDataContext(): Promise<string> {
   const sb   = getSupabase();
   const year = new Date().getFullYear();
 
-  // Necesitamos ~20 registros para cubrir bien las últimas 3 semanas con distribución
   const [
-    { data: arenaAll },
+    { data: arenaRecent },
     { data: cuarzoRecent },
     { data: arenaYear },
     despachoResult,
@@ -101,13 +35,13 @@ async function getDataContext(): Promise<string> {
     sb.from("registros_arena")
       .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton")
       .order("fecha_hora", { ascending: false })
-      .limit(20),
+      .limit(5),
     sb.from("registros_cuarzo")
       .select("fecha, hora, inventario_ton, produccion, despachos")
       .order("fecha_hora", { ascending: false })
-      .limit(5),
+      .limit(3),
     sb.from("registros_arena")
-      .select("fecha, produccion_drone, despachos_ton")
+      .select("produccion_drone, despachos_ton")
       .gte("fecha", `${year}-01-01`)
       .order("fecha_hora", { ascending: false })
       .limit(90),
@@ -115,97 +49,72 @@ async function getDataContext(): Promise<string> {
       sb.from("despachos")
         .select("fecha, hora, destino, toneladas")
         .order("fecha", { ascending: false })
-        .limit(8)
+        .limit(5)
     ).catch(() => ({ data: [] as Record<string, string | number | null>[] })),
   ]);
 
-  const fmt = (n: number | null | undefined, dec = 1) =>
-    n == null || isNaN(n as number)
-      ? "–"
+  const f = (n: number | null | undefined, dec = 1) =>
+    n == null || isNaN(n as number) ? "–"
       : (n as number).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
-  // ── Distribución diaria por semana ─────────────────────────────────────────
-  const arenaAll_typed = ([...(arenaAll ?? [])] as {
-    fecha: string; produccion_drone: number; horas_reales: number; detencion: number;
-  }[]).reverse(); // ascendente
+  const arena   = (arenaRecent  ?? []) as Record<string, string | number | null>[];
+  const cuarzo  = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
+  const despRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
 
-  const weekMap = distribuirEnSemanas(arenaAll_typed);
-  const semanas = Object.keys(weekMap).map(Number).sort((a, b) => b - a);
-  const semActual   = semanas[0];
-  const semAnterior = semanas[1];
-
-  function semStr(w: number | undefined): string {
-    if (!w || !weekMap[w]) return "  (sin datos)";
-    const agg = weekMap[w];
-    const horasMaq = Math.max(0, agg.horasReal - agg.det);
-    const kpi      = horasMaq > 0 ? agg.prod / horasMaq : 0;
-    return [
-      `  Período distribuido: ${agg.fechaMin} → ${agg.fechaMax}`,
-      `  Producción : ${fmt(agg.prod)} ton`,
-      `  KPI (t/h)  : ${fmt(kpi)}  [prod / horas_máquina]`,
-      `  Hs operac. : ${fmt(agg.horasReal)} h`,
-      `  Hs detenc. : ${fmt(agg.det)} h`,
-      `  Hs máquina : ${fmt(horasMaq)} h`,
-    ].join("\n");
-  }
-
-  // ── Inventario actual ─────────────────────────────────────────────────────
-  const arenaRows    = (arenaAll  ?? []) as Record<string, string | number | null>[];
-  const cuarzoRows   = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
-  const despachoRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
-
-  const invArena  = arenaRows[0];
-  const invCuarzo = cuarzoRows[0];
-
-  // ── Resumen año ───────────────────────────────────────────────────────────
-  let totalProd = 0, totalDesp = 0, countYear = 0;
+  // Resumen año
+  let aProd = 0, aDesp = 0;
   for (const r of (arenaYear ?? []) as Record<string, number>[]) {
-    totalProd  += r.produccion_drone ?? 0;
-    totalDesp  += r.despachos_ton   ?? 0;
-    countYear++;
+    aProd += r.produccion_drone ?? 0;
+    aDesp += r.despachos_ton   ?? 0;
   }
-  const periodLabel = countYear >= 90 ? "últimos 90 registros" : `año ${year}`;
 
-  // ── Tablas de referencia ──────────────────────────────────────────────────
-  const arenaTable = arenaRows.slice(0, 8).map(r =>
-    `  ${r.fecha} ${r.hora} | prod: ${fmt(r.produccion_drone as number)} t | kpi: ${fmt(r.productividad_drone as number)} t/h | inv: ${fmt(r.inventario_ton as number)} t | hr: ${fmt(r.horas_reales as number)} h | det: ${fmt(r.detencion as number)} h`
+  // Último registro arena
+  const a0 = arena[0] ?? {};
+
+  // Último registro cuarzo
+  const c0 = cuarzo[0] ?? {};
+
+  // Historial arena (últimos 5)
+  const arenaHist = arena.map(r =>
+    `  ${r.fecha} ${r.hora} | prod: ${f(r.produccion_drone as number)} t | kpi: ${f(r.productividad_drone as number)} t/h | inv: ${f(r.inventario_ton as number)} t | hs.op: ${f(r.horas_reales as number)} h | hs.det: ${f(r.detencion as number)} h`
   ).join("\n");
 
-  const cuarzoTable = cuarzoRows.map(r =>
-    `  ${r.fecha} ${r.hora} | inv: ${fmt(r.inventario_ton as number)} t | prod: ${fmt(r.produccion as number)} t | desp: ${fmt(r.despachos as number)} t`
+  const cuarzoHist = cuarzo.map(r =>
+    `  ${r.fecha} ${r.hora} | inv: ${f(r.inventario_ton as number)} t | prod: ${f(r.produccion as number)} t`
   ).join("\n");
 
-  const despachoTable = despachoRows.map(r =>
-    `  ${r.fecha} ${r.hora} | ${r.destino ?? "–"} | ${fmt(r.toneladas as number)} t`
+  const despHist = despRows.map(r =>
+    `  ${r.fecha} ${r.hora} | ${r.destino ?? "–"} | ${f(r.toneladas as number)} t`
   ).join("\n");
 
-  return `DATOS PRE-CALCULADOS (${new Date().toLocaleDateString("es-CL")}):
-NOTA: las métricas semanales usan distribución diaria proporcional (mismo criterio que vista Diario).
-NO re-calcules estos valores — usa los números exactos que se muestran aquí.
+  return `=== VALORES ACTUALES (usar directamente, no calcular) ===
 
-══ INVENTARIO ACTUAL ══
-  Arena : ${fmt(invArena?.inventario_ton as number)} ton  (cubicación del ${invArena?.fecha} ${invArena?.hora})
-  Cuarzo: ${fmt(invCuarzo?.inventario_ton as number)} ton  (cubicación del ${invCuarzo?.fecha} ${invCuarzo?.hora})
+ÚLTIMO REGISTRO ARENA — ${a0.fecha ?? "–"} ${a0.hora ?? ""}:
+  Productividad (kpi) : ${f(a0.productividad_drone as number)} t/h
+  Producción          : ${f(a0.produccion_drone as number)} ton
+  Inventario arena    : ${f(a0.inventario_ton as number)} ton
+  Horas de operación  : ${f(a0.horas_reales as number)} h
+  Horas de detención  : ${f(a0.detencion as number)} h
+  Despachos           : ${f(a0.despachos_ton as number)} ton
 
-══ ÚLTIMA SEMANA ISO ${semActual ?? "–"} ══
-${semStr(semActual)}
+ÚLTIMO REGISTRO CUARZO — ${c0.fecha ?? "–"} ${c0.hora ?? ""}:
+  Inventario cuarzo   : ${f(c0.inventario_ton as number)} ton
+  Producción          : ${f(c0.produccion as number)} ton
 
-══ SEMANA ANTERIOR ISO ${semAnterior ?? "–"} ══
-${semStr(semAnterior)}
+RESUMEN AÑO ${year}:
+  Producción acumulada: ${f(aProd)} ton
+  Despachos acumulados: ${f(aDesp)} ton
 
-══ RESUMEN ${periodLabel.toUpperCase()} ══
-  Producción acumulada: ${fmt(totalProd)} ton
-  Despachos acumulados: ${fmt(totalDesp)} ton
-  Cubicaciones: ${countYear}
+=== HISTORIAL RECIENTE (referencia) ===
 
-══ REGISTROS RECIENTES (referencia) ══
-${arenaTable || "  (sin datos)"}
+Arena — últimos 5 registros:
+${arenaHist || "  (sin datos)"}
 
-══ CUARZO RECIENTE ══
-${cuarzoTable || "  (sin datos)"}
+Cuarzo — últimos 3 registros:
+${cuarzoHist || "  (sin datos)"}
 
-══ DESPACHOS RECIENTES ══
-${despachoTable || "  (sin datos)"}`.trim();
+Despachos — últimos 5:
+${despHist || "  (sin datos)"}`.trim();
 }
 
 let _lastContextTime = 0;
@@ -220,28 +129,28 @@ async function getCachedDataContext(): Promise<string> {
   return _cachedContext;
 }
 
-// ── System prompt ─────────────────────────────────────────────────────────────
-
 function buildSystemPrompt(dataContext: string): string {
-  return `Eres el asistente de Arena Control de Migrin. Respondes ÚNICAMENTE preguntas sobre los datos de producción que se te entregan a continuación.
+  return `Eres el asistente de Arena Control de Migrin, planta Las Piedras.
+Puedes responder preguntas sobre todas las secciones de la aplicación:
+- Dashboard: resumen de KPIs de producción y productividad
+- Control de vuelos (droneos): registro de vuelos del dron, horas operación y detención
+- Informe: reporte semanal/mensual de productividad de arena y cuarzo
+- Inventario: stock actual de arena y cuarzo
+- Despachos: movimiento de material hacia clientes o planta
+- Cualquier pregunta general sobre la operación de la planta
 
-INSTRUCCIONES ESTRICTAS:
-1. Los valores en "DATOS PRE-CALCULADOS" son los correctos. NO los recalcules ni los cuestiones.
-2. Cuando te pregunten por la última semana, usa EXACTAMENTE los números de "ÚLTIMA SEMANA ISO".
-3. Cuando te pregunten por inventario actual, usa EXACTAMENTE los números de "INVENTARIO ACTUAL".
-4. Si te preguntan algo fuera del contexto de producción, responde: "Solo puedo ayudarte con datos de producción de Arena Control."
-5. Responde en español, directo y conciso. Incluye siempre la unidad (ton, t/h, h).
+INSTRUCCIÓN PRINCIPAL: Los valores en "VALORES ACTUALES" ya están calculados y listos.
+Cuando el usuario pregunte por productividad, producción, inventario u horas, responde DIRECTAMENTE con el número que aparece ahí. No sumes, no promedies, no calcules nada.
 
-GLOSARIO:
-- KPI / productividad: toneladas por hora de máquina (t/h). Objetivo: 32 t/h
-- Inventario objetivo arena: 7.500 ton
-- Horas máquina = horas_reales - detención (horas del horómetro)
-- Distribución diaria: la producción entre droneos se reparte entre los días del período
+Ejemplos de respuesta correcta:
+- "¿Cuál es la productividad?" → "La productividad del último registro (${new Date().toLocaleDateString("es-CL")}) es X,X t/h."
+- "¿Cuál es el inventario de arena?" → "El inventario actual de arena es X.XXX,X ton."
+
+Responde siempre en español. Sé breve y directo. Incluye siempre la unidad (ton, t/h, h).
+Referencia: objetivo productividad 32 t/h | objetivo inventario arena 7.500 ton
 
 ${dataContext}`;
 }
-
-// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   const ctErr = requireJson(req);
@@ -264,8 +173,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "messages requerido." }, { status: 400 });
   }
 
-  const messages = body.messages.slice(-20);
-
   let dataContext = "";
   try {
     dataContext = await getCachedDataContext();
@@ -278,7 +185,7 @@ export async function POST(req: Request) {
 
   const groqMessages: Groq.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: buildSystemPrompt(dataContext) },
-    ...messages.map(m => ({
+    ...body.messages.slice(-10).map(m => ({
       role:    m.role as "user" | "assistant",
       content: m.content,
     })),
@@ -292,10 +199,9 @@ export async function POST(req: Request) {
           model:       "llama-3.3-70b-versatile",
           messages:    groqMessages,
           stream:      true,
-          max_tokens:  512,
+          max_tokens:  256,
           temperature: 0.1,
         });
-
         for await (const chunk of completion) {
           const text = chunk.choices[0]?.delta?.content ?? "";
           if (text) controller.enqueue(encoder.encode(text));
