@@ -34,6 +34,23 @@ function MigrinLogo() {
   );
 }
 
+function TourButton() {
+  const startTour = () => window.dispatchEvent(new CustomEvent("arena:start-tour"));
+  return (
+    <button
+      onClick={startTour}
+      title="Ver guía de la aplicación"
+      className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-white/10"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span className="hidden lg:inline">Guía</span>
+    </button>
+  );
+}
+
 export function Navigation() {
   const pathname          = usePathname();
   const { data: session } = useSession();
@@ -78,8 +95,8 @@ export function Navigation() {
             ))}
           </div>
 
-          {/* Usuario + logout */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Usuario + guía + logout */}
+          <div className="hidden md:flex items-center gap-2">
             {session?.user && (
               <>
                 <div className="text-right">
@@ -90,6 +107,7 @@ export function Navigation() {
                     <div className="text-xs" style={{ color: "#6BCF7F" }}>Solo lectura</div>
                   )}
                 </div>
+                <TourButton />
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded"
@@ -106,7 +124,7 @@ export function Navigation() {
             onClick={() => setOpen(!open)}
             aria-label="Menú"
           >
-            {open ? "" : ""}
+            {open ? "✕" : "☰"}
           </button>
         </div>
       </div>
@@ -138,12 +156,20 @@ export function Navigation() {
                   <span className="text-xs" style={{ color: "#6BCF7F" }}>Solo lectura</span>
                 )}
               </div>
-              <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
-                className="text-xs text-red-400 font-medium hover:text-red-300"
-              >
-                Cerrar sesión
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("arena:start-tour")); }}
+                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  Guía
+                </button>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  className="text-xs text-red-400 font-medium hover:text-red-300"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
             </div>
           )}
         </div>

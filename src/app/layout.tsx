@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { Providers }   from "@/components/Providers";
-import { ChatBot }     from "@/components/ChatBot";
+import { ChatBot }        from "@/components/ChatBot";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
           <ChatBot />
+          <OnboardingTour />
         </Providers>
       </body>
     </html>
