@@ -16,6 +16,8 @@ const SUGGESTIONS = [
   "¿Cuántas toneladas se han despachado este mes?",
 ];
 
+const TOOLTIP_KEY = "arena-chat-tooltip-v1";
+
 function MarkdownText({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
@@ -48,6 +50,7 @@ export function ChatBot() {
   const [messages, setMessages]                   = useState<Message[]>([]);
   const [input, setInput]                         = useState("");
   const [loading, setLoading]                     = useState(false);
+  const [showTooltip, setShowTooltip]             = useState(false);
   const bottomRef                                 = useRef<HTMLDivElement>(null);
   const inputRef                                  = useRef<HTMLInputElement>(null);
   const abortRef                                  = useRef<AbortController | null>(null);
@@ -60,6 +63,30 @@ export function ChatBot() {
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
+
+  // Mostrar tooltip solo la primera vez
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(TOOLTIP_KEY)) {
+        const timer = setTimeout(() => setShowTooltip(true), 1500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      // localStorage no disponible (SSR safety)
+    }
+  }, []);
+
+  // Auto-cerrar tooltip a los 10 segundos
+  useEffect(() => {
+    if (!showTooltip) return;
+    const timer = setTimeout(() => dismissTooltip(), 10000);
+    return () => clearTimeout(timer);
+  }, [showTooltip]);
+
+  const dismissTooltip = useCallback(() => {
+    setShowTooltip(false);
+    try { localStorage.setItem(TOOLTIP_KEY, "1"); } catch { /* noop */ }
+  }, []);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
@@ -96,9 +123,9 @@ export function ChatBot() {
       }
       if (!res.body) throw new Error("Sin cuerpo en la respuesta");
 
-      const reader      = res.body.getReader();
-      const decoder     = new TextDecoder();
-      let accumulated   = "";
+      const reader    = res.body.getReader();
+      const decoder   = new TextDecoder();
+      let accumulated = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -144,6 +171,11 @@ export function ChatBot() {
     abortRef.current?.abort();
     setMessages([]);
     setLoading(false);
+  };
+
+  const handleOpenChat = () => {
+    dismissTooltip();
+    setOpen(o => !o);
   };
 
   return (
@@ -273,10 +305,83 @@ export function ChatBot() {
         </div>
       )}
 
+      {/* Tooltip de bienvenida (primera visita) */}
+      {showTooltip && !open && (
+        <div
+          className="fixed z-50"
+          style={{ bottom: "88px", right: "16px", width: "min(280px, calc(100vw - 32px))" }}
+        >
+          <div
+            style={{
+              background: "#374151",
+              borderRadius: "14px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
+              padding: "14px 16px",
+              position: "relative",
+              animation: "slideUp 0.35s ease-out",
+            }}
+          >
+            {/* Flecha apuntando al botón */}
+            <div style={{
+              position: "absolute",
+              bottom: "-8px",
+              right: "24px",
+              width: 0,
+              height: 0,
+              borderLeft: "8px solid transparent",
+              borderRight: "8px solid transparent",
+              borderTop: "8px solid #374151",
+            }} />
+
+            {/* Contenido */}
+            <div className="flex items-start gap-3">
+              <div
+                className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+                style={{ background: "#6BCF7F" }}
+              >
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white leading-tight">¡Nuevo! Asistente Arena</p>
+                <p className="text-xs text-gray-300 mt-1 leading-relaxed">
+                  Pregunta sobre producción, inventario y despachos en lenguaje natural.
+                </p>
+                <button
+                  onClick={handleOpenChat}
+                  className="mt-2.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
+                  style={{ background: "#6BCF7F", color: "white" }}
+                >
+                  Abrir asistente
+                </button>
+              </div>
+              <button
+                onClick={dismissTooltip}
+                className="shrink-0 p-0.5 text-gray-400 hover:text-white transition-colors"
+                title="Cerrar"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Animación CSS */}
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       {/* Botón flotante */}
       <button
-        onClick={() => setOpen(o => !o)}
-        className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+        onClick={handleOpenChat}
+        className={`fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${showTooltip && !open ? "animate-bounce" : ""}`}
         style={{ background: open ? "#374151" : "#6BCF7F" }}
         title="Asistente Arena"
       >
