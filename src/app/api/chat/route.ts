@@ -1,12 +1,12 @@
 /**
  * POST /api/chat
  *
- * Chatbot de Arena Control — responde preguntas en lenguaje natural
- * sobre los datos de producción (arena, cuarzo, despachos).
+ * Chatbot de Arena Control — responde preguntas en lenguaje natural.
+ * Usa Groq llama-3.3-70b-versatile (free tier: 1.000 req/día).
  *
- * Usa Groq (Llama 3.1 — free tier: 14.400 req/día) con streaming.
- * Métricas semanales con la misma fórmula que el informe:
- *   KPI = sum(produccion_drone) / sum(horas_reales - detencion)
+ * Criterio semana: igual que vista Diario — distribuye producción,
+ * horas y detención proporcionalmente entre los días del período,
+ * luego agrupa por semana ISO.
  */
 
 import { NextResponse }      from "next/server";
@@ -25,54 +25,92 @@ function getSupabase() {
   );
 }
 
-// ── Semana ISO (lunes=1) ─────────────────────────────────────────────────────
-function isoWeek(dateStr: string): number {
-  const d = new Date(dateStr + "T12:00:00");
+// ── Semana ISO ───────────────────────────────────────────────────────────────
+function isoWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-// ── Contexto de datos frescos desde Supabase ────────────────────────────────
+// ── Distribución diaria (igual que calcularDiario) ───────────────────────────
+// Para cada período entre droneos, reparte proporcionalmente entre los días.
+// weekMap[isoWeek] acumula: prod, horasReales, detencion
+type WeekAgg = {
+  prod: number; horasReal: number; det: number;
+  fechaMin: string; fechaMax: string;
+};
+
+function distribuirEnSemanas(
+  records: { fecha: string; produccion_drone: number; horas_reales: number; detencion: number }[]
+): Record<number, WeekAgg> {
+  const weekMap: Record<number, WeekAgg> = {};
+
+  const add = (date: Date, prod: number, hr: number, det: number) => {
+    const w = isoWeek(date);
+    const ds = date.toISOString().split("T")[0];
+    if (!weekMap[w]) weekMap[w] = { prod: 0, horasReal: 0, det: 0, fechaMin: ds, fechaMax: ds };
+    weekMap[w].prod      += prod;
+    weekMap[w].horasReal += hr;
+    weekMap[w].det       += det;
+    if (ds < weekMap[w].fechaMin) weekMap[w].fechaMin = ds;
+    if (ds > weekMap[w].fechaMax) weekMap[w].fechaMax = ds;
+  };
+
+  // records deben estar ordenados ascendente
+  for (let i = 1; i < records.length; i++) {
+    const prev = records[i - 1];
+    const curr = records[i];
+
+    const prevDate = new Date(prev.fecha + "T12:00:00");
+    const currDate = new Date(curr.fecha + "T12:00:00");
+    const diasPeriodo = Math.max(
+      1,
+      Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24))
+    );
+
+    const prodDia = curr.produccion_drone / diasPeriodo;
+    const hrDia   = curr.horas_reales    / diasPeriodo;
+    const detDia  = curr.detencion       / diasPeriodo;
+
+    // Distribuir día a día (día 1 = día siguiente al droneo anterior;
+    // día diasPeriodo = día del droneo actual)
+    for (let d = 1; d <= diasPeriodo; d++) {
+      const dia = new Date(prevDate);
+      dia.setDate(dia.getDate() + d);
+      add(dia, prodDia, hrDia, detDia);
+    }
+  }
+
+  return weekMap;
+}
+
+// ── Contexto de datos ────────────────────────────────────────────────────────
 
 async function getDataContext(): Promise<string> {
   const sb   = getSupabase();
   const year = new Date().getFullYear();
 
-  // Últimas 3 semanas para calcular semana actual y anterior
-  const threeWeeksAgo = new Date();
-  threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
-  const threeWeeksStr = threeWeeksAgo.toISOString().split("T")[0];
-
+  // Necesitamos ~20 registros para cubrir bien las últimas 3 semanas con distribución
   const [
-    { data: arenaRecent },
-    { data: arenaWeekly },
-    { data: arenaYear },
+    { data: arenaAll },
     { data: cuarzoRecent },
+    { data: arenaYear },
     despachoResult,
   ] = await Promise.all([
-    // 8 registros más recientes (para inventario actual y tabla)
     sb.from("registros_arena")
       .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton")
       .order("fecha_hora", { ascending: false })
-      .limit(8),
-    // Últimas 3 semanas para métricas semanales
-    sb.from("registros_arena")
-      .select("fecha, produccion_drone, horas_reales, detencion")
-      .gte("fecha", threeWeeksStr)
-      .order("fecha_hora", { ascending: true }),
-    // Resumen año (max 90 registros)
+      .limit(20),
+    sb.from("registros_cuarzo")
+      .select("fecha, hora, inventario_ton, produccion, despachos")
+      .order("fecha_hora", { ascending: false })
+      .limit(5),
     sb.from("registros_arena")
       .select("fecha, produccion_drone, despachos_ton")
       .gte("fecha", `${year}-01-01`)
       .order("fecha_hora", { ascending: false })
       .limit(90),
-    // Cuarzo reciente
-    sb.from("registros_cuarzo")
-      .select("fecha, hora, inventario_ton, produccion, despachos")
-      .order("fecha_hora", { ascending: false })
-      .limit(5),
-    // Despachos recientes
     Promise.resolve(
       sb.from("despachos")
         .select("fecha, hora, destino, toneladas")
@@ -86,62 +124,50 @@ async function getDataContext(): Promise<string> {
       ? "–"
       : (n as number).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
-  // ── Métricas semanales ─────────────────────────────────────────────────────
-  // Agrupa por semana ISO; calcula KPI = sum(prod) / sum(horas_maquina)
-  // donde horas_maquina = horas_reales - detencion (= diferencia_horometro)
-  type WeekAgg = { prod: number; horasReal: number; det: number; count: number; fechas: string[] };
-  const weekMap: Record<number, WeekAgg> = {};
+  // ── Distribución diaria por semana ─────────────────────────────────────────
+  const arenaAll_typed = ([...(arenaAll ?? [])] as {
+    fecha: string; produccion_drone: number; horas_reales: number; detencion: number;
+  }[]).reverse(); // ascendente
 
-  for (const r of (arenaWeekly ?? []) as Record<string, string | number | null>[]) {
-    const w = isoWeek(r.fecha as string);
-    if (!weekMap[w]) weekMap[w] = { prod: 0, horasReal: 0, det: 0, count: 0, fechas: [] };
-    weekMap[w].prod      += (r.produccion_drone as number) ?? 0;
-    weekMap[w].horasReal += (r.horas_reales     as number) ?? 0;
-    weekMap[w].det       += (r.detencion        as number) ?? 0;
-    weekMap[w].count     += 1;
-    weekMap[w].fechas.push(r.fecha as string);
-  }
-
+  const weekMap = distribuirEnSemanas(arenaAll_typed);
   const semanas = Object.keys(weekMap).map(Number).sort((a, b) => b - a);
-  const semActual = semanas[0];
+  const semActual   = semanas[0];
   const semAnterior = semanas[1];
 
-  function semLabel(w: number | undefined, agg: WeekAgg | undefined): string {
-    if (!w || !agg) return "  (sin datos)";
-    const horasMaq = agg.horasReal - agg.det;
+  function semStr(w: number | undefined): string {
+    if (!w || !weekMap[w]) return "  (sin datos)";
+    const agg = weekMap[w];
+    const horasMaq = Math.max(0, agg.horasReal - agg.det);
     const kpi      = horasMaq > 0 ? agg.prod / horasMaq : 0;
-    const fechaMin = agg.fechas.sort()[0];
-    const fechaMax = agg.fechas.sort()[agg.fechas.length - 1];
     return [
-      `  Semana ISO ${w} (${fechaMin} → ${fechaMax}) — ${agg.count} cubicaciones`,
-      `  Producción total : ${fmt(agg.prod)} ton`,
-      `  Productividad   : ${fmt(kpi)} t/h  [sum(prod)/sum(hs.máquina)]`,
-      `  Horas operación: ${fmt(agg.horasReal)} h`,
-      `  Horas detención: ${fmt(agg.det)} h`,
-      `  Horas máquina  : ${fmt(horasMaq)} h`,
+      `  Período distribuido: ${agg.fechaMin} → ${agg.fechaMax}`,
+      `  Producción : ${fmt(agg.prod)} ton`,
+      `  KPI (t/h)  : ${fmt(kpi)}  [prod / horas_máquina]`,
+      `  Hs operac. : ${fmt(agg.horasReal)} h`,
+      `  Hs detenc. : ${fmt(agg.det)} h`,
+      `  Hs máquina : ${fmt(horasMaq)} h`,
     ].join("\n");
   }
 
-  // ── Resumen año ──────────────────────────────────────────────────────────────
+  // ── Inventario actual ─────────────────────────────────────────────────────
+  const arenaRows    = (arenaAll  ?? []) as Record<string, string | number | null>[];
+  const cuarzoRows   = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
+  const despachoRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
+
+  const invArena  = arenaRows[0];
+  const invCuarzo = cuarzoRows[0];
+
+  // ── Resumen año ───────────────────────────────────────────────────────────
   let totalProd = 0, totalDesp = 0, countYear = 0;
   for (const r of (arenaYear ?? []) as Record<string, number>[]) {
     totalProd  += r.produccion_drone ?? 0;
     totalDesp  += r.despachos_ton   ?? 0;
     countYear++;
   }
+  const periodLabel = countYear >= 90 ? "últimos 90 registros" : `año ${year}`;
 
-  // ── Inventario actual ────────────────────────────────────────────────────────
-  const arenaRows    = (arenaRecent  ?? []) as Record<string, string | number | null>[];
-  const cuarzoRows   = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
-  const despachoRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
-
-  const invArena  = arenaRows[0]?.inventario_ton;
-  const invArenaF = arenaRows[0] ? `${arenaRows[0].fecha} ${arenaRows[0].hora}` : "";
-  const invCuarzo  = cuarzoRows[0]?.inventario_ton;
-  const invCuarzoF = cuarzoRows[0] ? `${cuarzoRows[0].fecha} ${cuarzoRows[0].hora}` : "";
-
-  // ── Tabla registros recientes ────────────────────────────────────────────────
-  const arenaTable = arenaRows.map(r =>
+  // ── Tablas de referencia ──────────────────────────────────────────────────
+  const arenaTable = arenaRows.slice(0, 8).map(r =>
     `  ${r.fecha} ${r.hora} | prod: ${fmt(r.produccion_drone as number)} t | kpi: ${fmt(r.productividad_drone as number)} t/h | inv: ${fmt(r.inventario_ton as number)} t | hr: ${fmt(r.horas_reales as number)} h | det: ${fmt(r.detencion as number)} h`
   ).join("\n");
 
@@ -153,32 +179,32 @@ async function getDataContext(): Promise<string> {
     `  ${r.fecha} ${r.hora} | ${r.destino ?? "–"} | ${fmt(r.toneladas as number)} t`
   ).join("\n");
 
-  const periodLabel = countYear >= 90
-    ? `últimos 90 registros`
-    : `año ${year} (${countYear} cubicaciones)`;
+  return `DATOS PRE-CALCULADOS (${new Date().toLocaleDateString("es-CL")}):
+NOTA: las métricas semanales usan distribución diaria proporcional (mismo criterio que vista Diario).
+NO re-calcules estos valores — usa los números exactos que se muestran aquí.
 
-  return `DATOS (${new Date().toLocaleDateString("es-CL")}):
+══ INVENTARIO ACTUAL ══
+  Arena : ${fmt(invArena?.inventario_ton as number)} ton  (cubicación del ${invArena?.fecha} ${invArena?.hora})
+  Cuarzo: ${fmt(invCuarzo?.inventario_ton as number)} ton  (cubicación del ${invCuarzo?.fecha} ${invCuarzo?.hora})
 
-INVENTARIO ACTUAL:
-  Arena : ${fmt(invArena)} ton  (al ${invArenaF})
-  Cuarzo: ${fmt(invCuarzo)} ton  (al ${invCuarzoF})
+══ ÚLTIMA SEMANA ISO ${semActual ?? "–"} ══
+${semStr(semActual)}
 
-ÚLTIMA SEMANA (sem. ISO ${semActual ?? "–"}):
-${semLabel(semActual, semActual ? weekMap[semActual] : undefined)}
+══ SEMANA ANTERIOR ISO ${semAnterior ?? "–"} ══
+${semStr(semAnterior)}
 
-SEMANA ANTERIOR (sem. ISO ${semAnterior ?? "–"}):
-${semLabel(semAnterior, semAnterior ? weekMap[semAnterior] : undefined)}
+══ RESUMEN ${periodLabel.toUpperCase()} ══
+  Producción acumulada: ${fmt(totalProd)} ton
+  Despachos acumulados: ${fmt(totalDesp)} ton
+  Cubicaciones: ${countYear}
 
-ARENA — resumen ${periodLabel}:
-  Producción acum: ${fmt(totalProd)} ton | Despachos acum: ${fmt(totalDesp)} ton
-
-ARENA — 8 registros recientes:
+══ REGISTROS RECIENTES (referencia) ══
 ${arenaTable || "  (sin datos)"}
 
-CUARZO — 5 registros recientes:
+══ CUARZO RECIENTE ══
 ${cuarzoTable || "  (sin datos)"}
 
-DESPACHOS — 8 más recientes:
+══ DESPACHOS RECIENTES ══
 ${despachoTable || "  (sin datos)"}`.trim();
 }
 
@@ -194,34 +220,28 @@ async function getCachedDataContext(): Promise<string> {
   return _cachedContext;
 }
 
-// ── System prompt ────────────────────────────────────────────────────────────
+// ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(dataContext: string): string {
-  return `Eres el asistente de Arena Control de Migrin. Tu único rol es responder preguntas sobre los datos de producción de arena y cuarzo que se te proporcionan.
+  return `Eres el asistente de Arena Control de Migrin. Respondes ÚNICAMENTE preguntas sobre los datos de producción que se te entregan a continuación.
 
-REGLAS:
-- Solo respondes preguntas relacionadas con los datos de producción, inventario, despachos y KPIs
-- Si te preguntan algo que no tiene que ver con los datos de la app, responde: "Solo puedo ayudarte con preguntas sobre los datos de producción de Arena Control."
-- Responde siempre en español, de forma directa y concisa
-- Usa los datos concretos del contexto. Las métricas semanales ya están pre-calculadas: úsalas directamente sin re-calcular
-- Si no tienes suficientes datos para responder, dilo claramente
-
-FÓRMULAS (para tu referencia):
-- Productividad semanal = sum(producción) / sum(horas_máquina)  donde horas_máquina = horas_reales - detencion
-- Objetivo productividad: 32 t/h | Objetivo inventario arena: 7.500 ton
+INSTRUCCIONES ESTRICTAS:
+1. Los valores en "DATOS PRE-CALCULADOS" son los correctos. NO los recalcules ni los cuestiones.
+2. Cuando te pregunten por la última semana, usa EXACTAMENTE los números de "ÚLTIMA SEMANA ISO".
+3. Cuando te pregunten por inventario actual, usa EXACTAMENTE los números de "INVENTARIO ACTUAL".
+4. Si te preguntan algo fuera del contexto de producción, responde: "Solo puedo ayudarte con datos de producción de Arena Control."
+5. Responde en español, directo y conciso. Incluye siempre la unidad (ton, t/h, h).
 
 GLOSARIO:
-- produccion_drone: toneladas producidas medidas por el drone
-- productividad: eficiencia en t/h (sobre horas de máquina/horómetro)
-- inventario_ton: stock disponible en toneladas
-- horas_reales: tiempo transcurrido entre cubicaciones
-- detencion: horas de parada (horas_reales - horas_máquina)
-- horas_máquina: horas efectivas de operación del horómetro
+- KPI / productividad: toneladas por hora de máquina (t/h). Objetivo: 32 t/h
+- Inventario objetivo arena: 7.500 ton
+- Horas máquina = horas_reales - detención (horas del horómetro)
+- Distribución diaria: la producción entre droneos se reparte entre los días del período
 
 ${dataContext}`;
 }
 
-// ── Handler ──────────────────────────────────────────────────────────────────
+// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
   const ctErr = requireJson(req);
@@ -269,11 +289,11 @@ export async function POST(req: Request) {
     async start(controller) {
       try {
         const completion = await groq.chat.completions.create({
-          model:       "llama-3.1-8b-instant",
+          model:       "llama-3.3-70b-versatile",
           messages:    groqMessages,
           stream:      true,
-          max_tokens:  1024,
-          temperature: 0.2,
+          max_tokens:  512,
+          temperature: 0.1,
         });
 
         for await (const chunk of completion) {
