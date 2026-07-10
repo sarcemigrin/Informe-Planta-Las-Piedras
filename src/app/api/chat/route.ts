@@ -1,9 +1,9 @@
 /**
  * POST /api/chat
  *
- * Chatbot de Arena Control — responde preguntas en lenguaje natural.
- * Estrategia: el servidor entrega los valores ya listos (último registro),
- * el LLM solo los lee y reporta. Sin cálculos en el modelo.
+ * Chatbot de Arena Control.
+ * Estrategia: el servidor consulta Supabase y entrega los valores ya listos;
+ * el LLM los lee y reporta directamente. Sin calculos en el modelo.
  */
 
 import { NextResponse }      from "next/server";
@@ -32,16 +32,14 @@ async function getDataContext(): Promise<string> {
     { data: arenaYear },
     despachoResult,
   ] = await Promise.all([
-    // Ultimos 20 registros para tener varias semanas de historial
     sb.from("registros_arena")
       .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton")
       .order("fecha_hora", { ascending: false })
       .limit(20),
     sb.from("registros_cuarzo")
-      .select("fecha, hora, inventario_ton, produccion, despachos")
+      .select("fecha, hora, inventario_ton, produccion_drone, productividad_drone, despachos_ton, horas_reales, detencion")
       .order("fecha_hora", { ascending: false })
       .limit(10),
-    // Todo el anio actual para agregados mensuales
     sb.from("registros_arena")
       .select("fecha, produccion_drone, productividad_drone, horas_reales, detencion, despachos_ton")
       .gte("fecha", `${year}-01-01`)
@@ -56,10 +54,10 @@ async function getDataContext(): Promise<string> {
   ]);
 
   const f = (n: number | null | undefined, dec = 1) =>
-    n == null || isNaN(n as number) ? "-"
+    n == null || isNaN(n as number) ? "sin dato"
       : (n as number).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
-  // Numero de semana ISO a partir de "YYYY-MM-DD"
+  // Numero de semana ISO
   const isoWeek = (dateStr: string): number => {
     const d = new Date(dateStr + "T12:00:00");
     const jan4 = new Date(d.getFullYear(), 0, 4);
@@ -72,7 +70,7 @@ async function getDataContext(): Promise<string> {
   const cuarzo   = (cuarzoRecent ?? []) as Record<string, string | number | null>[];
   const despRows = (despachoResult.data ?? []) as Record<string, string | number | null>[];
 
-  // Agregados por mes y resumen anio
+  // Agregados mensuales arena
   const MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   type MonthAgg = { prod: number; desp: number; kpiN: number; kpiD: number };
   const byMonth: Record<number, MonthAgg> = {};
@@ -101,58 +99,59 @@ async function getDataContext(): Promise<string> {
       return `  ${MESES[Number(m)].padEnd(12)} | prod: ${f(v.prod)} t | desp: ${f(v.desp)} t | kpi prom: ${f(kpiAvg)} t/h`;
     }).join("\n");
 
-  // Ultimo registro arena
-  const a0   = arena[0] ?? {};
-  const a0wk = a0.fecha ? isoWeek(a0.fecha as string) : "-";
+  const a0   = arena[0]  ?? {};
+  const a0wk = a0.fecha  ? isoWeek(a0.fecha as string) : "?";
+  const c0   = cuarzo[0] ?? {};
+  const c0wk = c0.fecha  ? isoWeek(c0.fecha as string) : "?";
 
-  // Ultimo registro cuarzo
-  const c0 = cuarzo[0] ?? {};
-
-  // Historial arena con semana ISO
   const arenaHist = arena.map(r => {
     const wk = r.fecha ? `S${isoWeek(r.fecha as string)}` : "S?";
     return `  [${wk}] ${r.fecha} ${r.hora} | prod: ${f(r.produccion_drone as number)} t | kpi: ${f(r.productividad_drone as number)} t/h | inv: ${f(r.inventario_ton as number)} t | hs.op: ${f(r.horas_reales as number)} h | hs.det: ${f(r.detencion as number)} h`;
   }).join("\n");
 
-  const cuarzoHist = cuarzo.map(r =>
-    `  ${r.fecha} ${r.hora} | inv: ${f(r.inventario_ton as number)} t | prod: ${f(r.produccion as number)} t`
-  ).join("\n");
+  const cuarzoHist = cuarzo.map(r => {
+    const wk = r.fecha ? `S${isoWeek(r.fecha as string)}` : "S?";
+    return `  [${wk}] ${r.fecha} ${r.hora} | inv: ${f(r.inventario_ton as number)} t | prod: ${f(r.produccion_drone as number)} t | kpi: ${f(r.productividad_drone as number)} t/h`;
+  }).join("\n");
 
   const despHist = despRows.map(r =>
-    `  ${r.fecha} ${r.hora} | ${r.destino ?? "-"} | ${f(r.toneladas as number)} t`
+    `  ${r.fecha} ${r.hora} | ${r.destino ?? "sin destino"} | ${f(r.toneladas as number)} t`
   ).join("\n");
 
   return [
-    "=== VALORES ACTUALES (usar directamente, no calcular) ===",
+    `=== DATOS EN TIEMPO REAL DE SUPABASE (planta Las Piedras, ${new Date().toLocaleDateString("es-CL")}) ===`,
     "",
-    `ULTIMO REGISTRO ARENA - ${a0.fecha ?? "-"} ${a0.hora ?? ""} (semana ISO ${a0wk}):`,
-    `  Productividad (kpi) : ${f(a0.productividad_drone as number)} t/h`,
-    `  Produccion          : ${f(a0.produccion_drone as number)} ton`,
-    `  Inventario arena    : ${f(a0.inventario_ton as number)} ton`,
-    `  Horas de operacion  : ${f(a0.horas_reales as number)} h`,
-    `  Horas de detencion  : ${f(a0.detencion as number)} h`,
-    `  Despachos           : ${f(a0.despachos_ton as number)} ton`,
+    `ULTIMO REGISTRO ARENA | ${a0.fecha ?? "sin fecha"} ${a0.hora ?? ""} | Semana ISO ${a0wk}:`,
+    `  Productividad : ${f(a0.productividad_drone as number)} t/h`,
+    `  Produccion    : ${f(a0.produccion_drone as number)} ton`,
+    `  Inventario    : ${f(a0.inventario_ton as number)} ton`,
+    `  Hs. operacion : ${f(a0.horas_reales as number)} h`,
+    `  Hs. detencion : ${f(a0.detencion as number)} h`,
+    `  Despachos     : ${f(a0.despachos_ton as number)} ton`,
     "",
-    `ULTIMO REGISTRO CUARZO - ${c0.fecha ?? "-"} ${c0.hora ?? ""}:`,
-    `  Inventario cuarzo   : ${f(c0.inventario_ton as number)} ton`,
-    `  Produccion          : ${f(c0.produccion as number)} ton`,
+    `ULTIMO REGISTRO CUARZO | ${c0.fecha ?? "sin fecha"} ${c0.hora ?? ""} | Semana ISO ${c0wk}:`,
+    `  Inventario    : ${f(c0.inventario_ton as number)} ton`,
+    `  Produccion    : ${f(c0.produccion_drone as number)} ton`,
+    `  Productividad : ${f(c0.productividad_drone as number)} t/h`,
+    `  Hs. operacion : ${f(c0.horas_reales as number)} h`,
+    `  Hs. detencion : ${f(c0.detencion as number)} h`,
     "",
     `RESUMEN ANIO ${year}:`,
-    `  Produccion acumulada: ${f(aProd)} ton`,
-    `  Despachos acumulados: ${f(aDesp)} ton`,
+    `  Produccion acumulada arena: ${f(aProd)} ton`,
+    `  Despachos acumulados arena: ${f(aDesp)} ton`,
     "",
-    `PRODUCCION POR MES - ${year}:`,
+    `PRODUCCION MENSUAL ARENA ${year}:`,
     monthLines || "  (sin datos)",
     "",
-    "=== HISTORIAL RECIENTE (con semana ISO entre corchetes) ===",
+    "=== HISTORIAL RECIENTE (semana ISO entre corchetes) ===",
     "",
-    "Arena - ultimos 20 registros:",
+    "Arena (ultimos 20 registros):",
     arenaHist || "  (sin datos)",
     "",
-    "Cuarzo - ultimos 10 registros:",
+    "Cuarzo (ultimos 10 registros):",
     cuarzoHist || "  (sin datos)",
     "",
-    "Despachos - ultimos 10:",
+    "Despachos (ultimos 10):",
     despHist || "  (sin datos)",
   ].join("\n").trim();
 }
@@ -172,32 +171,26 @@ async function getCachedDataContext(): Promise<string> {
 function buildSystemPrompt(dataContext: string): string {
   const lines = [
     "Eres el asistente de Arena Control de Migrin, planta Las Piedras.",
-    "Puedes responder preguntas sobre todas las secciones de la aplicacion:",
-    "- Dashboard: resumen de KPIs de produccion y productividad",
-    "- Control de vuelos (droneos): registro de vuelos del dron, horas operacion y detencion",
-    "- Informe: reporte semanal/mensual de productividad de arena y cuarzo",
-    "- Inventario: stock actual de arena y cuarzo",
-    "- Despachos: movimiento de material hacia clientes o planta",
-    "- Cualquier pregunta general sobre la operacion de la planta",
     "",
-    "INSTRUCCION PRINCIPAL:",
-    "Los datos ya vienen organizados y listos. No inventes, no calcules, no promedies.",
+    "FUENTE DE DATOS: Los datos que ves a continuacion provienen DIRECTAMENTE de la base de datos",
+    "de produccion de la planta (Supabase), consultada en tiempo real hace instantes.",
+    "Son registros reales de droneos y pesajes — no un documento ni texto de ejemplo.",
     "",
-    "Reglas:",
-    "1. Si preguntan por el valor actual o ultimo -> usa VALORES ACTUALES.",
-    "2. Si preguntan por una SEMANA ESPECIFICA (ej. semana 25) -> busca en el HISTORIAL RECIENTE los registros marcados [S25] y reporta sus valores. Si no hay registros de esa semana en el historial, di: No tengo registros de la semana XX en el historial disponible.",
-    "3. Si preguntan por un MES (ej. junio, mes 6) -> usa PRODUCCION POR MES y reporta los valores de ese mes directamente.",
-    "4. Si preguntan por el ANIO -> usa RESUMEN ANIO para produccion/despachos acumulados.",
-    "5. NUNCA intentes deducir o calcular semanas a partir de fechas. Si no esta en el historial, no lo tienes.",
+    "Puedes responder sobre todas las secciones: Dashboard, Control de vuelos,",
+    "Informe semanal, Inventario, Despachos y operacion general de la planta.",
     "",
-    "Ejemplos de respuesta correcta:",
-    "- Cual es la productividad actual? -> La productividad del ultimo registro (fecha, semana ISO X) es X,X t/h.",
-    "- Cual es la productividad de la semana 25? -> busca [S25] en el historial -> En la semana 25 el registro del DD/MM muestra X,X t/h.",
-    "- Cuanto se produjo en junio? -> En Junio la produccion fue X.XXX,X ton con un kpi promedio de X,X t/h.",
-    "- Cuanto se produjo este anio? -> La produccion acumulada del anio es X.XXX,X ton.",
+    "REGLAS (seguir en orden):",
+    "1. Valor actual/ultimo -> usa ULTIMO REGISTRO correspondiente.",
+    "2. Semana especifica (ej. semana 25) -> busca [S25] en el HISTORIAL RECIENTE y reporta esos valores.",
+    "   Si no aparece esa semana, di: No tengo registros de la semana XX en el historial disponible.",
+    "3. Mes (ej. junio, mes 6) -> usa PRODUCCION MENSUAL y reporta directo.",
+    "4. Anio -> usa RESUMEN ANIO.",
+    "5. Nunca deduzcas semanas a partir de fechas. Si no esta en el historial, no lo tienes.",
+    "6. Nunca digas que eres un texto plano o que no tienes acceso a datos reales.",
+    "   Estos son datos reales de la planta.",
     "",
-    "Responde siempre en espaniol. Se breve y directo. Incluye siempre la unidad (ton, t/h, h).",
-    "Referencia: objetivo productividad 32 t/h | objetivo inventario arena 7.500 ton",
+    "Responde siempre en espanol. Se breve y directo. Incluye siempre la unidad (ton, t/h, h).",
+    "Objetivos de referencia: productividad 32 t/h | inventario arena 7.500 ton",
     "",
     dataContext,
   ];
