@@ -79,7 +79,7 @@ async function uploadToOneDrive(
 async function sendEmailWithPDF(
   accessToken: string,
   fileName: string,
-  pdfBytes: Uint8Array,
+  _pdfBytes: Uint8Array,
   data: InformeData,
   driveUrl: string | null,
 ): Promise<boolean> {
@@ -122,7 +122,6 @@ async function sendEmailWithPDF(
     isReenvio:           false,
   });
   const cardBase64 = cardBuffer.toString("base64");
-  const pdfBase64  = Buffer.from(pdfBytes).toString("base64");
 
   const driveLink = driveUrl
     ? `<p style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
@@ -141,10 +140,6 @@ async function sendEmailWithPDF(
       body:         { contentType: "HTML", content: bodyHtml },
       toRecipients: recipients,
       attachments:  [
-        {
-          "@odata.type": "#microsoft.graph.fileAttachment",
-          name: fileName, contentType: "application/pdf", contentBytes: pdfBase64,
-        },
         {
           "@odata.type": "#microsoft.graph.fileAttachment",
           name:          "informe-card.png",

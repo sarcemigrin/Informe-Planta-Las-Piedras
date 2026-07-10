@@ -130,7 +130,9 @@ export default function InformePage() {
   const [historial, setHistorial]     = useState<HistorialCambio[]>([]);
   const [showHistorial, setShowHistorial] = useState(false);
 
-  const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [generandoPdf, setGenerandoPdf]     = useState(false);
+  const [enviandoEmail, setEnviandoEmail]   = useState(false);
+  const [emailStatus, setEmailStatus]       = useState<"idle"|"ok"|"error">("idle");
   const cubRef = useRef<HTMLElement>(null);
   const semRef = useRef<HTMLElement>(null);
 
@@ -186,6 +188,45 @@ export default function InformePage() {
       alert("Error al generar el PDF. Intenta de nuevo.");
     } finally {
       setGenerandoPdf(false);
+    }
+  }
+
+  async function enviarPorEmail() {
+    if (!cubRef.current || !semRef.current) return;
+    setEnviandoEmail(true);
+    setEmailStatus("idle");
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const opts = { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false };
+      const [c1, c2] = await Promise.all([
+        html2canvas(cubRef.current, opts),
+        html2canvas(semRef.current, opts),
+      ]);
+      const images = [c1.toDataURL("image/png"), c2.toDataURL("image/png")];
+
+      // Etiqueta para el subject: fecha/hora del último registro
+      const last  = rows[rows.length - 1];
+      const label = last
+        ? `${format(parseISO(last.fecha), "dd/MM/yyyy")} ${last.hora}`
+        : new Date().toISOString().slice(0, 10);
+
+      const res = await fetch("/api/informe/email-pdf", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ images, label }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error ?? "Error desconocido");
+      }
+      setEmailStatus("ok");
+      setTimeout(() => setEmailStatus("idle"), 4000);
+    } catch (e) {
+      console.error("Error enviando email:", e);
+      setEmailStatus("error");
+      setTimeout(() => setEmailStatus("idle"), 5000);
+    } finally {
+      setEnviandoEmail(false);
     }
   }
 
@@ -372,6 +413,38 @@ export default function InformePage() {
               </svg>
             )}
             {generandoPdf ? "Generando…" : "Exportar PDF"}
+          </button>
+
+          {/* Botón enviar por email — captura las secciones web y envía PDF real */}
+          <button
+            className="btn-secondary"
+            onClick={enviarPorEmail}
+            disabled={enviandoEmail}
+            style={{
+              opacity: enviandoEmail ? 0.6 : 1,
+              ...(emailStatus === "ok"    ? { borderColor: "#6BCF7F", color: "#15803d" } : {}),
+              ...(emailStatus === "error" ? { borderColor: "#f87171", color: "#dc2626" } : {}),
+            }}
+          >
+            {enviandoEmail ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} strokeDasharray="32" strokeDashoffset="12" />
+              </svg>
+            ) : emailStatus === "ok" ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : emailStatus === "error" ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            )}
+            {enviandoEmail ? "Enviando…" : emailStatus === "ok" ? "Email enviado" : emailStatus === "error" ? "Error al enviar" : "Enviar por email"}
           </button>
         </div>
       </div>
