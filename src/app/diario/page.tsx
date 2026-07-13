@@ -132,15 +132,19 @@ export default function DiarioPage() {
     if (!modalFecha || !modalMotivo.trim()) return;
     setModalGuardando(true);
     try {
-            await supabase.from("anotaciones_diario").upsert(
+      const { error } = await supabase.from("anotaciones_diario").upsert(
         { fecha: modalFecha, motivo: modalMotivo.trim() },
         { onConflict: "fecha" }
       );
+      if (error) {
+        alert("Error al guardar la anotación: " + error.message + "\n\nAsegúrate de ejecutar fix_anotaciones_rls.sql en Supabase.");
+        return;
+      }
       setAnotaciones((prev) => new Map(prev).set(modalFecha, modalMotivo.trim()));
-    } finally {
-      setModalGuardando(false);
       setModalFecha(null);
       setModalMotivo("");
+    } finally {
+      setModalGuardando(false);
     }
   }
 
@@ -441,10 +445,4 @@ export default function DiarioPage() {
       )}
     </div>
   );
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
 }

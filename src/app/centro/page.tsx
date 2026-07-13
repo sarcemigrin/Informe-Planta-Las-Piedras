@@ -11,32 +11,17 @@ import type { RegistroTurco, RegistroPeral } from "@/types/database";
 
 type Tab = "turco" | "peral";
 
+const DENSIDAD = 1.6; // t/m³
+
 const today   = () => format(new Date(), "yyyy-MM-dd");
 const nowTime = () => format(new Date(), "HH:mm");
 const fmt     = (v: number | null | undefined, dec = 0) =>
   v == null ? "—" : v.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const pf = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
-
-const defaultTurco = () => ({
-  fecha: today(), hora: nowTime(),
-  arena_mina_m3: "", arena_mina_ton: "",
-  tlh_m3: "", tlh_ton: "",
-  esteril_m3: "", esteril_ton: "",
-  grancilla_m3: "", grancilla_ton: "",
-  fierrillo_a_m3: "", fierrillo_a_ton: "",
-  fierrillo_b_m3: "", fierrillo_b_ton: "",
-  fierrillo_total_ton: "", notas: "",
-});
-
-const defaultPeral = () => ({
-  fecha: today(), hora: nowTime(),
-  arena_mina_m3: "", arena_mina_ton: "",
-  a22_m3: "", a22_ton: "", a24_m3: "", a24_ton: "",
-  a25_m3: "", a25_ton: "", a26_m3: "", a26_ton: "",
-  dmh_m3: "", dmh_ton: "",
-  grancilla_m3: "", grancilla_ton: "",
-  stock_arena_humeda_ton: "", notas: "",
-});
+const calcTon = (m3: string) => {
+  const v = parseFloat(m3);
+  return isNaN(v) ? "" : (v * DENSIDAD).toFixed(3);
+};
 
 // ---- KPI Card ----
 function KpiCard({ label, m3, ton, highlight }: { label: string; m3?: number | null; ton?: number | null; highlight?: boolean }) {
@@ -55,7 +40,6 @@ function KpiCard({ label, m3, ton, highlight }: { label: string; m3?: number | n
   );
 }
 
-// ---- Paginación ----
 function Pagination({ page, total, perPage, onChange }: { page: number; total: number; perPage: number; onChange: (p: number) => void }) {
   const pages = Math.ceil(total / perPage) || 1;
   return (
@@ -69,9 +53,49 @@ function Pagination({ page, total, perPage, onChange }: { page: number; total: n
   );
 }
 
+// ---- Input m3 + ton calculado ----
+function M3Field({ label, keyM3, keyTon, form, onChange }: {
+  label: string; keyM3: string; keyTon: string;
+  form: Record<string, string>;
+  onChange: (k: string, v: string) => void;
+}) {
+  const handleM3 = (v: string) => {
+    onChange(keyM3, v);
+    onChange(keyTon, calcTon(v));
+  };
+  return (
+    <div className="col-span-1">
+      <span className="label">{label}</span>
+      <div className="flex gap-1 items-end">
+        <div className="flex-1">
+          <span className="text-[10px] text-gray-400 block mb-0.5">m³</span>
+          <input type="number" step="0.001" className="input" placeholder="0"
+            value={form[keyM3]} onChange={e => handleM3(e.target.value)} />
+        </div>
+        <div className="flex-1">
+          <span className="text-[10px] text-gray-400 block mb-0.5">ton (×{DENSIDAD})</span>
+          <input type="number" step="0.001" className="input bg-gray-50 text-gray-500" placeholder="auto"
+            value={form[keyTon]} readOnly />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // TURCO
 // ============================================================
+const defaultTurco = () => ({
+  fecha: today(), hora: nowTime(),
+  arena_mina_m3: "", arena_mina_ton: "",
+  tlh_m3: "", tlh_ton: "",
+  esteril_m3: "", esteril_ton: "",
+  grancilla_m3: "", grancilla_ton: "",
+  fierrillo_a_m3: "", fierrillo_a_ton: "",
+  fierrillo_b_m3: "", fierrillo_b_ton: "",
+  fierrillo_total_ton: "", notas: "",
+});
+
 function TurcoTab() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.rol === "admin";
@@ -84,6 +108,15 @@ function TurcoTab() {
   const PER_PAGE = 10;
 
   useEffect(() => { loadHistorial(); }, []);
+
+  // Auto-calcular fierrillo_total cuando cambian A o B
+  useEffect(() => {
+    const a = parseFloat(form.fierrillo_a_ton) || 0;
+    const b = parseFloat(form.fierrillo_b_ton) || 0;
+    if (form.fierrillo_a_ton || form.fierrillo_b_ton) {
+      setForm(f => ({ ...f, fierrillo_total_ton: (a + b).toFixed(3) }));
+    }
+  }, [form.fierrillo_a_ton, form.fierrillo_b_ton]);
 
   async function loadHistorial() {
     const { data } = await supabase
@@ -113,14 +146,13 @@ function TurcoTab() {
     setSaving(false);
   }
 
-  const paginated  = historial.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  const paginated = historial.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
       {last && (
         <div>
-          <p className="text-xs text-gray-400 mb-3">Último droneo: {last.fecha} {last.hora?.slice(0,5)}</p>
+          <p className="text-xs text-gray-400 mb-3">Último droneo: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
           <div className="flex flex-wrap gap-3">
             <KpiCard label="Arena Mina"      m3={last.arena_mina_m3}   ton={last.arena_mina_ton} />
             <KpiCard label="TLH"             m3={last.tlh_m3}          ton={last.tlh_ton} />
@@ -133,40 +165,48 @@ function TurcoTab() {
         </div>
       )}
 
-      {/* Formulario — solo admin */}
       {isAdmin && (
         <AdminGuard>
           <div className="card space-y-4">
             <h3 className="font-semibold text-gray-700">Nuevo registro Turco</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {([
-                ["Fecha", "fecha", "date"],
-                ["Hora",  "hora",  "time"],
-              ] as [string,string,string][]).map(([label, k, type]) => (
-                <label key={k}>
-                  <span className="label">{label}</span>
-                  <input type={type} className="input" value={form[k]} onChange={e => set(k, e.target.value)} />
-                </label>
-              ))}
-              {([
-                ["Arena Mina m³","arena_mina_m3"],["Arena Mina ton","arena_mina_ton"],
-                ["TLH m³","tlh_m3"],["TLH ton","tlh_ton"],
-                ["Estéril m³","esteril_m3"],["Estéril ton","esteril_ton"],
-                ["Grancilla m³","grancilla_m3"],["Grancilla ton","grancilla_ton"],
-                ["Fierrillo A m³","fierrillo_a_m3"],["Fierrillo A ton","fierrillo_a_ton"],
-                ["Fierrillo B m³","fierrillo_b_m3"],["Fierrillo B ton","fierrillo_b_ton"],
-                ["Fierrillo Total ton","fierrillo_total_ton"],
-              ] as [string,string][]).map(([label, k]) => (
-                <label key={k}>
-                  <span className="label">{label}</span>
-                  <input type="number" step="0.001" className="input" placeholder="0" value={form[k]} onChange={e => set(k, e.target.value)} />
-                </label>
-              ))}
-              <label className="col-span-full">
-                <span className="label">Notas</span>
-                <input type="text" className="input" value={form.notas} onChange={e => set("notas", e.target.value)} />
+            <p className="text-xs text-gray-400">Toneladas calculadas automáticamente con densidad {DENSIDAD} t/m³</p>
+
+            {/* Fecha y hora */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <label>
+                <span className="label">Fecha</span>
+                <input type="date" className="input" value={form.fecha} onChange={e => set("fecha", e.target.value)} />
+              </label>
+              <label>
+                <span className="label">Hora</span>
+                <input type="time" className="input" value={form.hora} onChange={e => set("hora", e.target.value)} />
               </label>
             </div>
+
+            {/* Materiales: m3 → ton auto */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <M3Field label="Arena Mina"  keyM3="arena_mina_m3"  keyTon="arena_mina_ton"  form={form} onChange={set} />
+              <M3Field label="TLH"         keyM3="tlh_m3"         keyTon="tlh_ton"         form={form} onChange={set} />
+              <M3Field label="Estéril"     keyM3="esteril_m3"     keyTon="esteril_ton"     form={form} onChange={set} />
+              <M3Field label="Grancilla"   keyM3="grancilla_m3"   keyTon="grancilla_ton"   form={form} onChange={set} />
+              <M3Field label="Fierrillo A" keyM3="fierrillo_a_m3" keyTon="fierrillo_a_ton" form={form} onChange={set} />
+              <M3Field label="Fierrillo B" keyM3="fierrillo_b_m3" keyTon="fierrillo_b_ton" form={form} onChange={set} />
+            </div>
+
+            {/* Fierrillo Total — suma automática */}
+            <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <span className="label text-green-700 mb-0">Fierrillo Total ton</span>
+              <span className="text-lg font-bold text-green-700">
+                {form.fierrillo_total_ton ? parseFloat(form.fierrillo_total_ton).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"} ton
+              </span>
+              <span className="text-xs text-gray-400">(Fierrillo A + B)</span>
+            </div>
+
+            <label>
+              <span className="label">Notas</span>
+              <input type="text" className="input" value={form.notas} onChange={e => set("notas", e.target.value)} />
+            </label>
+
             {msg && (
               <p className={`text-sm px-3 py-2 rounded-lg ${msg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{msg.text}</p>
             )}
@@ -177,7 +217,6 @@ function TurcoTab() {
         </AdminGuard>
       )}
 
-      {/* Historial */}
       <div className="card p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="font-semibold text-gray-700 text-sm">Historial ({historial.length} registros)</span>
@@ -229,6 +268,16 @@ function TurcoTab() {
 // ============================================================
 // PERAL
 // ============================================================
+const defaultPeral = () => ({
+  fecha: today(), hora: nowTime(),
+  arena_mina_m3: "", arena_mina_ton: "",
+  a22_m3: "", a22_ton: "", a24_m3: "", a24_ton: "",
+  a25_m3: "", a25_ton: "", a26_m3: "", a26_ton: "",
+  dmh_m3: "", dmh_ton: "",
+  grancilla_m3: "", grancilla_ton: "",
+  stock_arena_humeda_ton: "", notas: "",
+});
+
 function PeralTab() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.rol === "admin";
@@ -241,6 +290,15 @@ function PeralTab() {
   const PER_PAGE = 10;
 
   useEffect(() => { loadHistorial(); }, []);
+
+  // Auto-calcular stock total cuando cambia cualquier ton
+  useEffect(() => {
+    const vals = ["a22_ton","a24_ton","a25_ton","a26_ton","dmh_ton","grancilla_ton"];
+    const total = vals.reduce((s, k) => s + (parseFloat(form[k]) || 0), 0);
+    if (vals.some(k => form[k])) {
+      setForm(f => ({ ...f, stock_arena_humeda_ton: total.toFixed(3) }));
+    }
+  }, [form.a22_ton, form.a24_ton, form.a25_ton, form.a26_ton, form.dmh_ton, form.grancilla_ton]);
 
   async function loadHistorial() {
     const { data } = await supabase
@@ -275,10 +333,9 @@ function PeralTab() {
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
       {last && (
         <div>
-          <p className="text-xs text-gray-400 mb-3">Último droneo: {last.fecha} {last.hora?.slice(0,5)}</p>
+          <p className="text-xs text-gray-400 mb-3">Último droneo: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
           <div className="flex flex-wrap gap-3">
             <KpiCard label="Arena Mina"         m3={last.arena_mina_m3} ton={last.arena_mina_ton} />
             <KpiCard label="A-22"               m3={last.a22_m3}        ton={last.a22_ton} />
@@ -292,41 +349,47 @@ function PeralTab() {
         </div>
       )}
 
-      {/* Formulario — solo admin */}
       {isAdmin && (
         <AdminGuard>
           <div className="card space-y-4">
             <h3 className="font-semibold text-gray-700">Nuevo registro Peral</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {([
-                ["Fecha","fecha","date"],
-                ["Hora","hora","time"],
-              ] as [string,string,string][]).map(([label,k,type]) => (
-                <label key={k}>
-                  <span className="label">{label}</span>
-                  <input type={type} className="input" value={form[k]} onChange={e => set(k, e.target.value)} />
-                </label>
-              ))}
-              {([
-                ["Arena Mina m³","arena_mina_m3"],["Arena Mina ton","arena_mina_ton"],
-                ["A-22 m³","a22_m3"],["A-22 ton","a22_ton"],
-                ["A-24 m³","a24_m3"],["A-24 ton","a24_ton"],
-                ["A-25 m³","a25_m3"],["A-25 ton","a25_ton"],
-                ["A-26 m³","a26_m3"],["A-26 ton","a26_ton"],
-                ["DMH m³","dmh_m3"],["DMH ton","dmh_ton"],
-                ["Grancilla m³","grancilla_m3"],["Grancilla ton","grancilla_ton"],
-                ["Stock Arena Húmeda ton","stock_arena_humeda_ton"],
-              ] as [string,string][]).map(([label,k]) => (
-                <label key={k}>
-                  <span className="label">{label}</span>
-                  <input type="number" step="0.001" className="input" placeholder="0" value={form[k]} onChange={e => set(k, e.target.value)} />
-                </label>
-              ))}
-              <label className="col-span-full">
-                <span className="label">Notas</span>
-                <input type="text" className="input" value={form.notas} onChange={e => set("notas", e.target.value)} />
+            <p className="text-xs text-gray-400">Toneladas calculadas automáticamente con densidad {DENSIDAD} t/m³</p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <label>
+                <span className="label">Fecha</span>
+                <input type="date" className="input" value={form.fecha} onChange={e => set("fecha", e.target.value)} />
+              </label>
+              <label>
+                <span className="label">Hora</span>
+                <input type="time" className="input" value={form.hora} onChange={e => set("hora", e.target.value)} />
               </label>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <M3Field label="Arena Mina" keyM3="arena_mina_m3" keyTon="arena_mina_ton" form={form} onChange={set} />
+              <M3Field label="A-22"       keyM3="a22_m3"        keyTon="a22_ton"        form={form} onChange={set} />
+              <M3Field label="A-24"       keyM3="a24_m3"        keyTon="a24_ton"        form={form} onChange={set} />
+              <M3Field label="A-25"       keyM3="a25_m3"        keyTon="a25_ton"        form={form} onChange={set} />
+              <M3Field label="A-26"       keyM3="a26_m3"        keyTon="a26_ton"        form={form} onChange={set} />
+              <M3Field label="DMH"        keyM3="dmh_m3"        keyTon="dmh_ton"        form={form} onChange={set} />
+              <M3Field label="Grancilla"  keyM3="grancilla_m3"  keyTon="grancilla_ton"  form={form} onChange={set} />
+            </div>
+
+            {/* Stock total — suma automática */}
+            <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <span className="label text-green-700 mb-0">Stock Arena Húmeda</span>
+              <span className="text-lg font-bold text-green-700">
+                {form.stock_arena_humeda_ton ? parseFloat(form.stock_arena_humeda_ton).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"} ton
+              </span>
+              <span className="text-xs text-gray-400">(A22 + A24 + A25 + A26 + DMH + Grancilla)</span>
+            </div>
+
+            <label>
+              <span className="label">Notas</span>
+              <input type="text" className="input" value={form.notas} onChange={e => set("notas", e.target.value)} />
+            </label>
+
             {msg && (
               <p className={`text-sm px-3 py-2 rounded-lg ${msg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{msg.text}</p>
             )}
@@ -337,7 +400,6 @@ function PeralTab() {
         </AdminGuard>
       )}
 
-      {/* Historial */}
       <div className="card p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="font-semibold text-gray-700 text-sm">Historial ({historial.length} registros)</span>
@@ -396,7 +458,6 @@ export default function CentroPage() {
         <p className="text-sm text-gray-500 mt-1">Cubicaciones históricas — Turco y Peral</p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {(["turco","peral"] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
