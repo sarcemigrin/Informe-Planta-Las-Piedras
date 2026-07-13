@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
 import {
-  format, eachDayOfInterval, parseISO, getISOWeek,
+  format, eachDayOfInterval, parseISO, getISOWeek, addDays,
   startOfMonth, endOfMonth, getDay, isBefore, isToday,
   addMonths, subMonths, startOfDay,
 } from "date-fns";
