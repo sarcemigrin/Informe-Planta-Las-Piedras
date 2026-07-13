@@ -1,13 +1,15 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useViewerMode } from "@/hooks/useViewerMode";
 
 /**
- * Envuelve páginas que solo pueden usar los admin.
- * Los viewers ven un mensaje de "solo lectura".
+ * Envuelve secciones que solo pueden usar los admin.
+ * Los viewers (o admin en modo vista) ven un mensaje de "solo lectura".
  */
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const { viewerMode } = useViewerMode();
 
   if (status === "loading") {
     return (
@@ -17,7 +19,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (session?.user?.rol !== "admin") {
+  if (session?.user?.rol !== "admin" || viewerMode) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
         <div className="text-5xl"></div>
