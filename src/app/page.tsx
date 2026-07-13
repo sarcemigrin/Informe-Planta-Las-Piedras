@@ -639,7 +639,7 @@ export default function Dashboard() {
               const d = new Date(fecha + "T12:00:00");
               return Math.floor((today.getTime() - d.getTime()) / 86400000);
             }
-            function iniMes(rows: { fecha?: string | null }[]): typeof rows[0] | undefined {
+            function iniMes<T extends { fecha?: string | null }>(rows: T[]): T | undefined {
               const ym = today.toISOString().slice(0,7);
               return [...rows].reverse().find(r => r.fecha?.startsWith(ym));
             }
