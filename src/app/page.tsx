@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useViewerMode } from "@/hooks/useViewerMode";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import {
@@ -87,7 +88,8 @@ export default function Dashboard() {
   const [centroLoaded,   setCentroLoaded]   = useState(false);
   const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
   const { data: session } = useSession();
-  const isAdmin = session?.user?.rol === "admin";
+  const { viewerMode } = useViewerMode();
+  const isAdmin = session?.user?.rol === "admin" && !viewerMode;
 
   useEffect(() => {
     async function load() {
@@ -279,7 +281,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setPlanta(p => p === "sur" ? "centro" : "sur")}
+            onClick={() => setPlanta(p => p === "sur" ? (isAdmin ? "centro" : "sur") : "sur")}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -635,7 +637,7 @@ export default function Dashboard() {
       )}
 
             {/* ── Zona Centro Dashboard ── */}
-      {planta === "centro" && (
+      {planta === "centro" && isAdmin && (
         <section className="space-y-6">
           {!centroLoaded ? (
             <div className="flex items-center justify-center h-32 text-gray-400">Cargando datos Zona Centro…</div>
