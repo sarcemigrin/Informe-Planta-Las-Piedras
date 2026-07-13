@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useViewerMode } from "@/hooks/useViewerMode";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
@@ -43,7 +44,8 @@ interface Anotacion {
 export default function DiarioPage() {
   const [rows, setRows]         = useState<DiaRow[]>([]);
   const { data: session } = useSession();
-  const isAdmin = session?.user?.rol === "admin";
+  const { viewerMode } = useViewerMode();
+  const isAdmin = session?.user?.rol === "admin" && !viewerMode;
   const [loading, setLoading]   = useState(true);
   const [filtroMes, setFiltroMes] = useState<string>("");
   const [tablePage, setTablePage] = useState(1);
