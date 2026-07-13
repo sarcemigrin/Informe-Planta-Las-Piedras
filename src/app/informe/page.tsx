@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useViewerMode } from "@/hooks/useViewerMode";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
@@ -122,7 +123,8 @@ function InfoCard({
 //  Página 
 export default function InformePage() {
   const { data: session } = useSession();
-  const isAdmin           = session?.user?.rol === "admin";
+  const { viewerMode }    = useViewerMode();
+  const isAdmin           = session?.user?.rol === "admin" && !viewerMode;
 
   const [rows, setRows]               = useState<RegistroArena[]>([]);
   const [loading, setLoading]         = useState(true);

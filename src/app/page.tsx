@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
-import type { RegistroArena, RegistroCuarzo } from "@/types/database";
+import type { RegistroArena, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import {
   ComposedChart, LineChart, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -82,6 +82,10 @@ export default function Dashboard() {
   const [showYrFilter,   setShowYrFilter]   = useState(false);
   const [vistaComp,      setVistaComp]      = useState<"ambas"|"produccion"|"productividad">("ambas");
   const [planta,         setPlanta]         = useState<"sur"|"centro"|null>(null);
+  const [turcoRows,      setTurcoRows]      = useState<RegistroTurco[]>([]);
+  const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
+  const [centroLoaded,   setCentroLoaded]   = useState(false);
+  const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
   const { data: session } = useSession();
   const isAdmin = session?.user?.rol === "admin";
 
@@ -102,6 +106,20 @@ export default function Dashboard() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    if (planta !== "centro" || centroLoaded) return;
+    async function loadCentro() {
+      const [{ data: turco }, { data: peral }] = await Promise.all([
+        supabase.from("registros_turco").select("*").order("fecha_hora", { ascending: false }).limit(40),
+        supabase.from("registros_peral").select("*").order("fecha_hora", { ascending: false }).limit(40),
+      ]);
+      setTurcoRows((turco ?? []) as RegistroTurco[]);
+      setPeralRows((peral ?? []) as RegistroPeral[]);
+      setCentroLoaded(true);
+    }
+    loadCentro();
+  }, [planta, centroLoaded]);
 
   const sel          = arenaRows[selectedIdx];
   const prev         = arenaRows[selectedIdx + 1];
@@ -608,33 +626,213 @@ export default function Dashboard() {
       </section>
 
 
-      {/* ── Zona Centro KPIs ── */}
+      {/* ── Zona Centro Dashboard ── */}
       {planta === "centro" && (
         <section className="space-y-6">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Zona Centro — Turco</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {(["Arena Mina","TLH","Estéril","Grancilla","Fierrillo A","Fierrillo B"] as const).map(label => (
-                <div key={label} className="card">
-                  <div className="stat-label">{label}</div>
-                  <div className="text-xl font-bold text-gray-900">—</div>
-                  <div className="text-xs text-gray-400">ton</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Zona Centro — Peral</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {(["Arena Mina","A-22","A-24","A-25","A-26","DMH","Grancilla","Stock Total"] as const).map(label => (
-                <div key={label} className="card">
-                  <div className="stat-label">{label}</div>
-                  <div className="text-xl font-bold text-gray-900">—</div>
-                  <div className="text-xs text-gray-400">ton</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {!centroLoaded ? (
+            <div className="flex items-center justify-center h-32 text-gray-400">Cargando datos Zona Centro…</div>
+          ) : (
+            <>
+              {/* Sub-tabs */}
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                {(["turco","peral"] as const).map(t => (
+                  <button key={t} onClick={() => setCentroTab(t)}
+                    className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                      centroTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+                    }`}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
+                ))}
+              </div>
+
+              {/* ── TURCO ── */}
+              {centroTab === "turco" && (() => {
+                const last = turcoRows[0];
+                const chartData = [...turcoRows].reverse().slice(-20).map(r => ({
+                  fecha: r.fecha?.slice(5),
+                  fierrillo: r.fierrillo_total_ton ?? 0,
+                  arena: r.arena_mina_ton ?? 0,
+                  tlh: r.tlh_ton ?? 0,
+                }));
+                return (
+                  <div className="space-y-4">
+                    {last && (
+                      <p className="text-xs text-gray-400">Último registro: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
+                    )}
+                    {/* KPIs */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                      {[
+                        { label:"Arena Mina", m3: last?.arena_mina_m3, ton: last?.arena_mina_ton },
+                        { label:"TLH",        m3: last?.tlh_m3,        ton: last?.tlh_ton },
+                        { label:"Estéril",    m3: last?.esteril_m3,    ton: last?.esteril_ton },
+                        { label:"Grancilla",  m3: last?.grancilla_m3,  ton: last?.grancilla_ton },
+                        { label:"Fierrillo A",m3: last?.fierrillo_a_m3,ton: last?.fierrillo_a_ton },
+                        { label:"Fierrillo B",m3: last?.fierrillo_b_m3,ton: last?.fierrillo_b_ton },
+                        { label:"Fierrillo Total", m3: null, ton: last?.fierrillo_total_ton, highlight: true },
+                      ].map(({ label, m3, ton, highlight }) => (
+                        <div key={label} className={`card flex flex-col gap-1 ${highlight ? "border-green-300 bg-green-50" : ""}`}>
+                          <div className="stat-label">{label}</div>
+                          <div className={`text-xl font-bold ${highlight ? "text-green-700" : "text-gray-900"}`}>
+                            {ton != null ? fmt(ton) : "—"}
+                          </div>
+                          <div className="text-xs text-gray-400">ton</div>
+                          {m3 != null && <div className="text-xs text-gray-400">{fmt(m3)} m³</div>}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Gráfico */}
+                    {chartData.length > 1 && (
+                      <div className="card">
+                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Evolución Turco — últimos {chartData.length} registros</h3>
+                        <ResponsiveContainer width="100%" height={240}>
+                          <ComposedChart data={chartData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
+                            <YAxis tick={{ fontSize:10 }} />
+                            <Tooltip formatter={(v:unknown) => fmt(v as number, 1)+" ton"} />
+                            <Legend />
+                            <Bar dataKey="fierrillo" name="Fierrillo Total" fill="#6BCF7F" radius={[3,3,0,0]} />
+                            <Bar dataKey="arena"     name="Arena Mina"     fill="#3b82f6" radius={[3,3,0,0]} />
+                            <Bar dataKey="tlh"       name="TLH"            fill="#f59e0b" radius={[3,3,0,0]} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* Tabla últimos registros */}
+                    <div className="card p-0 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Turco ({turcoRows.length} total)</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="table-th text-left">Fecha</th>
+                              <th className="table-th">Arena Mina m³</th>
+                              <th className="table-th">TLH m³</th>
+                              <th className="table-th">Estéril m³</th>
+                              <th className="table-th">Grancilla m³</th>
+                              <th className="table-th">Fierr. A ton</th>
+                              <th className="table-th">Fierr. B ton</th>
+                              <th className="table-th">Fierr. Total ton</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {turcoRows.slice(0,10).map((r,i) => (
+                              <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
+                                <td className="table-td-left font-medium">{r.fecha}</td>
+                                <td className="table-td">{fmt(r.arena_mina_m3)}</td>
+                                <td className="table-td">{fmt(r.tlh_m3)}</td>
+                                <td className="table-td">{fmt(r.esteril_m3)}</td>
+                                <td className="table-td">{fmt(r.grancilla_m3)}</td>
+                                <td className="table-td">{fmt(r.fierrillo_a_ton)}</td>
+                                <td className="table-td">{fmt(r.fierrillo_b_ton)}</td>
+                                <td className="table-td font-semibold text-green-700">{fmt(r.fierrillo_total_ton)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── PERAL ── */}
+              {centroTab === "peral" && (() => {
+                const last = peralRows[0];
+                const chartData = [...peralRows].reverse().slice(-20).map(r => ({
+                  fecha: r.fecha?.slice(5),
+                  stock: r.stock_arena_humeda_ton ?? 0,
+                  arena: r.arena_mina_ton ?? 0,
+                  grancilla: r.grancilla_ton ?? 0,
+                }));
+                return (
+                  <div className="space-y-4">
+                    {last && (
+                      <p className="text-xs text-gray-400">Último registro: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
+                    )}
+                    {/* KPIs */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                      {[
+                        { label:"Arena Mina", m3: last?.arena_mina_m3, ton: last?.arena_mina_ton },
+                        { label:"A-22",       m3: last?.a22_m3,        ton: last?.a22_ton },
+                        { label:"A-24",       m3: last?.a24_m3,        ton: last?.a24_ton },
+                        { label:"A-25",       m3: last?.a25_m3,        ton: last?.a25_ton },
+                        { label:"A-26",       m3: last?.a26_m3,        ton: last?.a26_ton },
+                        { label:"DMH",        m3: last?.dmh_m3,        ton: last?.dmh_ton },
+                        { label:"Grancilla",  m3: last?.grancilla_m3,  ton: last?.grancilla_ton },
+                        { label:"Stock Total",m3: null,                ton: last?.stock_arena_humeda_ton, highlight: true },
+                      ].map(({ label, m3, ton, highlight }) => (
+                        <div key={label} className={`card flex flex-col gap-1 ${highlight ? "border-green-300 bg-green-50" : ""}`}>
+                          <div className="stat-label">{label}</div>
+                          <div className={`text-xl font-bold ${highlight ? "text-green-700" : "text-gray-900"}`}>
+                            {ton != null ? fmt(ton) : "—"}
+                          </div>
+                          <div className="text-xs text-gray-400">ton</div>
+                          {m3 != null && <div className="text-xs text-gray-400">{fmt(m3)} m³</div>}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Gráfico */}
+                    {chartData.length > 1 && (
+                      <div className="card">
+                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Evolución Peral — últimos {chartData.length} registros</h3>
+                        <ResponsiveContainer width="100%" height={240}>
+                          <ComposedChart data={chartData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
+                            <YAxis tick={{ fontSize:10 }} />
+                            <Tooltip formatter={(v:unknown) => fmt(v as number, 1)+" ton"} />
+                            <Legend />
+                            <Bar dataKey="stock"    name="Stock Total"  fill="#6BCF7F" radius={[3,3,0,0]} />
+                            <Bar dataKey="arena"    name="Arena Mina"   fill="#3b82f6" radius={[3,3,0,0]} />
+                            <Bar dataKey="grancilla"name="Grancilla"    fill="#a78bfa" radius={[3,3,0,0]} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* Tabla */}
+                    <div className="card p-0 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Peral ({peralRows.length} total)</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="table-th text-left">Fecha</th>
+                              <th className="table-th">Arena Mina m³</th>
+                              <th className="table-th">A-22 ton</th>
+                              <th className="table-th">A-24 ton</th>
+                              <th className="table-th">A-25 ton</th>
+                              <th className="table-th">A-26 ton</th>
+                              <th className="table-th">DMH ton</th>
+                              <th className="table-th">Grancilla ton</th>
+                              <th className="table-th">Stock Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {peralRows.slice(0,10).map((r,i) => (
+                              <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
+                                <td className="table-td-left font-medium">{r.fecha}</td>
+                                <td className="table-td">{fmt(r.arena_mina_m3)}</td>
+                                <td className="table-td">{fmt(r.a22_ton)}</td>
+                                <td className="table-td">{fmt(r.a24_ton)}</td>
+                                <td className="table-td">{fmt(r.a25_ton)}</td>
+                                <td className="table-td">{fmt(r.a26_ton)}</td>
+                                <td className="table-td">{fmt(r.dmh_ton)}</td>
+                                <td className="table-td">{fmt(r.grancilla_ton)}</td>
+                                <td className="table-td font-semibold text-green-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </section>
       )}
 
