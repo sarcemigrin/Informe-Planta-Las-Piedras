@@ -132,8 +132,30 @@ function CentroRegistroInlineForm() {
       fierrillo_total_ton: pfc(ftotal ?? ""),
       notas: f.notas || null,
     });
-    if (error) setMsg({ type:"err", text:"Error: "+error.message });
-    else { setMsg({ type:"ok", text:"Registro Turco guardado." }); setTForm(defaultTurcoForm()); }
+    if (error) { setMsg({ type:"err", text:"Error: "+error.message }); }
+    else {
+      setMsg({ type:"ok", text:"Registro Turco guardado." });
+      setTForm(defaultTurcoForm());
+      // Notificación email — fire and forget
+      fetch("/api/informe/notify-centro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planta: "turco",
+          fecha: f.fecha,
+          hora: f.hora,
+          kpis: {
+            tlh_ton:            pfc(autoTon(f.tlh_m3)),
+            arena_mina_ton:     pfc(autoTon(f.arena_mina_m3)),
+            esteril_ton:        pfc(autoTon(f.esteril_m3)),
+            grancilla_ton:      pfc(autoTon(f.grancilla_m3)),
+            fierrillo_a_ton:    pfc(fa_ton),
+            fierrillo_b_ton:    pfc(fb_ton),
+            fierrillo_total_ton:pfc(ftotal ?? ""),
+          },
+        }),
+      }).catch(() => {/* silencioso */});
+    }
     setSaving(false);
   }
 
@@ -154,8 +176,28 @@ function CentroRegistroInlineForm() {
       stock_arena_humeda_ton: pfc(stock),
       notas: f.notas || null,
     });
-    if (error) setMsg({ type:"err", text:"Error: "+error.message });
-    else { setMsg({ type:"ok", text:"Registro Peral guardado." }); setPForm(defaultPeralForm()); }
+    if (error) { setMsg({ type:"err", text:"Error: "+error.message }); }
+    else {
+      setMsg({ type:"ok", text:"Registro Peral guardado." });
+      setPForm(defaultPeralForm());
+      // Notificación email — fire and forget
+      const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon((f as Record<string,string>)[k+"_m3"])) || 0);
+      fetch("/api/informe/notify-centro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planta: "peral",
+          fecha: f.fecha,
+          hora: f.hora,
+          kpis: {
+            stock_arena_humeda_ton: parseFloat(stock),
+            arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
+            a22_ton: tons[0], a24_ton: tons[1], a25_ton: tons[2],
+            a26_ton: tons[3], dmh_ton: tons[4], grancilla_ton: tons[5],
+          },
+        }),
+      }).catch(() => {/* silencioso */});
+    }
     setSaving(false);
   }
 
