@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { Providers }   from "@/components/Providers";
 import { ChatBot }        from "@/components/ChatBot";
+import { FloatingGuia }   from "@/components/FloatingGuia";
 import { OnboardingTour } from "@/components/OnboardingTour";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
           <ChatBot />
+          <FloatingGuia />
           <OnboardingTour />
         </Providers>
       </body>

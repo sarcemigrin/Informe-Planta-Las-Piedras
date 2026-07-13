@@ -85,7 +85,7 @@ export function Navigation() {
               <Link
                 key={href}
                 href={href}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-2 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   pathname === href
                     ? "text-white"
                     : "text-gray-400 hover:text-white hover:bg-white/10"
@@ -129,7 +129,6 @@ export function Navigation() {
                     <span className="hidden lg:inline">{viewerMode ? "Admin" : "Visitante"}</span>
                   </button>
                 )}
-                <TourButton />
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded"
