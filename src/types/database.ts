@@ -39,6 +39,16 @@ export interface Database {
         Insert: { fecha: string; texto: string };
         Update: { fecha?: string; texto?: string };
       };
+      registros_turco: {
+        Row:    RegistroTurco;
+        Insert: RegistroTurcoInsert;
+        Update: Partial<RegistroTurcoInsert>;
+      };
+      registros_peral: {
+        Row:    RegistroPeral;
+        Insert: RegistroPeralInsert;
+        Update: Partial<RegistroPeralInsert>;
+      };
     };
     Views: {
       vista_diario_arena: { Row: VistaDiarioArena };
@@ -166,6 +176,60 @@ export interface Parametro {
   valor: number;
   descripcion: string | null;
 }
+
+// ---- Registros Turco (Zona Centro) ----
+export interface RegistroTurco {
+  id: string;
+  fecha: string;
+  hora: string;
+  fecha_hora: string;
+  arena_mina_m3: number | null;
+  arena_mina_ton: number | null;
+  tlh_m3: number | null;
+  tlh_ton: number | null;
+  esteril_m3: number | null;
+  esteril_ton: number | null;
+  grancilla_m3: number | null;
+  grancilla_ton: number | null;
+  fierrillo_a_m3: number | null;
+  fierrillo_a_ton: number | null;
+  fierrillo_b_m3: number | null;
+  fierrillo_b_ton: number | null;
+  fierrillo_total_ton: number | null;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RegistroTurcoInsert = Omit<RegistroTurco, "id" | "created_at" | "updated_at">;
+
+// ---- Registros Peral (Zona Centro) ----
+export interface RegistroPeral {
+  id: string;
+  fecha: string;
+  hora: string;
+  fecha_hora: string;
+  arena_mina_m3: number | null;
+  arena_mina_ton: number | null;
+  a22_m3: number | null;
+  a22_ton: number | null;
+  a24_m3: number | null;
+  a24_ton: number | null;
+  a25_m3: number | null;
+  a25_ton: number | null;
+  a26_m3: number | null;
+  a26_ton: number | null;
+  dmh_m3: number | null;
+  dmh_ton: number | null;
+  grancilla_m3: number | null;
+  grancilla_ton: number | null;
+  stock_arena_humeda_ton: number | null;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RegistroPeralInsert = Omit<RegistroPeral, "id" | "created_at" | "updated_at">;
 
 // ---- Vista Diario Arena ----
 export interface VistaDiarioArena {
