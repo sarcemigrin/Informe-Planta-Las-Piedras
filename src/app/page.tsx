@@ -81,7 +81,7 @@ export default function Dashboard() {
   const [selectedYears,  setSelectedYears]  = useState<number[]>([]);
   const [showYrFilter,   setShowYrFilter]   = useState(false);
   const [vistaComp,      setVistaComp]      = useState<"ambas"|"produccion"|"productividad">("ambas");
-  const [planta,         setPlanta]         = useState<"sur"|"centro">("sur");
+  const [planta,         setPlanta]         = useState<"sur"|"centro"|null>(null);
   const { data: session } = useSession();
   const isAdmin = session?.user?.rol === "admin";
 
@@ -180,6 +180,71 @@ export default function Dashboard() {
   const canchaNuevaTon = pilasTon.slice(0,4).reduce((a,b)=>a+b,0);
   const rinoesTon      = pilasTon.slice(4).reduce((a,b)=>a+b,0);
 
+  // ── Pantalla de selección de zona ───────────────────────────────────────────
+  if (!planta) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-500">Selecciona la zona que deseas revisar</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg">
+          {/* Zona Sur */}
+          <button
+            onClick={() => setPlanta("sur")}
+            className="flex-1 group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 border-gray-200 hover:border-green-400 hover:shadow-lg transition-all bg-white"
+          >
+            <div className="w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+              style={{ backgroundColor: "#6BCF7F22" }}>
+              <svg className="w-8 h-8" fill="none" stroke="#6BCF7F" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-lg text-gray-900 group-hover:text-green-700">Zona Sur</div>
+              <div className="text-sm text-gray-400 mt-1">Arena · Cuarzo</div>
+            </div>
+          </button>
+
+          {/* Zona Centro */}
+          <button
+            onClick={() => isAdmin && setPlanta("centro")}
+            disabled={!isAdmin}
+            className={`flex-1 group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all bg-white ${
+              isAdmin
+                ? "border-gray-200 hover:border-blue-400 hover:shadow-lg cursor-pointer"
+                : "border-gray-100 cursor-not-allowed opacity-60"
+            }`}
+          >
+            <div className="w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+              style={{ backgroundColor: "#3b82f622" }}>
+              {isAdmin ? (
+                <svg className="w-8 h-8" fill="none" stroke="#3b82f6" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              ) : (
+                <svg className="w-8 h-8" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              )}
+            </div>
+            <div className="text-center">
+              <div className={`font-bold text-lg ${isAdmin ? "text-gray-900 group-hover:text-blue-700" : "text-gray-400"}`}>
+                Zona Centro
+              </div>
+              <div className="text-sm text-gray-400 mt-1">
+                {isAdmin ? "Turco · Peral" : "Próximamente"}
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if(loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
   return (
@@ -188,39 +253,19 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard — {planta === "sur" ? "Zona Sur" : "Zona Centro"}</h1>
           <p className="text-sm text-gray-500">Control de inventarios y productividad</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Selector de planta */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-medium">
-            <button
-              onClick={() => setPlanta("sur")}
-              className={`px-4 py-1.5 transition-colors ${planta === "sur" ? "text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
-              style={planta === "sur" ? { backgroundColor: "#6BCF7F", color: "#fff" } : {}}
-            >Zona Sur</button>
-            <button
-              onClick={() => isAdmin && setPlanta("centro")}
-              disabled={!isAdmin}
-              title={isAdmin ? undefined : "Próximamente"}
-              className={`px-4 py-1.5 transition-colors border-l border-gray-200 flex items-center gap-1 ${
-                isAdmin
-                  ? planta === "centro"
-                    ? "text-white"
-                    : "bg-white text-gray-500 hover:bg-gray-50"
-                  : "bg-white text-gray-300 cursor-not-allowed"
-              }`}
-              style={isAdmin && planta === "centro" ? { backgroundColor: "#6BCF7F", color: "#fff" } : {}}
-            >
-              {!isAdmin && (
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              )}
-              Zona Centro
-            </button>
-          </div>
+          <button
+            onClick={() => setPlanta(null)}
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Cambiar zona
+          </button>
           <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
         </div>
       </div>

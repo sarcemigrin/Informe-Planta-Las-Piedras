@@ -389,6 +389,7 @@ export default function InformePage() {
               : "Sin datos"}
           </p>
         </div>
+        {isAdmin && (
         <div className="flex gap-2 flex-wrap">
           <button className="btn-secondary" onClick={exportExcel}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -447,6 +448,7 @@ export default function InformePage() {
             {enviandoEmail ? "Enviando…" : emailStatus === "ok" ? "Email enviado" : emailStatus === "error" ? "Error al enviar" : "Enviar por email"}
           </button>
         </div>
+        )}
       </div>
 
       {/* 
