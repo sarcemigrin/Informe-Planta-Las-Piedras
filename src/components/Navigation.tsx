@@ -72,7 +72,7 @@ export function Navigation() {
             <div className="leading-tight">
               <div className="text-white font-bold text-sm tracking-wide">Fotogrametria Migrin</div>
               <div className="text-xs tracking-widest uppercase" style={{ color: "#6BCF7F", fontSize: "9px" }}>
-                Migrin · Planta Las Piedras
+                Migrin - Faena Las Piedras, Turco y Peral
               </div>
             </div>
           </Link>

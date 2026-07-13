@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
 import type { RegistroArena } from "@/types/database";
@@ -41,6 +42,8 @@ interface Anotacion {
 
 export default function DiarioPage() {
   const [rows, setRows]         = useState<DiaRow[]>([]);
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.rol === "admin";
   const [loading, setLoading]   = useState(true);
   const [filtroMes, setFiltroMes] = useState<string>("");
   const [tablePage, setTablePage] = useState(1);
@@ -184,6 +187,7 @@ export default function DiarioPage() {
   }
 
   function abrirModal(d: Date) {
+    if (!isAdmin) return;
     const key    = format(d, "yyyy-MM-dd");
     const futuro = isBefore(hoy, startOfDay(d)) && !isToday(d);
     if (futuro || droneoDias.has(key) || esFindeSemana(d)) return;
@@ -253,7 +257,7 @@ export default function DiarioPage() {
             return (
               <div
                 key={key}
-                onClick={() => !futuro && abrirModal(d)}
+                onClick={() => isAdmin && !futuro && abrirModal(d)}
                 title={nota ? `Anotación: ${nota}` : cls === "cal-day-droneo" ? "Día de droneo" : "Sin droneo — click para anotar"}
                 className={`
                   flex flex-col items-center justify-center rounded py-1 text-[11px] font-medium
@@ -337,12 +341,14 @@ export default function DiarioPage() {
                       {esFindeSemana(r.fecha)
                         ? <span className="text-gray-400 text-xs">Fin de semana</span>
                         : nota
-                          ? <span className="text-amber-700 text-xs font-medium">{nota}</span>
+                          ? (isAdmin
+                          ? <button onClick={() => abrirModal(r.fecha)} className="text-amber-700 text-xs font-medium hover:underline text-left">{nota}</button>
+                          : <span className="text-amber-700 text-xs font-medium">{nota}</span>)
                           : !r.esDroneo
-                            ? <button
+                            ? (isAdmin ? <button
                                 onClick={() => abrirModal(r.fecha)}
                                 className="text-gray-300 hover:text-migrin text-xs transition-colors"
-                              >+ anotar</button>
+                              >+ anotar</button> : null)
                             : null}
                     </td>
                   </tr>
