@@ -288,6 +288,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {planta === "sur" && (
+        <>
       {/* Arena KPIs */}
       <section>
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -626,7 +628,10 @@ export default function Dashboard() {
       </section>
 
 
-      {/* ── Zona Centro Dashboard ── */}
+        </>
+      )}
+
+            {/* ── Zona Centro Dashboard ── */}
       {planta === "centro" && (
         <section className="space-y-6">
           {!centroLoaded ? (
