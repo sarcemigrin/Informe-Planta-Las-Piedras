@@ -17,7 +17,7 @@ interface Step {
 
 const ALL_STEPS: Step[] = [
   {
-    title: "Bienvenido a Arena Control",
+    title: "Bienvenido a Fotogrametria Migrin",
     badge: "Migrin · Planta Las Piedras",
     description: "La plataforma digital de gestión de producción. Registra cubicaciones del drone, controla despachos y genera informes automáticos.",
     details: [

@@ -72,7 +72,7 @@ export function Navigation() {
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
             <MigrinLogo />
             <div className="leading-tight">
-              <div className="text-white font-bold text-sm tracking-wide">Arena Control</div>
+              <div className="text-white font-bold text-sm tracking-wide">Fotogrametria Migrin</div>
               <div className="text-xs tracking-widest uppercase" style={{ color: "#6BCF7F", fontSize: "9px" }}>
                 Migrin · Planta Las Piedras
               </div>

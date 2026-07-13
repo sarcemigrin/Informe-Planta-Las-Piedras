@@ -12,10 +12,7 @@ import {
   addMonths, subMonths, startOfDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
-} from "recharts";
+
 
 const TABLE_PAGE = 10;
 
@@ -46,7 +43,6 @@ export default function DiarioPage() {
   const [rows, setRows]         = useState<DiaRow[]>([]);
   const [loading, setLoading]   = useState(true);
   const [filtroMes, setFiltroMes] = useState<string>("");
-  const [vista, setVista]       = useState<"tabla" | "grafico">("tabla");
   const [tablePage, setTablePage] = useState(1);
 
   // Calendario
@@ -157,12 +153,6 @@ export default function DiarioPage() {
   const totalTablePages = Math.ceil(filtrados.length / TABLE_PAGE);
   const paginados = filtrados.slice((tablePage - 1) * TABLE_PAGE, tablePage * TABLE_PAGE);
 
-  const chartData = [...filtrados].reverse().slice(-30).map((r) => ({
-    fecha:     format(r.fecha, "dd/MM"),
-    prodDrone: +r.prodDroneDia.toFixed(1),
-    despachos: +r.despachosDia.toFixed(1),
-  }));
-
   // ---- Calendario ----
   const calDays = (() => {
     const start = startOfMonth(calMes);
@@ -223,14 +213,7 @@ export default function DiarioPage() {
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
-          <button
-            className={`btn-secondary text-xs py-1.5 ${vista === "tabla"   ? "bg-green-50 text-migrin-dark border-green-400" : ""}`}
-            onClick={() => setVista("tabla")}
-          >Tabla</button>
-          <button
-            className={`btn-secondary text-xs py-1.5 ${vista === "grafico" ? "bg-green-50 text-migrin-dark border-green-400" : ""}`}
-            onClick={() => setVista("grafico")}
-          >Gráfico</button>
+
         </div>
       </div>
 
@@ -310,26 +293,7 @@ export default function DiarioPage() {
         </div>
       </div>
 
-      {/* ---- Gráfico ---- */}
-      {vista === "grafico" && chartData.length > 0 && (
-        <div className="card">
-          <h2 className="font-semibold text-gray-700 mb-4">Producción diaria (ton/día)</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => fmt(v as number) + " ton"} />
-              <Legend />
-              <Bar dataKey="prodDrone" name="Prod. Drone" fill="#22c55e" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="despachos" name="Despachos"   fill="#f97316" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
       {/* ---- Tabla ---- */}
-      {vista === "tabla" && (
         <div className="card overflow-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead className="border-b border-gray-100">
@@ -405,7 +369,6 @@ export default function DiarioPage() {
             </div>
           </div>
         </div>
-      )}
 
       {/* ---- Modal anotación ---- */}
       {modalFecha && (

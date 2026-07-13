@@ -9,8 +9,8 @@ import { OnboardingTour } from "@/components/OnboardingTour";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Control P&P LP",
-  description: "Control de Producción y Productividad – Planta Las Piedras",
+  title: "Fotogrametria Migrin",
+  description: "Fotogrametría y Control de Producción – Migrin",
   manifest: "/manifest.json",
   icons: {
     icon: [

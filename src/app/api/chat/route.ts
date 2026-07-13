@@ -1,5 +1,5 @@
 /**
- * POST /api/chat — Chatbot Arena Control.
+ * POST /api/chat — Chatbot Fotogrametria Migrin.
  * KPI semanal = IDENTICO al generate-report:
  *   - usa diferencia_horometro (no horas_reales - detencion)
  *   - cuenta dias con while loop exacto (no Math.round)
@@ -227,7 +227,7 @@ async function getCachedDataContext(): Promise<string> {
 
 function buildSystemPrompt(dataContext: string): string {
   return [
-    "Eres el asistente de Arena Control de Migrin, planta Las Piedras.",
+    "Eres el asistente de Fotogrametria Migrin de Migrin, planta Las Piedras.",
     "Los datos provienen de la base de datos en tiempo real. Son reales, no ejemplos.",
     "Nunca digas que no tienes acceso a datos reales o que son un documento de texto.",
     "",

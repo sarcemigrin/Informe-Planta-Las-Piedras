@@ -80,6 +80,7 @@ export default function Dashboard() {
   const [selectedYears,  setSelectedYears]  = useState<number[]>([]);
   const [showYrFilter,   setShowYrFilter]   = useState(false);
   const [vistaComp,      setVistaComp]      = useState<"ambas"|"produccion"|"productividad">("ambas");
+  const [planta,         setPlanta]         = useState<"sur"|"centro">("sur");
 
   useEffect(() => {
     async function load() {
@@ -182,12 +183,31 @@ export default function Dashboard() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500">Control de inventarios y productividad - Planta de Arenas</p>
+          <p className="text-sm text-gray-500">Control de inventarios y productividad</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          {/* Selector de planta */}
+          <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-medium">
+            <button
+              onClick={() => setPlanta("sur")}
+              className={`px-4 py-1.5 transition-colors ${planta === "sur" ? "text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+              style={planta === "sur" ? { backgroundColor: "#6BCF7F", color: "#fff" } : {}}
+            >Zona Sur</button>
+            <button
+              disabled
+              title="Próximamente"
+              className="px-4 py-1.5 bg-white text-gray-300 cursor-not-allowed flex items-center gap-1 border-l border-gray-200"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Zona Centro
+            </button>
+          </div>
           <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
         </div>
       </div>
@@ -671,6 +691,37 @@ function KpiCard({ label, value, unit, color, icon, trend: trendVal, info, prodV
           <KpiInfoTooltip text={info}/>
         </div>
       )}
+      {/* ── Zona Centro KPIs (oculto hasta habilitar) ── */}
+      {false && (
+        <section>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Zona Centro — Turco</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {(["Arena Mina","TLH","Estéril","Grancilla","Fierrillo A","Fierrillo B"] as const).map(label => (
+              <div key={label} className="card">
+                <div className="stat-label">{label}</div>
+                <div className="text-xl font-bold text-gray-900">—</div>
+                <div className="text-xs text-gray-400">ton</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Zona Centro — Peral</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {(["Arena Mina","A-22","A-24","A-25","A-26","DMH","Grancilla","Stock Total"] as const).map(label => (
+              <div key={label} className="card">
+                <div className="stat-label">{label}</div>
+                <div className="text-xl font-bold text-gray-900">—</div>
+                <div className="text-xs text-gray-400">ton</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+
     </div>
   );
 }

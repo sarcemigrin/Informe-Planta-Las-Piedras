@@ -3,13 +3,14 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   type ArenaInput,
 } from "@/lib/calculations";
-import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo } from "@/types/database";
+import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import { format } from "date-fns";
 
 const CONOS = [1, 2, 3] as const;
@@ -66,7 +67,178 @@ function loadDraft(): Record<string, string> {
   } catch { return defaults; }
 }
 
+// ── Densidad Zona Centro ──────────────────────────────────────
+const DENSIDAD_CENTRO = 1.6;
+const pfc = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+const autoTon = (m3: string) => { const v = parseFloat(m3); return isNaN(v) ? "" : (v * DENSIDAD_CENTRO).toFixed(3); };
+
+const defaultTurcoForm = () => ({
+  fecha: format(new Date(), "yyyy-MM-dd"), hora: format(new Date(), "HH:mm"),
+  arena_mina_m3:"", tlh_m3:"", esteril_m3:"", grancilla_m3:"",
+  fierrillo_a_m3:"", fierrillo_b_m3:"", notas:"",
+});
+const defaultPeralForm = () => ({
+  fecha: format(new Date(), "yyyy-MM-dd"), hora: format(new Date(), "HH:mm"),
+  arena_mina_m3:"", a22_m3:"", a24_m3:"", a25_m3:"", a26_m3:"", dmh_m3:"", grancilla_m3:"", notas:"",
+});
+
+// Solo m³ visible — ton se calcula pero no se muestra
+function M3OnlyField({ label, keyM3, form, onChange }: {
+  label: string; keyM3: string;
+  form: Record<string,string>;
+  onChange: (k: string, v: string) => void;
+}) {
+  return (
+    <div>
+      <span className="label">{label}</span>
+      <div className="flex items-center gap-1">
+        <input type="number" step="0.001" className="input" placeholder="0"
+          value={form[keyM3]} onChange={e => onChange(keyM3, e.target.value)} />
+        <span className="text-xs text-gray-400 shrink-0">m³</span>
+      </div>
+    </div>
+  );
+}
+
+function CentroRegistroInlineForm() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.rol === "admin";
+  type CTab = "turco" | "peral";
+  const [ctab,   setCtab]   = useState<CTab>("turco");
+  const [tForm,  setTForm]  = useState<Record<string,string>>(defaultTurcoForm());
+  const [pForm,  setPForm]  = useState<Record<string,string>>(defaultPeralForm());
+  const [saving, setSaving] = useState(false);
+  const [msg,    setMsg]    = useState<{type:"ok"|"err"; text:string}|null>(null);
+
+  const setT = (k:string, v:string) => setTForm(f => ({...f, [k]:v}));
+  const setP = (k:string, v:string) => setPForm(f => ({...f, [k]:v}));
+
+  async function saveTurco() {
+    setSaving(true); setMsg(null);
+    const f = tForm;
+    const fa_ton = autoTon(f.fierrillo_a_m3);
+    const fb_ton = autoTon(f.fierrillo_b_m3);
+    const ftotal = fa_ton && fb_ton
+      ? (parseFloat(fa_ton) + parseFloat(fb_ton)).toFixed(3)
+      : fa_ton || fb_ton || null;
+    const { error } = await supabase.from("registros_turco").insert({
+      fecha: f.fecha, hora: f.hora,
+      arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
+      tlh_m3: pfc(f.tlh_m3),     tlh_ton: pfc(autoTon(f.tlh_m3)),
+      esteril_m3: pfc(f.esteril_m3), esteril_ton: pfc(autoTon(f.esteril_m3)),
+      grancilla_m3: pfc(f.grancilla_m3), grancilla_ton: pfc(autoTon(f.grancilla_m3)),
+      fierrillo_a_m3: pfc(f.fierrillo_a_m3), fierrillo_a_ton: pfc(fa_ton),
+      fierrillo_b_m3: pfc(f.fierrillo_b_m3), fierrillo_b_ton: pfc(fb_ton),
+      fierrillo_total_ton: pfc(ftotal ?? ""),
+      notas: f.notas || null,
+    });
+    if (error) setMsg({ type:"err", text:"Error: "+error.message });
+    else { setMsg({ type:"ok", text:"Registro Turco guardado." }); setTForm(defaultTurcoForm()); }
+    setSaving(false);
+  }
+
+  async function savePeral() {
+    setSaving(true); setMsg(null);
+    const f = pForm;
+    const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon(f[k+"_m3"])) || 0);
+    const stock = tons.reduce((s,v) => s+v, 0).toFixed(3);
+    const { error } = await supabase.from("registros_peral").insert({
+      fecha: f.fecha, hora: f.hora,
+      arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
+      a22_m3: pfc(f.a22_m3), a22_ton: pfc(autoTon(f.a22_m3)),
+      a24_m3: pfc(f.a24_m3), a24_ton: pfc(autoTon(f.a24_m3)),
+      a25_m3: pfc(f.a25_m3), a25_ton: pfc(autoTon(f.a25_m3)),
+      a26_m3: pfc(f.a26_m3), a26_ton: pfc(autoTon(f.a26_m3)),
+      dmh_m3: pfc(f.dmh_m3), dmh_ton: pfc(autoTon(f.dmh_m3)),
+      grancilla_m3: pfc(f.grancilla_m3), grancilla_ton: pfc(autoTon(f.grancilla_m3)),
+      stock_arena_humeda_ton: pfc(stock),
+      notas: f.notas || null,
+    });
+    if (error) setMsg({ type:"err", text:"Error: "+error.message });
+    else { setMsg({ type:"ok", text:"Registro Peral guardado." }); setPForm(defaultPeralForm()); }
+    setSaving(false);
+  }
+
+  if (!isAdmin) return (
+    <div className="card text-center text-gray-400 py-8 text-sm">Solo administradores pueden registrar datos.</div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tabs Turco / Peral */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        {(["turco","peral"] as CTab[]).map(t => (
+          <button key={t} onClick={() => { setCtab(t); setMsg(null); }}
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+              ctab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
+        ))}
+      </div>
+
+      <div className="card space-y-4">
+        <div>
+          <h3 className="font-semibold text-gray-700">Nuevo registro {ctab === "turco" ? "Turco" : "Peral"}</h3>
+          <p className="text-xs text-gray-400">Solo m³ — toneladas calculadas automáticamente con densidad {DENSIDAD_CENTRO} t/m³</p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <label>
+            <span className="label">Fecha</span>
+            <input type="date" className="input"
+              value={ctab === "turco" ? tForm.fecha : pForm.fecha}
+              onChange={e => ctab === "turco" ? setT("fecha",e.target.value) : setP("fecha",e.target.value)} />
+          </label>
+          <label>
+            <span className="label">Hora</span>
+            <input type="time" className="input"
+              value={ctab === "turco" ? tForm.hora : pForm.hora}
+              onChange={e => ctab === "turco" ? setT("hora",e.target.value) : setP("hora",e.target.value)} />
+          </label>
+        </div>
+
+        {ctab === "turco" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <M3OnlyField label="Arena Mina"  keyM3="arena_mina_m3"  form={tForm} onChange={setT} />
+            <M3OnlyField label="TLH"         keyM3="tlh_m3"         form={tForm} onChange={setT} />
+            <M3OnlyField label="Estéril"     keyM3="esteril_m3"     form={tForm} onChange={setT} />
+            <M3OnlyField label="Grancilla"   keyM3="grancilla_m3"   form={tForm} onChange={setT} />
+            <M3OnlyField label="Fierrillo A" keyM3="fierrillo_a_m3" form={tForm} onChange={setT} />
+            <M3OnlyField label="Fierrillo B" keyM3="fierrillo_b_m3" form={tForm} onChange={setT} />
+            <label>
+              <span className="label">Notas</span>
+              <input type="text" className="input" value={tForm.notas} onChange={e => setT("notas",e.target.value)} />
+            </label>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <M3OnlyField label="Arena Mina" keyM3="arena_mina_m3" form={pForm} onChange={setP} />
+            <M3OnlyField label="A-22"       keyM3="a22_m3"        form={pForm} onChange={setP} />
+            <M3OnlyField label="A-24"       keyM3="a24_m3"        form={pForm} onChange={setP} />
+            <M3OnlyField label="A-25"       keyM3="a25_m3"        form={pForm} onChange={setP} />
+            <M3OnlyField label="A-26"       keyM3="a26_m3"        form={pForm} onChange={setP} />
+            <M3OnlyField label="DMH"        keyM3="dmh_m3"        form={pForm} onChange={setP} />
+            <M3OnlyField label="Grancilla"  keyM3="grancilla_m3"  form={pForm} onChange={setP} />
+            <label>
+              <span className="label">Notas</span>
+              <input type="text" className="input" value={pForm.notas} onChange={e => setP("notas",e.target.value)} />
+            </label>
+          </div>
+        )}
+
+        {msg && (
+          <p className={`text-sm px-3 py-2 rounded-lg ${msg.type==="ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{msg.text}</p>
+        )}
+        <button onClick={ctab==="turco" ? saveTurco : savePeral} disabled={saving} className="btn-primary">
+          {saving ? "Guardando…" : "Guardar registro"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 export default function ArenaPage() {
+  const [zona, setZona] = useState<"sur"|"centro">("sur");
   const [form, setForm] = useState<Record<string, string>>(loadDraft);
 
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
@@ -390,9 +562,28 @@ export default function ArenaPage() {
   return (
     <AdminGuard>
     <div className="space-y-6">
+      {/* Selector de Zona */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Nuevo Registro</h1>
+          <p className="text-sm text-gray-500">Selecciona la zona para registrar datos</p>
+        </div>
+        <div className="flex rounded-xl overflow-hidden border border-gray-200 text-sm font-medium">
+          <button onClick={() => setZona("sur")}
+            className={`px-5 py-2 transition-colors ${zona==="sur" ? "text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+            style={zona==="sur" ? {backgroundColor:"#6BCF7F"} : {}}>Zona Sur</button>
+          <button onClick={() => setZona("centro")}
+            className={`px-5 py-2 transition-colors border-l border-gray-200 ${zona==="centro" ? "text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+            style={zona==="centro" ? {backgroundColor:"#6BCF7F"} : {}}>Zona Centro</button>
+        </div>
+      </div>
+
+      {zona === "centro" && <CentroRegistroInlineForm />}
+
+      {zona === "sur" && (<>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold"> Ingreso Datos Arena</h1>
+          <h1 className="text-xl font-bold"> Ingreso Datos Arena</h1>
           <p className="text-sm text-gray-500">
             Registro anterior: {prevRow
               ? `${prevRow.fecha} ${prevRow.hora?.slice(0,5)} — Pesómetro: ${prevRow.pesometro?.toLocaleString("es-CL")}`
@@ -836,6 +1027,7 @@ export default function ArenaPage() {
           </tbody>
         </table>
       </section>
+    </>)}
     </div>
     </AdminGuard>
   );
