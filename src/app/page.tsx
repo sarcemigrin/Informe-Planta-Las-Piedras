@@ -631,85 +631,170 @@ export default function Dashboard() {
         <section className="space-y-6">
           {!centroLoaded ? (
             <div className="flex items-center justify-center h-32 text-gray-400">Cargando datos Zona Centro…</div>
-          ) : (
-            <>
-              {/* Sub-tabs */}
-              <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                {(["turco","peral"] as const).map(t => (
-                  <button key={t} onClick={() => setCentroTab(t)}
-                    className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                      centroTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-                    }`}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
-                ))}
-              </div>
+          ) : (() => {
+            /* ── helpers ── */
+            const today = new Date();
+            function diasDesde(fecha: string | null | undefined): number {
+              if (!fecha) return -1;
+              const d = new Date(fecha + "T12:00:00");
+              return Math.floor((today.getTime() - d.getTime()) / 86400000);
+            }
+            function iniMes(rows: { fecha?: string | null }[]): typeof rows[0] | undefined {
+              const ym = today.toISOString().slice(0,7);
+              return [...rows].reverse().find(r => r.fecha?.startsWith(ym));
+            }
+            function byMonth<T extends { fecha?: string | null }>(rows: T[], key: keyof T): { mes: string; val: number }[] {
+              const map: Record<string, number> = {};
+              for (const r of [...rows].reverse()) {
+                const ym = r.fecha?.slice(0,7) ?? "";
+                if (ym) map[ym] = (r[key] as number) ?? 0;
+              }
+              return Object.entries(map).map(([mes, val]) => ({ mes: mes.slice(5), val }));
+            }
 
-              {/* ── TURCO ── */}
-              {centroTab === "turco" && (() => {
-                const last = turcoRows[0];
-                const chartData = [...turcoRows].reverse().slice(-20).map(r => ({
-                  fecha: r.fecha?.slice(5),
-                  fierrillo: r.fierrillo_total_ton ?? 0,
-                  arena: r.arena_mina_ton ?? 0,
-                  tlh: r.tlh_ton ?? 0,
-                }));
-                return (
+            /* ── Turco calcs ── */
+            const tLast  = turcoRows[0];
+            const tIniMes = iniMes(turcoRows);
+            const tTLHVar = (tLast?.tlh_ton ?? 0) - (tIniMes?.tlh_ton ?? 0);
+            const tFierVar= (tLast?.fierrillo_total_ton ?? 0) - (tIniMes?.fierrillo_total_ton ?? 0);
+            const tDias  = diasDesde(tLast?.fecha);
+
+            const turcoMonthly = (() => {
+              const map: Record<string, { tlh:number; fierrillo:number; arena:number; grancilla:number }> = {};
+              for (const r of [...turcoRows].reverse()) {
+                const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
+                map[ym] = { tlh: r.tlh_ton ?? 0, fierrillo: r.fierrillo_total_ton ?? 0, arena: r.arena_mina_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
+              }
+              return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
+            })();
+
+            /* ── Peral calcs ── */
+            const pLast  = peralRows[0];
+            const pIniMes = iniMes(peralRows);
+            const pStockVar = (pLast?.stock_arena_humeda_ton ?? 0) - (pIniMes?.stock_arena_humeda_ton ?? 0);
+            const pDias  = diasDesde(pLast?.fecha);
+
+            const peralLines = (() => {
+              const map: Record<string, { stock:number; arena:number; a22:number; a24:number; a25:number; a26:number; dmh:number; grancilla:number }> = {};
+              for (const r of [...peralRows].reverse()) {
+                const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
+                map[ym] = { stock: r.stock_arena_humeda_ton ?? 0, arena: r.arena_mina_ton ?? 0, a22: r.a22_ton ?? 0, a24: r.a24_ton ?? 0, a25: r.a25_ton ?? 0, a26: r.a26_ton ?? 0, dmh: r.dmh_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
+              }
+              return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
+            })();
+
+            /* ── Comparativo mensual: Fierrillo Total vs Stock Húmeda ── */
+            const allMonths = Array.from(new Set([...turcoMonthly.map(r=>r.mes), ...peralLines.map(r=>r.mes)])).sort();
+            const compData = allMonths.map(mes => ({
+              mes,
+              fierrillo: turcoMonthly.find(r=>r.mes===mes)?.fierrillo ?? null,
+              stock: peralLines.find(r=>r.mes===mes)?.stock ?? null,
+            }));
+
+            function varBadge(v: number) {
+              const color = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-gray-400";
+              const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "–";
+              return <span className={`text-xs font-semibold ${color}`}>{arrow} {fmt(Math.abs(v))} ton</span>;
+            }
+
+            return (
+              <>
+                {/* ── Banner de vuelos ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="card flex flex-col gap-1 border-amber-200 bg-amber-50">
+                    <div className="stat-label text-amber-700">Último vuelo Turco</div>
+                    <div className="text-base font-bold text-amber-800">{tLast?.fecha ?? "—"}</div>
+                    <div className="text-xs text-amber-600">{tDias >= 0 ? `Hace ${tDias} día${tDias===1?"":"s"}` : "—"}</div>
+                  </div>
+                  <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50">
+                    <div className="stat-label text-blue-700">Último vuelo Peral</div>
+                    <div className="text-base font-bold text-blue-800">{pLast?.fecha ?? "—"}</div>
+                    <div className="text-xs text-blue-600">{pDias >= 0 ? `Hace ${pDias} día${pDias===1?"":"s"}` : "—"}</div>
+                  </div>
+                  <div className="card flex flex-col gap-1">
+                    <div className="stat-label">Vuelos Turco</div>
+                    <div className="text-2xl font-bold text-gray-900">{turcoRows.length}</div>
+                    <div className="text-xs text-gray-400">registros totales</div>
+                  </div>
+                  <div className="card flex flex-col gap-1">
+                    <div className="stat-label">Vuelos Peral</div>
+                    <div className="text-2xl font-bold text-gray-900">{peralRows.length}</div>
+                    <div className="text-xs text-gray-400">registros totales</div>
+                  </div>
+                </div>
+
+                {/* ── Sub-tabs ── */}
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                  {(["turco","peral","comparativo"] as const).map(t => (
+                    <button key={t} onClick={() => setCentroTab(t as "turco"|"peral")}
+                      className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                        centroTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+                      }`}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
+                  ))}
+                </div>
+
+                {/* ══ TURCO ══ */}
+                {centroTab === "turco" && (
                   <div className="space-y-4">
-                    {last && (
-                      <p className="text-xs text-gray-400">Último registro: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
-                    )}
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                      {/* TLH — destacado */}
+                      <div className="card col-span-2 sm:col-span-1 flex flex-col gap-1 border-amber-300 bg-amber-50 ring-1 ring-amber-200">
+                        <div className="stat-label text-amber-700">TLH ★</div>
+                        <div className="text-2xl font-bold text-amber-800">{tLast?.tlh_ton != null ? fmt(tLast.tlh_ton) : "—"}</div>
+                        <div className="text-xs text-amber-600">ton</div>
+                        <div className="mt-1">{varBadge(tTLHVar)}</div>
+                        <div className="text-xs text-gray-400">vs inicio de mes</div>
+                      </div>
                       {[
-                        { label:"Arena Mina", m3: last?.arena_mina_m3, ton: last?.arena_mina_ton },
-                        { label:"TLH",        m3: last?.tlh_m3,        ton: last?.tlh_ton },
-                        { label:"Estéril",    m3: last?.esteril_m3,    ton: last?.esteril_ton },
-                        { label:"Grancilla",  m3: last?.grancilla_m3,  ton: last?.grancilla_ton },
-                        { label:"Fierrillo A",m3: last?.fierrillo_a_m3,ton: last?.fierrillo_a_ton },
-                        { label:"Fierrillo B",m3: last?.fierrillo_b_m3,ton: last?.fierrillo_b_ton },
-                        { label:"Fierrillo Total", m3: null, ton: last?.fierrillo_total_ton, highlight: true },
-                      ].map(({ label, m3, ton, highlight }) => (
-                        <div key={label} className={`card flex flex-col gap-1 ${highlight ? "border-green-300 bg-green-50" : ""}`}>
+                        { label:"Arena Mina", ton: tLast?.arena_mina_ton },
+                        { label:"Estéril",    ton: tLast?.esteril_ton },
+                        { label:"Grancilla",  ton: tLast?.grancilla_ton },
+                        { label:"Fierrillo A",ton: tLast?.fierrillo_a_ton },
+                        { label:"Fierrillo B",ton: tLast?.fierrillo_b_ton },
+                        { label:"Fierrillo Total", ton: tLast?.fierrillo_total_ton, sub: varBadge(tFierVar) },
+                      ].map(({ label, ton, sub }) => (
+                        <div key={label} className="card flex flex-col gap-1">
                           <div className="stat-label">{label}</div>
-                          <div className={`text-xl font-bold ${highlight ? "text-green-700" : "text-gray-900"}`}>
-                            {ton != null ? fmt(ton) : "—"}
-                          </div>
+                          <div className="text-xl font-bold text-gray-900">{ton != null ? fmt(ton) : "—"}</div>
                           <div className="text-xs text-gray-400">ton</div>
-                          {m3 != null && <div className="text-xs text-gray-400">{fmt(m3)} m³</div>}
+                          {sub && <div className="mt-1">{sub}<div className="text-xs text-gray-400">vs inicio mes</div></div>}
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico */}
-                    {chartData.length > 1 && (
+                    {/* Gráfico mensual */}
+                    {turcoMonthly.length > 1 && (
                       <div className="card">
-                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Evolución Turco — últimos {chartData.length} registros</h3>
-                        <ResponsiveContainer width="100%" height={240}>
-                          <ComposedChart data={chartData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Turco — evolución mensual (último registro por mes)</h3>
+                        <ResponsiveContainer width="100%" height={260}>
+                          <ComposedChart data={turcoMonthly} margin={{ top:5, right:20, left:10, bottom:5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
+                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
                             <YAxis tick={{ fontSize:10 }} />
-                            <Tooltip formatter={(v:unknown) => fmt(v as number, 1)+" ton"} />
+                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                             <Legend />
-                            <Bar dataKey="fierrillo" name="Fierrillo Total" fill="#6BCF7F" radius={[3,3,0,0]} />
-                            <Bar dataKey="arena"     name="Arena Mina"     fill="#3b82f6" radius={[3,3,0,0]} />
-                            <Bar dataKey="tlh"       name="TLH"            fill="#f59e0b" radius={[3,3,0,0]} />
+                            <Line type="monotone" dataKey="tlh"       name="TLH"            stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} />
+                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total" stroke="#6BCF7F" strokeWidth={2} dot={{ r:3 }} />
+                            <Line type="monotone" dataKey="arena"     name="Arena Mina"      stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
+                            <Line type="monotone" dataKey="grancilla" name="Grancilla"       stroke="#a78bfa" strokeWidth={2} dot={{ r:3 }} strokeDasharray="4 2" />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* Tabla últimos registros */}
+                    {/* Tabla solo ton */}
                     <div className="card p-0 overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Turco ({turcoRows.length} total)</span>
+                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Turco</span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="table-th text-left">Fecha</th>
-                              <th className="table-th">Arena Mina m³</th>
-                              <th className="table-th">TLH m³</th>
-                              <th className="table-th">Estéril m³</th>
-                              <th className="table-th">Grancilla m³</th>
+                              <th className="table-th">TLH ton</th>
+                              <th className="table-th">Arena Mina ton</th>
+                              <th className="table-th">Estéril ton</th>
+                              <th className="table-th">Grancilla ton</th>
                               <th className="table-th">Fierr. A ton</th>
                               <th className="table-th">Fierr. B ton</th>
                               <th className="table-th">Fierr. Total ton</th>
@@ -719,10 +804,10 @@ export default function Dashboard() {
                             {turcoRows.slice(0,10).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
-                                <td className="table-td">{fmt(r.arena_mina_m3)}</td>
-                                <td className="table-td">{fmt(r.tlh_m3)}</td>
-                                <td className="table-td">{fmt(r.esteril_m3)}</td>
-                                <td className="table-td">{fmt(r.grancilla_m3)}</td>
+                                <td className="table-td font-semibold text-amber-700">{fmt(r.tlh_ton)}</td>
+                                <td className="table-td">{fmt(r.arena_mina_ton)}</td>
+                                <td className="table-td">{fmt(r.esteril_ton)}</td>
+                                <td className="table-td">{fmt(r.grancilla_ton)}</td>
                                 <td className="table-td">{fmt(r.fierrillo_a_ton)}</td>
                                 <td className="table-td">{fmt(r.fierrillo_b_ton)}</td>
                                 <td className="table-td font-semibold text-green-700">{fmt(r.fierrillo_total_ton)}</td>
@@ -733,95 +818,92 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                );
-              })()}
+                )}
 
-              {/* ── PERAL ── */}
-              {centroTab === "peral" && (() => {
-                const last = peralRows[0];
-                const chartData = [...peralRows].reverse().slice(-20).map(r => ({
-                  fecha: r.fecha?.slice(5),
-                  stock: r.stock_arena_humeda_ton ?? 0,
-                  arena: r.arena_mina_ton ?? 0,
-                  grancilla: r.grancilla_ton ?? 0,
-                }));
-                return (
+                {/* ══ PERAL ══ */}
+                {centroTab === "peral" && (
                   <div className="space-y-4">
-                    {last && (
-                      <p className="text-xs text-gray-400">Último registro: <strong className="text-gray-600">{last.fecha}</strong> {last.hora?.slice(0,5)}</p>
-                    )}
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                      {/* Stock Húmeda — destacado */}
+                      <div className="card col-span-2 sm:col-span-1 flex flex-col gap-1 border-green-300 bg-green-50 ring-1 ring-green-200">
+                        <div className="stat-label text-green-700">Stock Húmeda ★</div>
+                        <div className="text-2xl font-bold text-green-800">{pLast?.stock_arena_humeda_ton != null ? fmt(pLast.stock_arena_humeda_ton) : "—"}</div>
+                        <div className="text-xs text-green-600">ton</div>
+                        <div className="mt-1">{varBadge(pStockVar)}</div>
+                        <div className="text-xs text-gray-400">vs inicio de mes</div>
+                      </div>
                       {[
-                        { label:"Arena Mina", m3: last?.arena_mina_m3, ton: last?.arena_mina_ton },
-                        { label:"A-22",       m3: last?.a22_m3,        ton: last?.a22_ton },
-                        { label:"A-24",       m3: last?.a24_m3,        ton: last?.a24_ton },
-                        { label:"A-25",       m3: last?.a25_m3,        ton: last?.a25_ton },
-                        { label:"A-26",       m3: last?.a26_m3,        ton: last?.a26_ton },
-                        { label:"DMH",        m3: last?.dmh_m3,        ton: last?.dmh_ton },
-                        { label:"Grancilla",  m3: last?.grancilla_m3,  ton: last?.grancilla_ton },
-                        { label:"Stock Total",m3: null,                ton: last?.stock_arena_humeda_ton, highlight: true },
-                      ].map(({ label, m3, ton, highlight }) => (
-                        <div key={label} className={`card flex flex-col gap-1 ${highlight ? "border-green-300 bg-green-50" : ""}`}>
+                        { label:"Arena Mina", ton: pLast?.arena_mina_ton },
+                        { label:"A-22",       ton: pLast?.a22_ton },
+                        { label:"A-24",       ton: pLast?.a24_ton },
+                        { label:"A-25",       ton: pLast?.a25_ton },
+                        { label:"A-26",       ton: pLast?.a26_ton },
+                        { label:"DMH",        ton: pLast?.dmh_ton },
+                        { label:"Grancilla",  ton: pLast?.grancilla_ton },
+                      ].map(({ label, ton }) => (
+                        <div key={label} className="card flex flex-col gap-1">
                           <div className="stat-label">{label}</div>
-                          <div className={`text-xl font-bold ${highlight ? "text-green-700" : "text-gray-900"}`}>
-                            {ton != null ? fmt(ton) : "—"}
-                          </div>
+                          <div className="text-xl font-bold text-gray-900">{ton != null ? fmt(ton) : "—"}</div>
                           <div className="text-xs text-gray-400">ton</div>
-                          {m3 != null && <div className="text-xs text-gray-400">{fmt(m3)} m³</div>}
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico */}
-                    {chartData.length > 1 && (
+                    {/* Gráfico — todas las líneas separadas */}
+                    {peralLines.length > 1 && (
                       <div className="card">
-                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Evolución Peral — últimos {chartData.length} registros</h3>
-                        <ResponsiveContainer width="100%" height={240}>
-                          <ComposedChart data={chartData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Peral — evolución mensual por producto</h3>
+                        <ResponsiveContainer width="100%" height={280}>
+                          <ComposedChart data={peralLines} margin={{ top:5, right:20, left:10, bottom:5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
+                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
                             <YAxis tick={{ fontSize:10 }} />
-                            <Tooltip formatter={(v:unknown) => fmt(v as number, 1)+" ton"} />
+                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                             <Legend />
-                            <Bar dataKey="stock"    name="Stock Total"  fill="#6BCF7F" radius={[3,3,0,0]} />
-                            <Bar dataKey="arena"    name="Arena Mina"   fill="#3b82f6" radius={[3,3,0,0]} />
-                            <Bar dataKey="grancilla"name="Grancilla"    fill="#a78bfa" radius={[3,3,0,0]} />
+                            <Line type="monotone" dataKey="stock"    name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
+                            <Line type="monotone" dataKey="arena"    name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
+                            <Line type="monotone" dataKey="a22"      name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a24"      name="A-24"         stroke="#ef4444" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a25"      name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a26"      name="A-26"         stroke="#06b6d4" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="dmh"      name="DMH"          stroke="#ec4899" strokeWidth={1.5} dot={{ r:2 }} />
+                            <Line type="monotone" dataKey="grancilla"name="Grancilla"    stroke="#84cc16" strokeWidth={1.5} dot={{ r:2 }} />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* Tabla */}
+                    {/* Tabla solo ton */}
                     <div className="card p-0 overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Peral ({peralRows.length} total)</span>
+                        <span className="font-semibold text-gray-700 text-sm">Últimos registros Peral</span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="table-th text-left">Fecha</th>
-                              <th className="table-th">Arena Mina m³</th>
-                              <th className="table-th">A-22 ton</th>
-                              <th className="table-th">A-24 ton</th>
-                              <th className="table-th">A-25 ton</th>
-                              <th className="table-th">A-26 ton</th>
-                              <th className="table-th">DMH ton</th>
-                              <th className="table-th">Grancilla ton</th>
-                              <th className="table-th">Stock Total</th>
+                              <th className="table-th">Stock Húmeda</th>
+                              <th className="table-th">Arena Mina</th>
+                              <th className="table-th">A-22</th>
+                              <th className="table-th">A-24</th>
+                              <th className="table-th">A-25</th>
+                              <th className="table-th">A-26</th>
+                              <th className="table-th">DMH</th>
+                              <th className="table-th">Grancilla</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
                             {peralRows.slice(0,10).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
-                                <td className="table-td">{fmt(r.arena_mina_m3)}</td>
+                                <td className="table-td font-semibold text-green-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                                <td className="table-td">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.a22_ton)}</td>
                                 <td className="table-td">{fmt(r.a24_ton)}</td>
                                 <td className="table-td">{fmt(r.a25_ton)}</td>
                                 <td className="table-td">{fmt(r.a26_ton)}</td>
                                 <td className="table-td">{fmt(r.dmh_ton)}</td>
                                 <td className="table-td">{fmt(r.grancilla_ton)}</td>
-                                <td className="table-td font-semibold text-green-700">{fmt(r.stock_arena_humeda_ton)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -829,13 +911,56 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                );
-              })()}
-            </>
-          )}
+                )}
+
+                {/* ══ COMPARATIVO ══ */}
+                {centroTab === ("comparativo" as "turco"|"peral") && (
+                  <div className="space-y-4">
+                    <p className="text-xs text-gray-400">Fierrillo Total (Turco) vs Stock Arena Húmeda (Peral) — evolución mensual</p>
+                    {compData.length > 1 && (
+                      <div className="card">
+                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Stock total por planta — por mes</h3>
+                        <ResponsiveContainer width="100%" height={280}>
+                          <ComposedChart data={compData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                            <YAxis tick={{ fontSize:10 }} />
+                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
+                            <Legend />
+                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total (Turco)" stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} connectNulls />
+                            <Line type="monotone" dataKey="stock"     name="Stock Húmeda (Peral)"    stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} connectNulls />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* Mini resumen lado a lado */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="card border-amber-200">
+                        <div className="font-semibold text-amber-700 text-sm mb-3">Turco — último registro</div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500">TLH</span><span className="font-bold">{fmt(tLast?.tlh_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Fierrillo Total</span><span className="font-bold">{fmt(tLast?.fierrillo_total_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Variación mes TLH</span>{varBadge(tTLHVar)}</div>
+                          <div className="flex justify-between"><span className="text-gray-500">Último vuelo</span><span className="text-gray-700">{tDias >= 0 ? `Hace ${tDias}d` : "—"}</span></div>
+                        </div>
+                      </div>
+                      <div className="card border-green-200">
+                        <div className="font-semibold text-green-700 text-sm mb-3">Peral — último registro</div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold">{fmt(pLast?.arena_mina_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Variación mes Stock</span>{varBadge(pStockVar)}</div>
+                          <div className="flex justify-between"><span className="text-gray-500">Último vuelo</span><span className="text-gray-700">{pDias >= 0 ? `Hace ${pDias}d` : "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </section>
       )}
-
     </div>
   );
 }
