@@ -1302,7 +1302,7 @@ function ReenviarPanel({ historial }: { historial: RegistroArena[] }) {
             disabled={!selectedId || sending}
             className="btn-primary px-5 py-2 text-sm disabled:opacity-40"
           >
-            {sending ? "Enviando..." : "Reenviar PDF"}
+            {sending ? "Enviando..." : "Reenviar"}
           </button>
         </div>
       </div>
