@@ -18,7 +18,7 @@ interface Step {
 const ALL_STEPS: Step[] = [
   {
     title: "Bienvenido a Fotogrametria Migrin",
-    badge: "Migrin · Planta Las Piedras",
+    badge: "Migrin - Faena Las Piedras, Turco y Peral",
     description: "La plataforma digital de gestión de producción. Registra cubicaciones del drone, controla despachos y genera informes automáticos.",
     details: [
       "Todos los datos se guardan en tiempo real",
@@ -121,6 +121,7 @@ const ALL_STEPS: Step[] = [
       "Preguntas sugeridas para empezar",
     ],
     color: "#6BCF7F",
+    adminOnly: true,
     icon: "bot",
   },
 ];
