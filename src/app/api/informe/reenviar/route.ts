@@ -10,7 +10,7 @@ import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
 import { requireJson }      from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
-import { generarInformePDF, type InformeData, type RegistroResumen, type SemanaStat } from "@/lib/informe-pdf";
+import { type InformeData, type RegistroResumen, type SemanaStat } from "@/lib/informe-pdf";
 import { generarImagenEmail } from "@/lib/email-image";
 
 export const dynamic = "force-dynamic";
@@ -126,25 +126,7 @@ export async function POST(req: Request) {
       semanalStats,
     };
 
-    // 5. Generar PDF
-    const pdfBytes = await generarInformePDF(data);
-    const fechaStr = reg.fecha.replace(/-/g, "");
-    const horaStr  = (reg.hora ?? "").replace(":", "").slice(0, 4);
-    const fileName = `informe-cubicacion-${fechaStr}-${horaStr}.pdf`;
-    const pdfBase64 = Buffer.from(pdfBytes).toString("base64");
-
-    // 6. Subir a OneDrive
-    const folder = (await getConfig("report_onedrive_path", "Informes Cubicacion")).trim();
-    const uploadUrl = "https://graph.microsoft.com/v1.0/me/drive/root:/" + encodeURIComponent(folder + "/" + fileName) + ":/content";
-    let driveUrl: string | null = null;
-    const upRes = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/pdf" },
-      body: Buffer.from(pdfBytes),
-    });
-    if (upRes.ok) { const j = await upRes.json() as { webUrl?: string }; driveUrl = j.webUrl ?? null; }
-
-    // 7. Leer destinatarios activos desde report_recipients
+    // 5. Leer destinatarios activos desde report_recipients
     const recipientsRaw = await getConfig("report_recipients", "");
     let activeRecipients: { email: string; nombre: string; activo: boolean }[] = [];
     if (recipientsRaw) {
@@ -181,16 +163,17 @@ export async function POST(req: Request) {
     });
     const cardBase64 = cardBuffer.toString("base64");
 
-    // 9. Construir email con imagen CID inline
-    const driveLink = driveUrl
-      ? `<p style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
-      : "";
-
+    // 9. Construir email con imagen CID inline + botón a la app
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://fotogrametria.migrin.cl";
     const htmlContent =
-      `<div style="background:#f8fafc;padding:24px 0;text-align:center">` +
+      `<div style="background:#f8fafc;padding:24px 0;text-align:center;font-family:Arial,sans-serif">` +
       `<img src="cid:informe-card@migrin" alt="Informe Cubicacion Arena" ` +
       `style="display:block;margin:0 auto;max-width:560px;width:100%;border:0" />` +
-      driveLink +
+      `<div style="margin-top:20px">` +
+      `<a href="${appUrl}" style="display:inline-block;background:#6BCF7F;color:#ffffff;text-decoration:none;` +
+      `padding:12px 32px;border-radius:8px;font-weight:700;font-size:14px;font-family:Arial,sans-serif">` +
+      `Ver en la App →</a></div>` +
+      `<p style="margin-top:12px;font-size:11px;color:#9ca3af">Migrin · Faena Las Piedras, Turco y Peral · Reenvío</p>` +
       `</div>`;
 
     const mailBody = {
@@ -199,10 +182,6 @@ export async function POST(req: Request) {
         body: { contentType: "HTML", content: htmlContent },
         toRecipients: recipients,
         attachments: [
-          {
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: fileName, contentType: "application/pdf", contentBytes: pdfBase64,
-          },
           {
             "@odata.type":  "#microsoft.graph.fileAttachment",
             name:           "informe-card.png",
@@ -222,7 +201,7 @@ export async function POST(req: Request) {
       body: JSON.stringify(mailBody),
     });
 
-    return NextResponse.json({ ok: true, driveUrl, emailOk: mailRes.ok });
+    return NextResponse.json({ ok: true, emailOk: mailRes.ok });
 
   } catch (e: unknown) {
     console.error("[reenviar] error:", e);

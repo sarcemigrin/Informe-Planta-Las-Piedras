@@ -123,15 +123,21 @@ async function sendEmailWithPDF(
   });
   const cardBase64 = cardBuffer.toString("base64");
 
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "https://fotogrametria.migrin.cl";
   const driveLink = driveUrl
-    ? `<p style="text-align:center;margin-top:12px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
+    ? `<p style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
     : "";
 
   const bodyHtml =
-    `<div style="background:#f8fafc;padding:24px 0;text-align:center">` +
+    `<div style="background:#f8fafc;padding:24px 0;text-align:center;font-family:Arial,sans-serif">` +
     `<img src="cid:informe-card@migrin" alt="Informe Cubicacion Arena" ` +
     `style="display:block;margin:0 auto;max-width:560px;width:100%;border:0" />` +
     driveLink +
+    `<div style="margin-top:20px">` +
+    `<a href="${appUrl}" style="display:inline-block;background:#6BCF7F;color:#ffffff;text-decoration:none;` +
+    `padding:12px 32px;border-radius:8px;font-weight:700;font-size:14px;font-family:Arial,sans-serif">` +
+    `Ver en la App →</a></div>` +
+    `<p style="margin-top:12px;font-size:11px;color:#9ca3af">Migrin · Faena Las Piedras, Turco y Peral</p>` +
     `</div>`;
 
   const body = {
