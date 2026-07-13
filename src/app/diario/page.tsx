@@ -115,16 +115,15 @@ export default function DiarioPage() {
 
   async function loadAnotaciones() {
     try {
-      const { data } = await supabase
-        .from("anotaciones_diario")
-        .select("fecha, motivo");
-      if (data) {
-        const map = new Map<string, string>();
-        data.forEach((a: Anotacion) => map.set(a.fecha, a.motivo));
-        setAnotaciones(map);
-      }
+      const anio = new Date().getFullYear();
+      const res  = await fetch(`/api/anotaciones?anio=${anio}`);
+      if (!res.ok) return;
+      const data: Anotacion[] = await res.json();
+      const map = new Map<string, string>();
+      data.forEach((a) => map.set(a.fecha, a.motivo));
+      setAnotaciones(map);
     } catch {
-      // Tabla puede no existir aún — se ignora silenciosamente
+      // silencioso
     }
   }
 
@@ -132,12 +131,14 @@ export default function DiarioPage() {
     if (!modalFecha || !modalMotivo.trim()) return;
     setModalGuardando(true);
     try {
-      const { error } = await supabase.from("anotaciones_diario").upsert(
-        { fecha: modalFecha, motivo: modalMotivo.trim() },
-        { onConflict: "fecha" }
-      );
-      if (error) {
-        alert("Error al guardar la anotación: " + error.message + "\n\nAsegúrate de ejecutar fix_anotaciones_rls.sql en Supabase.");
+      const res = await fetch("/api/anotaciones", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ fecha: modalFecha, motivo: modalMotivo.trim() }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        alert("Error al guardar: " + error);
         return;
       }
       setAnotaciones((prev) => new Map(prev).set(modalFecha, modalMotivo.trim()));
