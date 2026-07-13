@@ -150,7 +150,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, warn: `Sin destinatarios para ${planta}. Configura "${planta}_recipients" en Supabase.` });
     }
 
-    const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? "https://fotogrametria.migrin.cl";
+    const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "https://informe-planta-las-piedras.vercel.app";
     const htmlBody = planta === "turco"
       ? buildTurcoHtml(fecha, hora, kpis, appUrl)
       : buildPeralHtml(fecha, hora, kpis, appUrl);

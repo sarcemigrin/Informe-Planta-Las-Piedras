@@ -164,7 +164,7 @@ export async function POST(req: Request) {
     const cardBase64 = cardBuffer.toString("base64");
 
     // 9. Construir email con imagen CID inline + botón a la app
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://fotogrametria.migrin.cl";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "https://informe-planta-las-piedras.vercel.app";
     const htmlContent =
       `<div style="background:#f8fafc;padding:24px 0;text-align:center;font-family:Arial,sans-serif">` +
       `<img src="cid:informe-card@migrin" alt="Informe Cubicacion Arena" ` +

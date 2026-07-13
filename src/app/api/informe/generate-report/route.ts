@@ -123,7 +123,7 @@ async function sendEmailWithPDF(
   });
   const cardBase64 = cardBuffer.toString("base64");
 
-  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "https://fotogrametria.migrin.cl";
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "https://informe-planta-las-piedras.vercel.app";
   const driveLink = driveUrl
     ? `<p style="text-align:center;margin-top:8px;font-size:12px;color:#6b7280;font-family:Arial,sans-serif">PDF archivado en OneDrive: <a href="${driveUrl}" style="color:#6BCF7F">${fileName}</a></p>`
     : "";
