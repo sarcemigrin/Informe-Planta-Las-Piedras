@@ -142,7 +142,7 @@ export async function POST(req: Request) {
       .map(r => ({ emailAddress: { address: r.email } }));
 
     if (recipients.length === 0) {
-      return NextResponse.json({ ok: true, driveUrl, emailOk: false, error: "Sin destinatarios activos" });
+      return NextResponse.json({ ok: true, emailOk: false, error: "Sin destinatarios activos" });
     }
 
     // 8. Generar imagen PNG del informe para el cuerpo del correo
