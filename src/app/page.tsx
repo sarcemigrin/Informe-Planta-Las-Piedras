@@ -110,13 +110,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (planta !== "centro" || centroLoaded) return;
     async function loadCentro() {
-      const [{ data: turco }, { data: peral }] = await Promise.all([
-        supabase.from("registros_turco").select("*").order("fecha_hora", { ascending: false }).limit(40),
-        supabase.from("registros_peral").select("*").order("fecha_hora", { ascending: false }).limit(40),
-      ]);
-      setTurcoRows((turco ?? []) as RegistroTurco[]);
-      setPeralRows((peral ?? []) as RegistroPeral[]);
-      setCentroLoaded(true);
+      try {
+        const res  = await fetch("/api/centro-data?limit=200");
+        const json = await res.json() as { turco: RegistroTurco[]; peral: RegistroPeral[] };
+        setTurcoRows(json.turco ?? []);
+        setPeralRows(json.peral ?? []);
+      } catch (e) {
+        console.error("[centro-data]", e);
+      } finally {
+        setCentroLoaded(true);
+      }
     }
     loadCentro();
   }, [planta, centroLoaded]);
