@@ -276,13 +276,13 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setPlanta(null)}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+            onClick={() => setPlanta(p => p === "sur" ? "centro" : "sur")}
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
-            Cambiar zona
+            Ir a {planta === "sur" ? "Zona Centro" : "Zona Sur"}
           </button>
           <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
         </div>
