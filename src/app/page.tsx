@@ -292,7 +292,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setPlanta(p => p === "sur" ? (isAdmin ? "centro" : "sur") : "sur")}
+            onClick={() => setPlanta(p => p === "sur" ? "centro" : "sur")}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -648,7 +648,7 @@ export default function Dashboard() {
       )}
 
             {/* ── Zona Centro Dashboard ── */}
-      {planta === "centro" && isAdmin && (
+      {planta === "centro" && !!session?.user && (
         <section className="space-y-6">
           {!centroLoaded ? (
             <div className="flex items-center justify-center h-32 text-gray-400">Cargando datos Zona Centro…</div>
