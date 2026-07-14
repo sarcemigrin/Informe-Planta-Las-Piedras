@@ -3,10 +3,11 @@ import type { JWT } from "next-auth/jwt";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { createClient } from "@supabase/supabase-js";
 
+// Usa service role key para leer usuarios sin depender de RLS
 function getSupabaseServer() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
 
@@ -53,17 +54,14 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    // SEC-3: Restringir login a dominio autorizado
     async signIn({ account, profile }) {
       if (account?.provider !== "azure-ad") return false;
-
       const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN ?? "migrin.cl";
       const p = profile as Record<string, unknown> | undefined;
       const email =
         (p?.["email"] as string | undefined) ??
         (p?.["preferred_username"] as string | undefined) ??
         (p?.["upn"] as string | undefined);
-
       if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
         console.warn("[auth] signIn rechazado - dominio no autorizado");
         return false;
@@ -73,20 +71,17 @@ export const authOptions: NextAuthOptions = {
 
     async jwt({ token, account, profile }) {
       if (account) {
-        // SEC-2: tokens en JWT encriptado, nunca al cliente
         token.accessToken          = account.access_token;
         token.refreshToken         = account.refresh_token;
         token.accessTokenExpiresAt = account.expires_at
           ? account.expires_at * 1000
           : Date.now() + 3500 * 1000;
-
         const p = profile as Record<string, unknown> | undefined;
         const email =
           (p?.["email"] as string | undefined) ??
           (p?.["preferred_username"] as string | undefined) ??
           (p?.["upn"] as string | undefined) ??
           (token.email as string | undefined);
-
         if (email) {
           token.email = email;
           try {
@@ -103,11 +98,9 @@ export const authOptions: NextAuthOptions = {
         }
         return token;
       }
-
       if (Date.now() < (token.accessTokenExpiresAt as number)) {
         return token;
       }
-
       return refreshAccessToken(token as Record<string, unknown>);
     },
 
@@ -116,7 +109,6 @@ export const authOptions: NextAuthOptions = {
         session.user.email = token.email as string;
         session.user.name  = token.name  as string;
         session.user.rol   = token.rol   ?? "sin_acceso";
-        // SEC-2: accessToken NO al cliente - usar getToken({ req }) en API routes
       }
       return session;
     },
