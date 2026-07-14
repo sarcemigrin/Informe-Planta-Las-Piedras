@@ -1,12 +1,10 @@
 /**
  * GET /api/centro-data
- * Devuelve los últimos registros de registros_turco y registros_peral.
+ * Devuelve registros de registros_turco y registros_peral.
  * Usa service role key para saltar RLS.
  */
-import { NextResponse }     from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions }      from "@/lib/authOptions";
-import { createClient }     from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +16,6 @@ function getAdmin() {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-  }
-
   const { searchParams } = new URL(req.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "200"), 500);
 
@@ -35,12 +28,9 @@ export async function GET(req: Request) {
   if (eTurco) console.error("[centro-data] turco:", eTurco.message);
   if (ePeral) console.error("[centro-data] peral:", ePeral.message);
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[centro-data] turco:", turco?.length ?? 0, "peral:", peral?.length ?? 0);
-  }
   return NextResponse.json({
     turco: turco ?? [],
     peral: peral ?? [],
-    _debug: { turcoError: eTurco?.message, peralError: ePeral?.message },
+    _debug: { turcoCount: turco?.length ?? 0, peralCount: peral?.length ?? 0, turcoError: eTurco?.message, peralError: ePeral?.message },
   });
 }
