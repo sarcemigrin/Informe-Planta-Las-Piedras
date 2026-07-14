@@ -1,7 +1,7 @@
 /**
  * POST /api/informe/send-visual
  * Recibe el PDF ya generado (base64) desde el cliente,
- * lo sube a OneDrive y lo envía por correo.
+ * lo sube a OneDrive y lo envia por correo.
  */
 
 import { NextResponse }     from "next/server";
@@ -44,10 +44,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
     }
     if (!accessToken) {
-      return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesión." }, { status: 401 });
+      return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesion." }, { status: 401 });
     }
 
-    const { pdfBase64, fecha } = await req.json() as { pdfBase64: string; fecha: string };
+    const { pdfBase64, fecha, kpiSummary } = await req.json() as {
+      pdfBase64: string;
+      fecha: string;
+      kpiSummary?: {
+        kpiDrone?: number;
+        prodDrone?: number;
+        detencion?: number;
+        inventario?: number;
+        horas?: number;
+        kpiPesometro?: number;
+      };
+    };
+
     const pdfBytes = Buffer.from(pdfBase64, "base64");
     const fileName = "Informe-Arena-" + (fecha ?? new Date().toISOString().slice(0,10)) + ".pdf";
 
@@ -71,13 +83,12 @@ export async function POST(req: Request) {
       console.error("[send-visual] OneDrive fail:", upRes.status, await upRes.text());
     }
 
-    // 2. Enviar email — leer destinatarios activos desde report_recipients (JSON)
+    // 2. Enviar email
     const recipientsRaw = await getConfig("report_recipients", "");
     let activeRecipients: { email: string; nombre: string; activo: boolean }[] = [];
     if (recipientsRaw) {
       try { activeRecipients = JSON.parse(recipientsRaw); } catch { /* ignore */ }
     }
-    // Fallback legacy: report_email_to (CSV)
     if (activeRecipients.length === 0) {
       const toRaw = await getConfig("report_email_to", "");
       activeRecipients = toRaw.split(",").map(e => e.trim()).filter(Boolean)
@@ -93,17 +104,51 @@ export async function POST(req: Request) {
     }
 
     const fechaFmt = fecha ? fecha.split("-").reverse().join("/") : "";
+
+    const fmtKpi = (v: number | undefined, dec = 1): string =>
+      v !== undefined && isFinite(v)
+        ? v.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+        : "-";
+
+    const kpiOk    = (kpiSummary?.kpiDrone ?? 0) >= 32;
+    const kpiColor = kpiOk ? "#22c55e" : "#ef4444";
+    const detColor = (kpiSummary?.detencion ?? 0) > 0 ? "#ef4444" : "#374151";
+
+    function kpiCell(bg: string, bdr: string, lbl: string, val: string, unit: string, vc: string): string {
+      return '<td style="background:' + bg + ';border:1px solid ' + bdr + ';border-radius:6px;'
+        + 'padding:12px 10px;text-align:center;width:25%">'
+        + '<div style="font-size:10px;color:#6b7280;margin-bottom:4px">' + lbl + '</div>'
+        + '<div style="font-size:18px;font-weight:700;color:' + vc + '">' + val + '</div>'
+        + '<div style="font-size:10px;color:#6b7280">' + unit + '</div></td>';
+    }
+
+    let kpiCards = "";
+    if (kpiSummary) {
+      kpiCards =
+        '<table cellpadding="0" cellspacing="0" style="width:100%;margin:14px 0"><tr>'
+        + '<td style="background:#374151;border-radius:6px;padding:12px 10px;text-align:center;width:25%">'
+        + '<div style="font-size:10px;color:#9ca3af;margin-bottom:4px">KPI DRONE</div>'
+        + '<div style="font-size:22px;font-weight:700;color:' + kpiColor + '">' + fmtKpi(kpiSummary.kpiDrone) + '</div>'
+        + '<div style="font-size:10px;color:#6b7280">t/h</div></td>'
+        + kpiCell("#f0f9ff","#bfdbfe","PROD. DRONE", fmtKpi(kpiSummary.prodDrone,0),"ton","#374151")
+        + kpiCell("#f0fdf4","#bbf7d0","HRS PRODUCCION", fmtKpi(kpiSummary.horas),"hrs","#374151")
+        + kpiCell("#fef3c7","#fde68a","DETENCION", fmtKpi(kpiSummary.detencion),"hrs",detColor)
+        + "</tr></table>";
+    }
+
     const htmlContent = [
-      '<div style="font-family:Arial,sans-serif;color:#374151;max-width:520px">',
-      '<div style="background:#374151;padding:18px 22px;border-left:5px solid #6BCF7F">',
-      '<h2 style="color:#fff;margin:0;font-size:17px">Informe de Produccion Arena</h2>',
-      '<p style="color:#94a3b8;margin:4px 0 0;font-size:12px">Planta Las Piedras &middot; ' + fechaFmt + '</p>',
-      '</div>',
-      '<div style="padding:18px 22px;background:#f6f8fb;font-size:13px;color:#374151">',
-      '<p>Adjunto encontrara el informe visual de produccion de arena exportado desde el sistema.</p>',
-      driveUrl ? '<p>Tambien fue archivado en OneDrive: <a href="' + driveUrl + '" style="color:#6BCF7F">' + fileName + '</a></p>' : '',
-      '<p style="margin-top:12px;font-size:11px;color:#9ca3af">Exportado por: ' + (session.user?.email ?? "sistema") + '</p>',
-      '</div></div>',
+      '<div style="font-family:Arial,sans-serif;color:#374151;max-width:580px;margin:0 auto">',
+      '<div style="background:#374151;padding:20px 24px;border-left:6px solid #6BCF7F">',
+      '<h2 style="color:#fff;margin:0;font-size:18px">Informe de Produccion Arena</h2>',
+      '<p style="color:#94a3b8;margin:5px 0 0;font-size:12px">Planta Las Piedras - ' + fechaFmt + '</p>',
+      "</div>",
+      '<div style="padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none">',
+      kpiCards,
+      '<p style="font-size:13px;margin:0">Adjunto encontrara el informe de produccion.</p>',
+      driveUrl ? '<p style="margin:10px 0 0;font-size:13px">OneDrive: <a href="' + driveUrl + '" style="color:#16a34a">' + fileName + '</a></p>' : "",
+      '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">',
+      '<p style="margin:0;font-size:11px;color:#9ca3af">Generado por: ' + (session.user?.email ?? "sistema") + '</p>',
+      "</div></div>",
     ].join("");
 
     const body = {
