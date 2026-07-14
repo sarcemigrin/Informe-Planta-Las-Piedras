@@ -113,12 +113,14 @@ export default function Dashboard() {
     if (planta !== "centro" || centroLoaded) return;
     async function loadCentro() {
       try {
-        const [{ data: turco }, { data: peral }] = await Promise.all([
+        const [rT, rP] = await Promise.all([
           supabase.from("registros_turco").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(200),
           supabase.from("registros_peral").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(200),
         ]);
-        setTurcoRows((turco ?? []) as RegistroTurco[]);
-        setPeralRows((peral ?? []) as RegistroPeral[]);
+        if (rT.error) console.error("[turco RLS]", rT.error);
+        if (rP.error) console.error("[peral RLS]", rP.error);
+        setTurcoRows((rT.data ?? []) as RegistroTurco[]);
+        setPeralRows((rP.data ?? []) as RegistroPeral[]);
       } catch (e) {
         console.error("[centro-data]", e);
       } finally {
