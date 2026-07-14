@@ -87,9 +87,16 @@ export default function Dashboard() {
   const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
   const [centroLoaded,   setCentroLoaded]   = useState(false);
   const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
+  const [realRol,        setRealRol]        = useState<string | null>(null);
   const { data: session } = useSession();
   const { viewerMode } = useViewerMode();
-  const isAdmin = session?.user?.rol === "admin" && !viewerMode;
+  const isAdmin = (realRol ?? session?.user?.rol) === "admin" && !viewerMode;
+
+  // Obtiene rol real desde DB (bypasa JWT cacheado)
+  useEffect(() => {
+    if (!session?.user?.email) return;
+    fetch("/api/me").then(r => r.json()).then(d => setRealRol(d.rol ?? "sin_acceso")).catch(() => {});
+  }, [session?.user?.email]);
 
   useEffect(() => {
     async function load() {
