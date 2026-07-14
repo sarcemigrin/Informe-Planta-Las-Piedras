@@ -87,6 +87,7 @@ export default function Dashboard() {
   const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
   const [centroLoaded,   setCentroLoaded]   = useState(false);
   const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
+  const [centroVerTodo,  setCentroVerTodo]  = useState(false);
   const [realRol,        setRealRol]        = useState<string | null>(null);
   const { data: session } = useSession();
   const { viewerMode } = useViewerMode();
@@ -716,6 +717,15 @@ export default function Dashboard() {
               return <span className={`text-xs font-semibold ${color}`}>{arrow} {fmt(Math.abs(v))} ton</span>;
             }
 
+            // Filtro 3 meses por defecto
+            const last3Months = (() => {
+              const all = [...new Set([...turcoMonthly.map(r=>r.mes), ...peralLines.map(r=>r.mes)])].sort();
+              return centroVerTodo ? all : all.slice(-3);
+            })();
+            const turcoChart  = turcoMonthly.filter(r => last3Months.includes(r.mes));
+            const peralChart  = peralLines.filter(r => last3Months.includes(r.mes));
+            const compChart   = compData.filter(r => last3Months.includes(r.mes));
+
             return (
               <>
                 {/* ── Banner de vuelos ── */}
@@ -755,52 +765,68 @@ export default function Dashboard() {
                 {/* ══ TURCO ══ */}
                 {centroTab === "turco" && (
                   <div className="space-y-4">
+                    {/* Header con botón nuevo registro */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-700">Planta El Turco</h3>
+                      <a href="/arena?planta=turco" className="btn-primary text-xs px-3 py-1.5">+ Registro Turco</a>
+                    </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                      {/* TLH — destacado */}
-                      <div className="card col-span-2 sm:col-span-1 flex flex-col gap-1 border-amber-300 bg-amber-50 ring-1 ring-amber-200">
+                      {/* TLH — destacado principal */}
+                      <div className="card flex flex-col gap-1 border-amber-300 bg-amber-50 ring-1 ring-amber-200">
                         <div className="stat-label text-amber-700">TLH ★</div>
                         <div className="text-2xl font-bold text-amber-800">{tLast?.tlh_ton != null ? fmt(tLast.tlh_ton) : "—"}</div>
                         <div className="text-xs text-amber-600">ton</div>
                         <div className="mt-1">{varBadge(tTLHVar)}</div>
-                        <div className="text-xs text-gray-400">vs inicio de mes</div>
+                        <div className="text-xs text-gray-400">vs inicio mes</div>
+                      </div>
+                      {/* Arena Mina — destacado secundario */}
+                      <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50 ring-1 ring-blue-100">
+                        <div className="stat-label text-blue-700">Arena Mina ★</div>
+                        <div className="text-2xl font-bold text-blue-800">{tLast?.arena_mina_ton != null ? fmt(tLast.arena_mina_ton) : "—"}</div>
+                        <div className="text-xs text-blue-600">ton</div>
                       </div>
                       {[
-                        { label:"Arena Mina", ton: tLast?.arena_mina_ton },
-                        { label:"Estéril",    ton: tLast?.esteril_ton },
-                        { label:"Grancilla",  ton: tLast?.grancilla_ton },
-                        { label:"Fierrillo A",ton: tLast?.fierrillo_a_ton },
-                        { label:"Fierrillo B",ton: tLast?.fierrillo_b_ton },
-                        { label:"Fierrillo Total", ton: tLast?.fierrillo_total_ton, sub: varBadge(tFierVar) },
+                        { label:"Estéril",       ton: tLast?.esteril_ton },
+                        { label:"Grancilla",     ton: tLast?.grancilla_ton },
+                        { label:"Fierrillo A",   ton: tLast?.fierrillo_a_ton },
+                        { label:"Fierrillo B",   ton: tLast?.fierrillo_b_ton },
+                        { label:"Fierr. Total",  ton: tLast?.fierrillo_total_ton, sub: varBadge(tFierVar) },
                       ].map(({ label, ton, sub }) => (
                         <div key={label} className="card flex flex-col gap-1">
                           <div className="stat-label">{label}</div>
                           <div className="text-xl font-bold text-gray-900">{ton != null ? fmt(ton) : "—"}</div>
                           <div className="text-xs text-gray-400">ton</div>
-                          {sub && <div className="mt-1">{sub}<div className="text-xs text-gray-400">vs inicio mes</div></div>}
+                          {sub && <><div className="mt-1">{sub}</div><div className="text-xs text-gray-400">vs inicio mes</div></>}
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico mensual */}
-                    {turcoMonthly.length > 1 && (
+                    {/* Gráfico — últimos 3 meses por defecto */}
+                    {turcoChart.length > 0 && (
                       <div className="card">
-                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Turco — evolución mensual (último registro por mes)</h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-700 text-sm">Turco — evolución mensual</h3>
+                          <button onClick={() => setCentroVerTodo(v=>!v)}
+                            className="text-xs text-blue-600 hover:underline">
+                            {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
+                          </button>
+                        </div>
                         <ResponsiveContainer width="100%" height={260}>
-                          <ComposedChart data={turcoMonthly} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                          <ComposedChart data={turcoChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="mes" tick={{ fontSize:10 }} />
                             <YAxis tick={{ fontSize:10 }} />
                             <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                             <Legend />
                             <Line type="monotone" dataKey="tlh"       name="TLH"            stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} />
-                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total" stroke="#6BCF7F" strokeWidth={2} dot={{ r:3 }} />
                             <Line type="monotone" dataKey="arena"     name="Arena Mina"      stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
-                            <Line type="monotone" dataKey="grancilla" name="Grancilla"       stroke="#a78bfa" strokeWidth={2} dot={{ r:3 }} strokeDasharray="4 2" />
+                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total" stroke="#6BCF7F" strokeWidth={2} dot={{ r:3 }} />
+                            <Line type="monotone" dataKey="grancilla" name="Grancilla"       stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="4 2" />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* Tabla solo ton */}
+                    {/* Tabla 5 filas */}
                     <div className="card p-0 overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
                         <span className="font-semibold text-gray-700 text-sm">Últimos registros Turco</span>
@@ -820,11 +846,11 @@ export default function Dashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
-                            {turcoRows.slice(0,10).map((r,i) => (
+                            {turcoRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
                                 <td className="table-td font-semibold text-amber-700">{fmt(r.tlh_ton)}</td>
-                                <td className="table-td">{fmt(r.arena_mina_ton)}</td>
+                                <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.esteril_ton)}</td>
                                 <td className="table-td">{fmt(r.grancilla_ton)}</td>
                                 <td className="table-td">{fmt(r.fierrillo_a_ton)}</td>
@@ -842,24 +868,34 @@ export default function Dashboard() {
                 {/* ══ PERAL ══ */}
                 {centroTab === "peral" && (
                   <div className="space-y-4">
+                    {/* Header con botón nuevo registro */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-700">Planta Peral</h3>
+                      <a href="/arena?planta=peral" className="btn-primary text-xs px-3 py-1.5">+ Registro Peral</a>
+                    </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-                      {/* Stock Húmeda — destacado */}
-                      <div className="card col-span-2 sm:col-span-1 flex flex-col gap-1 border-green-300 bg-green-50 ring-1 ring-green-200">
+                      {/* Stock Húmeda — destacado principal */}
+                      <div className="card flex flex-col gap-1 border-green-300 bg-green-50 ring-1 ring-green-200">
                         <div className="stat-label text-green-700">Stock Húmeda ★</div>
                         <div className="text-2xl font-bold text-green-800">{pLast?.stock_arena_humeda_ton != null ? fmt(pLast.stock_arena_humeda_ton) : "—"}</div>
                         <div className="text-xs text-green-600">ton</div>
                         <div className="mt-1">{varBadge(pStockVar)}</div>
-                        <div className="text-xs text-gray-400">vs inicio de mes</div>
+                        <div className="text-xs text-gray-400">vs inicio mes</div>
+                      </div>
+                      {/* Arena Mina — destacado secundario */}
+                      <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50 ring-1 ring-blue-100">
+                        <div className="stat-label text-blue-700">Arena Mina ★</div>
+                        <div className="text-2xl font-bold text-blue-800">{pLast?.arena_mina_ton != null ? fmt(pLast.arena_mina_ton) : "—"}</div>
+                        <div className="text-xs text-blue-600">ton</div>
                       </div>
                       {[
-                        { label:"Arena Mina", ton: pLast?.arena_mina_ton },
-                        { label:"A-22",       ton: pLast?.a22_ton },
-                        { label:"A-24",       ton: pLast?.a24_ton },
-                        { label:"A-25",       ton: pLast?.a25_ton },
-                        { label:"A-26",       ton: pLast?.a26_ton },
-                        { label:"DMH",        ton: pLast?.dmh_ton },
-                        { label:"Grancilla",  ton: pLast?.grancilla_ton },
+                        { label:"A-22", ton: pLast?.a22_ton },
+                        { label:"A-24", ton: pLast?.a24_ton },
+                        { label:"A-25", ton: pLast?.a25_ton },
+                        { label:"A-26", ton: pLast?.a26_ton },
+                        { label:"DMH",  ton: pLast?.dmh_ton },
+                        { label:"Grancilla", ton: pLast?.grancilla_ton },
                       ].map(({ label, ton }) => (
                         <div key={label} className="card flex flex-col gap-1">
                           <div className="stat-label">{label}</div>
@@ -868,30 +904,36 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico — todas las líneas separadas */}
-                    {peralLines.length > 1 && (
+                    {/* Gráfico */}
+                    {peralChart.length > 0 && (
                       <div className="card">
-                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Peral — evolución mensual por producto</h3>
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-700 text-sm">Peral — evolución mensual por producto</h3>
+                          <button onClick={() => setCentroVerTodo(v=>!v)}
+                            className="text-xs text-blue-600 hover:underline">
+                            {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
+                          </button>
+                        </div>
                         <ResponsiveContainer width="100%" height={280}>
-                          <ComposedChart data={peralLines} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                          <ComposedChart data={peralChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="mes" tick={{ fontSize:10 }} />
                             <YAxis tick={{ fontSize:10 }} />
                             <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                             <Legend />
-                            <Line type="monotone" dataKey="stock"    name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
-                            <Line type="monotone" dataKey="arena"    name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
-                            <Line type="monotone" dataKey="a22"      name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a24"      name="A-24"         stroke="#ef4444" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a25"      name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a26"      name="A-26"         stroke="#06b6d4" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="dmh"      name="DMH"          stroke="#ec4899" strokeWidth={1.5} dot={{ r:2 }} />
-                            <Line type="monotone" dataKey="grancilla"name="Grancilla"    stroke="#84cc16" strokeWidth={1.5} dot={{ r:2 }} />
+                            <Line type="monotone" dataKey="stock"     name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
+                            <Line type="monotone" dataKey="arena"     name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
+                            <Line type="monotone" dataKey="a22"       name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a24"       name="A-24"         stroke="#ef4444" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a25"       name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="a26"       name="A-26"         stroke="#06b6d4" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
+                            <Line type="monotone" dataKey="dmh"       name="DMH"          stroke="#ec4899" strokeWidth={1.5} dot={{ r:2 }} />
+                            <Line type="monotone" dataKey="grancilla" name="Grancilla"    stroke="#84cc16" strokeWidth={1.5} dot={{ r:2 }} />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* Tabla solo ton */}
+                    {/* Tabla 5 filas */}
                     <div className="card p-0 overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
                         <span className="font-semibold text-gray-700 text-sm">Últimos registros Peral</span>
@@ -912,11 +954,11 @@ export default function Dashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
-                            {peralRows.slice(0,10).map((r,i) => (
+                            {peralRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
                                 <td className="table-td font-semibold text-green-700">{fmt(r.stock_arena_humeda_ton)}</td>
-                                <td className="table-td">{fmt(r.arena_mina_ton)}</td>
+                                <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.a22_ton)}</td>
                                 <td className="table-td">{fmt(r.a24_ton)}</td>
                                 <td className="table-td">{fmt(r.a25_ton)}</td>
@@ -935,12 +977,17 @@ export default function Dashboard() {
                 {/* ══ COMPARATIVO ══ */}
                 {centroTab === ("comparativo" as "turco"|"peral") && (
                   <div className="space-y-4">
-                    <p className="text-xs text-gray-400">Fierrillo Total (Turco) vs Stock Arena Húmeda (Peral) — evolución mensual</p>
-                    {compData.length > 1 && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400">Fierrillo Total (Turco) vs Stock Húmeda (Peral) — evolución mensual</p>
+                      <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
+                        {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
+                      </button>
+                    </div>
+                    {compChart.length > 0 && (
                       <div className="card">
                         <h3 className="font-semibold text-gray-700 mb-4 text-sm">Stock total por planta — por mes</h3>
                         <ResponsiveContainer width="100%" height={280}>
-                          <ComposedChart data={compData} margin={{ top:5, right:20, left:10, bottom:5 }}>
+                          <ComposedChart data={compChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="mes" tick={{ fontSize:10 }} />
                             <YAxis tick={{ fontSize:10 }} />
@@ -957,19 +1004,17 @@ export default function Dashboard() {
                       <div className="card border-amber-200">
                         <div className="font-semibold text-amber-700 text-sm mb-3">Turco — último registro</div>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">TLH</span><span className="font-bold">{fmt(tLast?.tlh_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Fierrillo Total</span><span className="font-bold">{fmt(tLast?.fierrillo_total_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Variación mes TLH</span>{varBadge(tTLHVar)}</div>
-                          <div className="flex justify-between"><span className="text-gray-500">Último vuelo</span><span className="text-gray-700">{tDias >= 0 ? `Hace ${tDias}d` : "—"}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">TLH</span><span className="font-bold text-amber-700">{fmt(tLast?.tlh_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(tLast?.arena_mina_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Fierr. Total</span><span className="font-bold">{fmt(tLast?.fierrillo_total_ton)} ton</span></div>
                         </div>
                       </div>
                       <div className="card border-green-200">
                         <div className="font-semibold text-green-700 text-sm mb-3">Peral — último registro</div>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold">{fmt(pLast?.arena_mina_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Variación mes Stock</span>{varBadge(pStockVar)}</div>
-                          <div className="flex justify-between"><span className="text-gray-500">Último vuelo</span><span className="text-gray-700">{pDias >= 0 ? `Hace ${pDias}d` : "—"}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold text-green-700">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(pLast?.arena_mina_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">DMH</span><span className="font-bold">{fmt(pLast?.dmh_ton)} ton</span></div>
                         </div>
                       </div>
                     </div>
