@@ -21,6 +21,12 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
+function getAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
 // ISO week — identico a isoWeekKey en generate-report
 function isoWeek(date: Date): number {
@@ -115,7 +121,8 @@ async function getDataContext(): Promise<string> {
   const sb   = getSupabase();
   const year = new Date().getFullYear();
 
-  const [{ data: arenaAll }, { data: cuarzoAll }, despachoResult] = await Promise.all([
+  const adm = getAdmin();
+  const [{ data: arenaAll }, { data: cuarzoAll }, despachoResult, { data: turcoAll }, { data: peralAll }] = await Promise.all([
     sb.from("registros_arena")
       .select("fecha, hora, produccion_drone, productividad_drone, inventario_ton, horas_reales, detencion, despachos_ton, diferencia_horometro")
       .gte("fecha", `${year}-01-01`).order("fecha_hora", { ascending: true }).limit(500),
@@ -126,6 +133,12 @@ async function getDataContext(): Promise<string> {
       sb.from("despachos").select("fecha, hora, destino, toneladas")
         .order("fecha", { ascending: false }).limit(10)
     ).catch(() => ({ data: [] as Record<string, string | number | null>[] })),
+    adm.from("registros_turco")
+      .select("fecha, hora, tlh_ton, arena_mina_ton, esteril_ton, grancilla_ton, fierrillo_a_ton, fierrillo_b_ton, fierrillo_total_ton")
+      .order("fecha_hora", { ascending: false }).limit(30),
+    adm.from("registros_peral")
+      .select("fecha, hora, arena_mina_ton, a22_ton, a24_ton, a25_ton, a26_ton, dmh_ton, grancilla_ton, stock_arena_humeda_ton")
+      .order("fecha_hora", { ascending: false }).limit(30),
   ]);
 
   const f = (n: number | null | undefined, dec = 1) =>
@@ -180,6 +193,20 @@ async function getDataContext(): Promise<string> {
     `  ${r.fecha} ${r.hora} | ${r.destino ?? "sin destino"} | ${f(r.toneladas as number)} t`
   ).join("\n");
 
+  const turco = (turcoAll ?? []) as Record<string, string | number | null>[];
+  const peral = (peralAll ?? []) as Record<string, string | number | null>[];
+
+  const t0 = turco[0] ?? {};
+  const p0 = peral[0] ?? {};
+
+  const turcoHist = turco.slice(0, 15).map(r =>
+    `  ${r.fecha} ${(r.hora as string)?.slice(0,5)} | TLH: ${f(r.tlh_ton as number)} t | Fierrillo Total: ${f(r.fierrillo_total_ton as number)} t | Arena: ${f(r.arena_mina_ton as number)} t | Grancilla: ${f(r.grancilla_ton as number)} t`
+  ).join("\n");
+
+  const peralHist = peral.slice(0, 15).map(r =>
+    `  ${r.fecha} ${(r.hora as string)?.slice(0,5)} | Stock Húmeda: ${f(r.stock_arena_humeda_ton as number)} t | Arena: ${f(r.arena_mina_ton as number)} t | A22: ${f(r.a22_ton as number)} | A24: ${f(r.a24_ton as number)} | A25: ${f(r.a25_ton as number)} | A26: ${f(r.a26_ton as number)} | DMH: ${f(r.dmh_ton as number)}`
+  ).join("\n");
+
   return [
     `=== DATOS EN TIEMPO REAL (${new Date().toLocaleDateString("es-CL")}) ===`,
     "KPI semanal = mismo criterio que seccion Informe (diferencia_horometro, distribucion por dias).",
@@ -210,6 +237,18 @@ async function getDataContext(): Promise<string> {
     "",
     "[DESPACHOS RECIENTES]",
     despHist || "  sin datos",
+    "",
+    "[ZONA CENTRO - TURCO - ULTIMO REGISTRO]",
+    t0.fecha ? `  ${t0.fecha} | TLH: ${f(t0.tlh_ton as number)} t | Fierrillo A: ${f(t0.fierrillo_a_ton as number)} t | Fierrillo B: ${f(t0.fierrillo_b_ton as number)} t | Fierrillo Total: ${f(t0.fierrillo_total_ton as number)} t | Arena: ${f(t0.arena_mina_ton as number)} t | Estéril: ${f(t0.esteril_ton as number)} t | Grancilla: ${f(t0.grancilla_ton as number)} t` : "  sin datos",
+    "",
+    "[ZONA CENTRO - TURCO - HISTORIAL RECIENTE]",
+    turcoHist || "  sin datos",
+    "",
+    "[ZONA CENTRO - PERAL - ULTIMO REGISTRO]",
+    p0.fecha ? `  ${p0.fecha} | Stock Húmeda: ${f(p0.stock_arena_humeda_ton as number)} t | Arena: ${f(p0.arena_mina_ton as number)} t | A-22: ${f(p0.a22_ton as number)} t | A-24: ${f(p0.a24_ton as number)} t | A-25: ${f(p0.a25_ton as number)} t | A-26: ${f(p0.a26_ton as number)} t | DMH: ${f(p0.dmh_ton as number)} t | Grancilla: ${f(p0.grancilla_ton as number)} t` : "  sin datos",
+    "",
+    "[ZONA CENTRO - PERAL - HISTORIAL RECIENTE]",
+    peralHist || "  sin datos",
   ].join("\n").trim();
 }
 
@@ -231,7 +270,7 @@ function buildSystemPrompt(dataContext: string): string {
     "Los datos provienen de la base de datos en tiempo real. Son reales, no ejemplos.",
     "Nunca digas que no tienes acceso a datos reales o que son un documento de texto.",
     "",
-    "Puedes responder sobre: Dashboard, Control de vuelos, Informe, Inventario, Despachos y operacion de la planta.",
+    "Puedes responder sobre: Dashboard, Control de vuelos, Informe, Inventario, Despachos y operacion de la planta. Tambien sobre Zona Centro: inventarios de Turco (TLH, Fierrillo A/B/Total, Arena Mina, Esteril, Grancilla) y Peral (Stock Arena Humeda, Arena Mina, A-22, A-24, A-25, A-26, DMH, Grancilla).",
     "",
     "--- COMO RESPONDER ---",
     "",

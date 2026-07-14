@@ -418,37 +418,7 @@ export default function InformePage() {
             {generandoPdf ? "Generando…" : "Exportar PDF"}
           </button>
 
-          {/* Botón enviar por email — captura las secciones web y envía PDF real */}
-          <button
-            className="btn-secondary"
-            onClick={enviarPorEmail}
-            disabled={enviandoEmail}
-            style={{
-              opacity: enviandoEmail ? 0.6 : 1,
-              ...(emailStatus === "ok"    ? { borderColor: "#6BCF7F", color: "#15803d" } : {}),
-              ...(emailStatus === "error" ? { borderColor: "#f87171", color: "#dc2626" } : {}),
-            }}
-          >
-            {enviandoEmail ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} strokeDasharray="32" strokeDashoffset="12" />
-              </svg>
-            ) : emailStatus === "ok" ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            ) : emailStatus === "error" ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            )}
-            {enviandoEmail ? "Enviando…" : emailStatus === "ok" ? "Email enviado" : emailStatus === "error" ? "Error al enviar" : "Enviar por email"}
-          </button>
+          {/* Botón enviar por email — desactivado temporalmente */}
         </div>
         )}
       </div>
