@@ -728,38 +728,36 @@ export default function Dashboard() {
 
             return (
               <>
-                {/* ── Banner de vuelos ── */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="card flex flex-col gap-1 border-amber-200 bg-amber-50">
-                    <div className="stat-label text-amber-700">Último vuelo Turco</div>
-                    <div className="text-base font-bold text-amber-800">{tLast?.fecha ?? "—"}</div>
+                {/* ── Banner de vuelos — solo fechas ── */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="card flex flex-col gap-1 border-amber-300 bg-amber-50">
+                    <div className="stat-label text-amber-700 uppercase tracking-wide text-xs">Último vuelo · Turco</div>
+                    <div className="text-lg font-bold text-amber-800">{tLast?.fecha ?? "—"}</div>
                     <div className="text-xs text-amber-600">{tDias >= 0 ? `Hace ${tDias} día${tDias===1?"":"s"}` : "—"}</div>
                   </div>
-                  <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50">
-                    <div className="stat-label text-blue-700">Último vuelo Peral</div>
-                    <div className="text-base font-bold text-blue-800">{pLast?.fecha ?? "—"}</div>
-                    <div className="text-xs text-blue-600">{pDias >= 0 ? `Hace ${pDias} día${pDias===1?"":"s"}` : "—"}</div>
-                  </div>
-                  <div className="card flex flex-col gap-1">
-                    <div className="stat-label">Vuelos Turco</div>
-                    <div className="text-2xl font-bold text-gray-900">{turcoRows.length}</div>
-                    <div className="text-xs text-gray-400">registros totales</div>
-                  </div>
-                  <div className="card flex flex-col gap-1">
-                    <div className="stat-label">Vuelos Peral</div>
-                    <div className="text-2xl font-bold text-gray-900">{peralRows.length}</div>
-                    <div className="text-xs text-gray-400">registros totales</div>
+                  <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50">
+                    <div className="stat-label text-cyan-700 uppercase tracking-wide text-xs">Último vuelo · Peral</div>
+                    <div className="text-lg font-bold text-cyan-800">{pLast?.fecha ?? "—"}</div>
+                    <div className="text-xs text-cyan-600">{pDias >= 0 ? `Hace ${pDias} día${pDias===1?"":"s"}` : "—"}</div>
                   </div>
                 </div>
 
-                {/* ── Sub-tabs ── */}
+                {/* ── Sub-tabs con color por planta ── */}
                 <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                  {(["turco","peral","comparativo"] as const).map(t => (
-                    <button key={t} onClick={() => setCentroTab(t as "turco"|"peral")}
-                      className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                        centroTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-                      }`}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
-                  ))}
+                  {(["turco","peral","comparativo"] as const).map(t => {
+                    const active = centroTab === t;
+                    const color = t === "turco"
+                      ? (active ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-amber-600")
+                      : t === "peral"
+                      ? (active ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-cyan-600")
+                      : (active ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700");
+                    return (
+                      <button key={t} onClick={() => setCentroTab(t as "turco"|"peral")}
+                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${color}`}>
+                        {t.charAt(0).toUpperCase()+t.slice(1)}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* ══ TURCO ══ */}
@@ -767,8 +765,8 @@ export default function Dashboard() {
                   <div className="space-y-4">
                     {/* Header con botón nuevo registro */}
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-700">Planta El Turco</h3>
-                      <a href="/arena?planta=turco" className="btn-primary text-xs px-3 py-1.5">+ Registro Turco</a>
+                      <h3 className="font-semibold text-amber-700">Planta El Turco</h3>
+                      <a href="/arena?planta=turco" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white transition-colors">+ Registro Turco</a>
                     </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -887,16 +885,16 @@ export default function Dashboard() {
                   <div className="space-y-4">
                     {/* Header con botón nuevo registro */}
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-700">Planta Peral</h3>
-                      <a href="/arena?planta=peral" className="btn-primary text-xs px-3 py-1.5">+ Registro Peral</a>
+                      <h3 className="font-semibold text-cyan-700">Planta Peral</h3>
+                      <a href="/arena?planta=peral" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">+ Registro Peral</a>
                     </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                       {/* Stock Húmeda — destacado principal */}
-                      <div className="card flex flex-col gap-1 border-green-300 bg-green-50 ring-1 ring-green-200">
-                        <div className="stat-label text-green-700">Stock Húmeda ★</div>
-                        <div className="text-2xl font-bold text-green-800">{pLast?.stock_arena_humeda_ton != null ? fmt(pLast.stock_arena_humeda_ton) : "—"}</div>
-                        <div className="text-xs text-green-600">ton</div>
+                      <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50 ring-1 ring-cyan-200">
+                        <div className="stat-label text-cyan-700">Stock Húmeda ★</div>
+                        <div className="text-2xl font-bold text-cyan-800">{pLast?.stock_arena_humeda_ton != null ? fmt(pLast.stock_arena_humeda_ton) : "—"}</div>
+                        <div className="text-xs text-cyan-600">ton</div>
                         <div className="mt-1">{varBadge(pStockVar)}</div>
                         <div className="text-xs text-gray-400">vs inicio mes</div>
                       </div>
@@ -989,7 +987,7 @@ export default function Dashboard() {
                             {peralRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
-                                <td className="table-td font-semibold text-green-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                                <td className="table-td font-semibold text-cyan-700">{fmt(r.stock_arena_humeda_ton)}</td>
                                 <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.a22_ton)}</td>
                                 <td className="table-td">{fmt(r.a24_ton)}</td>
@@ -1042,9 +1040,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="card border-green-200">
-                        <div className="font-semibold text-green-700 text-sm mb-3">Peral — último registro</div>
+                        <div className="font-semibold text-cyan-700 text-sm mb-3">Peral — último registro</div>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold text-green-700">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold text-cyan-700">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(pLast?.arena_mina_ton)} ton</span></div>
 
                         </div>

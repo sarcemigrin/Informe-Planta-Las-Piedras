@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
@@ -104,7 +105,9 @@ function CentroRegistroInlineForm() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.rol === "admin";
   type CTab = "turco" | "peral";
-  const [ctab,   setCtab]   = useState<CTab>("turco");
+  const searchParams = useSearchParams();
+  const initTab = (searchParams.get("planta") === "peral" ? "peral" : "turco") as CTab;
+  const [ctab,   setCtab]   = useState<CTab>(initTab);
   const [tForm,  setTForm]  = useState<Record<string,string>>(defaultTurcoForm());
   const [pForm,  setPForm]  = useState<Record<string,string>>(defaultPeralForm());
   const [saving, setSaving] = useState(false);
