@@ -801,29 +801,46 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico — últimos 3 meses por defecto */}
+                    {/* Gráficos Turco — dos paneles */}
                     {turcoChart.length > 0 && (
-                      <div className="card">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-gray-700 text-sm">Turco — evolución mensual</h3>
-                          <button onClick={() => setCentroVerTodo(v=>!v)}
-                            className="text-xs text-blue-600 hover:underline">
-                            {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
-                          </button>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Gráfico 1: Inventario y TLH */}
+                        <div className="card">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-gray-700 text-sm">Inventario & TLH</h3>
+                            <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
+                              {centroVerTodo ? "Últimos 3 meses" : "Ver histórico"}
+                            </button>
+                          </div>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <ComposedChart data={turcoChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <YAxis tick={{ fontSize:10 }} />
+                              <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
+                              <Legend />
+                              <Line type="monotone" dataKey="tlh"   name="TLH"       stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} />
+                              <Line type="monotone" dataKey="arena" name="Arena Mina" stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
+                            </ComposedChart>
+                          </ResponsiveContainer>
                         </div>
-                        <ResponsiveContainer width="100%" height={260}>
-                          <ComposedChart data={turcoChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
-                            <YAxis tick={{ fontSize:10 }} />
-                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
-                            <Legend />
-                            <Line type="monotone" dataKey="tlh"       name="TLH"            stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} />
-                            <Line type="monotone" dataKey="arena"     name="Arena Mina"      stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
-                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total" stroke="#6BCF7F" strokeWidth={2} dot={{ r:3 }} />
-                            <Line type="monotone" dataKey="grancilla" name="Grancilla"       stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="4 2" />
-                          </ComposedChart>
-                        </ResponsiveContainer>
+                        {/* Gráfico 2: Subproductos */}
+                        <div className="card">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-gray-700 text-sm">Subproductos — Fierrillo & Grancilla</h3>
+                          </div>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <ComposedChart data={turcoChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <YAxis tick={{ fontSize:10 }} />
+                              <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
+                              <Legend />
+                              <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total" stroke="#6BCF7F" strokeWidth={2.5} dot={{ r:3 }} />
+                              <Line type="monotone" dataKey="grancilla" name="Grancilla"       stroke="#a78bfa" strokeWidth={2} dot={{ r:3 }} strokeDasharray="4 2" />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     )}
                     {/* Tabla 5 filas */}
@@ -894,7 +911,6 @@ export default function Dashboard() {
                         { label:"A-24", ton: pLast?.a24_ton },
                         { label:"A-25", ton: pLast?.a25_ton },
                         { label:"A-26", ton: pLast?.a26_ton },
-                        { label:"DMH",  ton: pLast?.dmh_ton },
                         { label:"Grancilla", ton: pLast?.grancilla_ton },
                       ].map(({ label, ton }) => (
                         <div key={label} className="card flex flex-col gap-1">
@@ -904,33 +920,49 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {/* Gráfico */}
+                    {/* Gráficos Peral — dos paneles */}
                     {peralChart.length > 0 && (
-                      <div className="card">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-gray-700 text-sm">Peral — evolución mensual por producto</h3>
-                          <button onClick={() => setCentroVerTodo(v=>!v)}
-                            className="text-xs text-blue-600 hover:underline">
-                            {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
-                          </button>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Gráfico 1: Stock Húmeda + Arena Mina */}
+                        <div className="card">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-gray-700 text-sm">Stock Húmeda & Arena Mina</h3>
+                            <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
+                              {centroVerTodo ? "Últimos 3 meses" : "Ver histórico"}
+                            </button>
+                          </div>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <ComposedChart data={peralChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <YAxis tick={{ fontSize:10 }} />
+                              <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
+                              <Legend />
+                              <Line type="monotone" dataKey="stock" name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
+                              <Line type="monotone" dataKey="arena" name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
+                            </ComposedChart>
+                          </ResponsiveContainer>
                         </div>
-                        <ResponsiveContainer width="100%" height={280}>
-                          <ComposedChart data={peralChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
-                            <YAxis tick={{ fontSize:10 }} />
-                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
-                            <Legend />
-                            <Line type="monotone" dataKey="stock"     name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
-                            <Line type="monotone" dataKey="arena"     name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
-                            <Line type="monotone" dataKey="a22"       name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a24"       name="A-24"         stroke="#ef4444" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a25"       name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="a26"       name="A-26"         stroke="#06b6d4" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="3 2" />
-                            <Line type="monotone" dataKey="dmh"       name="DMH"          stroke="#ec4899" strokeWidth={1.5} dot={{ r:2 }} />
-                            <Line type="monotone" dataKey="grancilla" name="Grancilla"    stroke="#84cc16" strokeWidth={1.5} dot={{ r:2 }} />
-                          </ComposedChart>
-                        </ResponsiveContainer>
+                        {/* Gráfico 2: Productos A-22/24/25/26, DMH, Grancilla */}
+                        <div className="card">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-gray-700 text-sm">Productos — A-22 / A-24 / A-25 / A-26 / Grancilla</h3>
+                          </div>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <ComposedChart data={peralChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <YAxis tick={{ fontSize:10 }} />
+                              <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
+                              <Legend />
+                              <Line type="monotone" dataKey="a22"       name="A-22"      stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} />
+                              <Line type="monotone" dataKey="a24"       name="A-24"      stroke="#ef4444" strokeWidth={1.5} dot={{ r:2 }} />
+                              <Line type="monotone" dataKey="a25"       name="A-25"      stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} />
+                              <Line type="monotone" dataKey="a26"       name="A-26"      stroke="#06b6d4" strokeWidth={1.5} dot={{ r:2 }} />
+                              <Line type="monotone" dataKey="grancilla" name="Grancilla" stroke="#84cc16" strokeWidth={1.5} dot={{ r:2 }} strokeDasharray="4 2" />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     )}
                     {/* Tabla 5 filas */}
@@ -1014,7 +1046,7 @@ export default function Dashboard() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold text-green-700">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(pLast?.arena_mina_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">DMH</span><span className="font-bold">{fmt(pLast?.dmh_ton)} ton</span></div>
+
                         </div>
                       </div>
                     </div>
