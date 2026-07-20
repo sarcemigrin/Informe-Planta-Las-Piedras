@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -276,6 +277,70 @@ export default function Dashboard() {
     );
   }
 
+  function exportarExcel() {
+    const wb = XLSX.utils.book_new();
+
+    // ── Hoja 1: Zona Sur (Arena) ──────────────────────────────────────
+    const surData = arenaRows.map(r => ({
+      "Fecha":                    r.fecha,
+      "Hora":                     r.hora,
+      "Producción Drone (ton)":   r.produccion_drone,
+      "Productividad Drone (t/h)":r.productividad_drone,
+      "Horas Reales":             r.horas_reales,
+      "Inventario (ton)":         r.inventario_ton,
+      "Despachos (ton)":          r.despachos_ton,
+      "Fierrillo (m³)":           r.fierrillo,
+      "Notas":                    r.notas ?? "",
+    }));
+    const wsSur = XLSX.utils.json_to_sheet(surData);
+    XLSX.utils.book_append_sheet(wb, wsSur, "Zona Sur");
+
+    // ── Hoja 2: Zona Centro — Turco + Peral ──────────────────────────
+    // Encabezado Turco
+    const turcoHeader = [["=== TURCO ==="]];
+    const turcoData = turcoRows.map(r => ({
+      "Fecha":              r.fecha,
+      "Hora":               r.hora,
+      "Arena Mina m³":      r.arena_mina_m3,
+      "Arena Mina ton":     r.arena_mina_ton,
+      "TLH m³":             r.tlh_m3,
+      "TLH ton":            r.tlh_ton,
+      "Fierrillo A ton":    r.fierrillo_a_ton,
+      "Fierrillo B ton":    r.fierrillo_b_ton,
+      "Fierrillo Total ton":r.fierrillo_total_ton,
+      "Grancilla ton":      r.grancilla_ton,
+      "Estéril ton":        r.esteril_ton,
+      "Notas":              r.notas ?? "",
+    }));
+
+    // Encabezado Peral
+    const peralData = peralRows.map(r => ({
+      "Fecha":                  r.fecha,
+      "Hora":                   r.hora,
+      "Arena Mina m³":          r.arena_mina_m3,
+      "Arena Mina ton":         r.arena_mina_ton,
+      "Stock Arena Húmeda ton": r.stock_arena_humeda_ton,
+      "A-22 ton":               r.a22_ton,
+      "A-24 ton":               r.a24_ton,
+      "A-25 ton":               r.a25_ton,
+      "A-26 ton":               r.a26_ton,
+      "Grancilla ton":          r.grancilla_ton,
+      "Notas":                  r.notas ?? "",
+    }));
+
+    // Combinar en una sola hoja con separadores
+    const wsCentro = XLSX.utils.aoa_to_sheet(turcoHeader);
+    XLSX.utils.sheet_add_json(wsCentro, turcoData, { origin: "A2" });
+    const turcoEnd = turcoData.length + 3; // fila de separación
+    XLSX.utils.sheet_add_aoa(wsCentro, [["=== PERAL ==="]], { origin: `A${turcoEnd}` });
+    XLSX.utils.sheet_add_json(wsCentro, peralData, { origin: `A${turcoEnd + 1}` });
+    XLSX.utils.book_append_sheet(wb, wsCentro, "Zona Centro");
+
+    // Descargar
+    const fecha = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(wb, `datos_arena_control_${fecha}.xlsx`);
+  }
+
   if(loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
   return (
@@ -296,6 +361,17 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
             Ir a {planta === "sur" ? "Zona Centro" : "Zona Sur"}
+          </button>
+          <button
+            onClick={exportarExcel}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-green-700 transition-colors border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-green-50 hover:border-green-300"
+            title="Descargar datos en Excel"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
+            Exportar Excel
           </button>
           <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
         </div>
