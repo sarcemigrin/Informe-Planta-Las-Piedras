@@ -277,11 +277,13 @@ export default function Dashboard() {
     );
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const wb = XLSX.utils.book_new();
 
     // ── Hoja 1: Planta Arena ─────────────────────────────────────────
-    const wsArena = XLSX.utils.json_to_sheet(arenaRows.map(r => ({
+    const { data: arena } = await supabase
+      .from("registros_arena").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false });
+    const wsArena = XLSX.utils.json_to_sheet((arena ?? []).map(r => ({
       "Fecha":                     r.fecha,
       "Hora":                      r.hora,
       "Producción Drone (ton)":    r.produccion_drone,
@@ -297,7 +299,9 @@ export default function Dashboard() {
     XLSX.utils.book_append_sheet(wb, wsArena, "Planta Arena");
 
     // ── Hoja 2: Planta Cuarzo ────────────────────────────────────────
-    const wsCuarzo = XLSX.utils.json_to_sheet(cuarzoRows.map(r => ({
+    const { data: cuarzo } = await supabase
+      .from("registros_cuarzo").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false });
+    const wsCuarzo = XLSX.utils.json_to_sheet((cuarzo ?? []).map(r => ({
       "Fecha":                     r.fecha,
       "Hora":                      r.hora,
       "Producción Drone (ton)":    r.produccion_drone,
@@ -310,8 +314,13 @@ export default function Dashboard() {
     })));
     XLSX.utils.book_append_sheet(wb, wsCuarzo, "Planta Cuarzo");
 
+    // ── Hojas 3 y 4: Turco + Peral desde API (service role) ──────────
+    const centroRes = await fetch("/api/centro-data?limit=500").then(r => r.json()).catch(() => ({ turco: [], peral: [] }));
+    const turco: RegistroTurco[] = centroRes.turco ?? [];
+    const peral: RegistroPeral[] = centroRes.peral ?? [];
+
     // ── Hoja 3: Planta Turco ─────────────────────────────────────────
-    const wsTurco = XLSX.utils.json_to_sheet(turcoRows.map(r => ({
+    const wsTurco = XLSX.utils.json_to_sheet(turco.map(r => ({
       "Fecha":               r.fecha,
       "Hora":                r.hora,
       "Arena Mina m³":       r.arena_mina_m3,
@@ -330,7 +339,7 @@ export default function Dashboard() {
     XLSX.utils.book_append_sheet(wb, wsTurco, "Planta Turco");
 
     // ── Hoja 4: Planta Peral ─────────────────────────────────────────
-    const wsPeral = XLSX.utils.json_to_sheet(peralRows.map(r => ({
+    const wsPeral = XLSX.utils.json_to_sheet(peral.map(r => ({
       "Fecha":                   r.fecha,
       "Hora":                    r.hora,
       "Arena Mina m³":           r.arena_mina_m3,
