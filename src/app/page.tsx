@@ -280,61 +280,75 @@ export default function Dashboard() {
   function exportarExcel() {
     const wb = XLSX.utils.book_new();
 
-    // ── Hoja 1: Zona Sur (Arena) ──────────────────────────────────────
-    const surData = arenaRows.map(r => ({
-      "Fecha":                    r.fecha,
-      "Hora":                     r.hora,
-      "Producción Drone (ton)":   r.produccion_drone,
-      "Productividad Drone (t/h)":r.productividad_drone,
-      "Horas Reales":             r.horas_reales,
-      "Inventario (ton)":         r.inventario_ton,
-      "Despachos (ton)":          r.despachos_ton,
-      "Fierrillo (m³)":           r.fierrillo,
-      "Notas":                    r.notas ?? "",
-    }));
-    const wsSur = XLSX.utils.json_to_sheet(surData);
-    XLSX.utils.book_append_sheet(wb, wsSur, "Zona Sur");
+    // ── Hoja 1: Planta Arena ─────────────────────────────────────────
+    const wsArena = XLSX.utils.json_to_sheet(arenaRows.map(r => ({
+      "Fecha":                     r.fecha,
+      "Hora":                      r.hora,
+      "Producción Drone (ton)":    r.produccion_drone,
+      "Productividad Drone (t/h)": r.productividad_drone,
+      "Horas Reales":              r.horas_reales,
+      "Inventario (ton)":          r.inventario_ton,
+      "Despachos (ton)":           r.despachos_ton,
+      "Fierrillo (m³)":            r.fierrillo,
+      "Conos m³":                  r.conos,
+      "Acopio m³":                 r.acopio,
+      "Notas":                     r.notas ?? "",
+    })));
+    XLSX.utils.book_append_sheet(wb, wsArena, "Planta Arena");
 
-    // ── Hoja 2: Zona Centro — Turco + Peral ──────────────────────────
-    // Encabezado Turco
-    const turcoHeader = [["=== TURCO ==="]];
-    const turcoData = turcoRows.map(r => ({
-      "Fecha":              r.fecha,
-      "Hora":               r.hora,
-      "Arena Mina m³":      r.arena_mina_m3,
-      "Arena Mina ton":     r.arena_mina_ton,
-      "TLH m³":             r.tlh_m3,
-      "TLH ton":            r.tlh_ton,
-      "Fierrillo A ton":    r.fierrillo_a_ton,
-      "Fierrillo B ton":    r.fierrillo_b_ton,
-      "Fierrillo Total ton":r.fierrillo_total_ton,
-      "Grancilla ton":      r.grancilla_ton,
-      "Estéril ton":        r.esteril_ton,
-      "Notas":              r.notas ?? "",
-    }));
+    // ── Hoja 2: Planta Cuarzo ────────────────────────────────────────
+    const wsCuarzo = XLSX.utils.json_to_sheet(cuarzoRows.map(r => ({
+      "Fecha":                     r.fecha,
+      "Hora":                      r.hora,
+      "Producción Drone (ton)":    r.produccion_drone,
+      "Productividad Drone (t/h)": r.productividad_drone,
+      "Horas Reales":              r.horas_reales,
+      "Inventario (ton)":          r.inventario_ton,
+      "Despachos (ton)":           r.despachos_ton,
+      "Conos m³":                  r.conos,
+      "Notas":                     r.notas ?? "",
+    })));
+    XLSX.utils.book_append_sheet(wb, wsCuarzo, "Planta Cuarzo");
 
-    // Encabezado Peral
-    const peralData = peralRows.map(r => ({
-      "Fecha":                  r.fecha,
-      "Hora":                   r.hora,
-      "Arena Mina m³":          r.arena_mina_m3,
-      "Arena Mina ton":         r.arena_mina_ton,
-      "Stock Arena Húmeda ton": r.stock_arena_humeda_ton,
-      "A-22 ton":               r.a22_ton,
-      "A-24 ton":               r.a24_ton,
-      "A-25 ton":               r.a25_ton,
-      "A-26 ton":               r.a26_ton,
-      "Grancilla ton":          r.grancilla_ton,
-      "Notas":                  r.notas ?? "",
-    }));
+    // ── Hoja 3: Planta Turco ─────────────────────────────────────────
+    const wsTurco = XLSX.utils.json_to_sheet(turcoRows.map(r => ({
+      "Fecha":               r.fecha,
+      "Hora":                r.hora,
+      "Arena Mina m³":       r.arena_mina_m3,
+      "Arena Mina ton":      r.arena_mina_ton,
+      "TLH m³":              r.tlh_m3,
+      "TLH ton":             r.tlh_ton,
+      "Fierrillo A ton":     r.fierrillo_a_ton,
+      "Fierrillo B ton":     r.fierrillo_b_ton,
+      "Fierrillo Total ton": r.fierrillo_total_ton,
+      "Grancilla m³":        r.grancilla_m3,
+      "Grancilla ton":       r.grancilla_ton,
+      "Estéril m³":          r.esteril_m3,
+      "Estéril ton":         r.esteril_ton,
+      "Notas":               r.notas ?? "",
+    })));
+    XLSX.utils.book_append_sheet(wb, wsTurco, "Planta Turco");
 
-    // Combinar en una sola hoja con separadores
-    const wsCentro = XLSX.utils.aoa_to_sheet(turcoHeader);
-    XLSX.utils.sheet_add_json(wsCentro, turcoData, { origin: "A2" });
-    const turcoEnd = turcoData.length + 3; // fila de separación
-    XLSX.utils.sheet_add_aoa(wsCentro, [["=== PERAL ==="]], { origin: `A${turcoEnd}` });
-    XLSX.utils.sheet_add_json(wsCentro, peralData, { origin: `A${turcoEnd + 1}` });
-    XLSX.utils.book_append_sheet(wb, wsCentro, "Zona Centro");
+    // ── Hoja 4: Planta Peral ─────────────────────────────────────────
+    const wsPeral = XLSX.utils.json_to_sheet(peralRows.map(r => ({
+      "Fecha":                   r.fecha,
+      "Hora":                    r.hora,
+      "Arena Mina m³":           r.arena_mina_m3,
+      "Arena Mina ton":          r.arena_mina_ton,
+      "Stock Arena Húmeda ton":  r.stock_arena_humeda_ton,
+      "A-22 m³":                 r.a22_m3,
+      "A-22 ton":                r.a22_ton,
+      "A-24 m³":                 r.a24_m3,
+      "A-24 ton":                r.a24_ton,
+      "A-25 m³":                 r.a25_m3,
+      "A-25 ton":                r.a25_ton,
+      "A-26 m³":                 r.a26_m3,
+      "A-26 ton":                r.a26_ton,
+      "Grancilla m³":            r.grancilla_m3,
+      "Grancilla ton":           r.grancilla_ton,
+      "Notas":                   r.notas ?? "",
+    })));
+    XLSX.utils.book_append_sheet(wb, wsPeral, "Planta Peral");
 
     // Descargar
     const fecha = new Date().toISOString().split("T")[0];
