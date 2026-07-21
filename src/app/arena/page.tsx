@@ -1108,14 +1108,27 @@ function PreviewRow({ label, value, unit, colorClass }: {
   );
 }
 
-/* ── Mini panel destinatarios ─────────────────────────────────── */
+/* ── Mini panel destinatarios — 3 pestañas ────────────────────── */
 interface Dest { email: string; nombre: string; activo: boolean; }
+type MiniTab = "sur" | "turco" | "peral";
+const MINI_LABEL: Record<MiniTab, string> = { sur: "Zona Sur", turco: "Turco", peral: "Peral" };
+const MINI_COLOR: Record<MiniTab, string> = {
+  sur:   "border-green-500 text-green-700",
+  turco: "border-amber-500 text-amber-700",
+  peral: "border-cyan-500 text-cyan-700",
+};
+const MINI_BADGE: Record<MiniTab, string> = {
+  sur:   "bg-green-100 text-green-700",
+  turco: "bg-amber-100 text-amber-700",
+  peral: "bg-cyan-100 text-cyan-700",
+};
 
 function MiniDestinatarios() {
-  const [list,          setList]          = useState<Dest[]>([]);
-  const [saving,        setSaving]        = useState(false);
-  const [msg,           setMsg]           = useState<{ ok: boolean; text: string } | null>(null);
-  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
+  const [tab,    setTab]    = useState<MiniTab>("sur");
+  const [lists,  setLists]  = useState<Record<MiniTab, Dest[]>>({ sur: [], turco: [], peral: [] });
+  const [loaded, setLoaded] = useState<Record<MiniTab, boolean>>({ sur: false, turco: false, peral: false });
+  const [saving, setSaving] = useState(false);
+  const [msg,    setMsg]    = useState<{ ok: boolean; text: string } | null>(null);
 
   function flash(ok: boolean, text: string) {
     setMsg({ ok, text });
@@ -1123,17 +1136,17 @@ function MiniDestinatarios() {
   }
 
   useEffect(() => {
-    fetch("/api/informe/recipients")
+    if (loaded[tab]) return;
+    fetch(`/api/informe/recipients?planta=${tab}`)
       .then(r => r.json())
       .then(d => {
-        setList(d.recipients ?? []);
-        try {
-          const raw = localStorage.getItem("dest_default");
-          if (raw) setDefaultEmails(JSON.parse(raw));
-        } catch { /* */ }
+        setLists(prev => ({ ...prev, [tab]: d.recipients ?? [] }));
+        setLoaded(prev => ({ ...prev, [tab]: true }));
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => setLoaded(prev => ({ ...prev, [tab]: true })));
+  }, [tab, loaded]);
+
+  const list = lists[tab];
 
   async function persist(updated: Dest[]) {
     setSaving(true);
@@ -1141,10 +1154,10 @@ function MiniDestinatarios() {
       const r = await fetch("/api/informe/recipients", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients: updated }),
+        body: JSON.stringify({ planta: tab, recipients: updated }),
       });
       const d = await r.json();
-      if (d.ok) { setList(updated); setMsg(null); }
+      if (d.ok) { setLists(prev => ({ ...prev, [tab]: updated })); }
       else       flash(false, d.error ?? "Error");
     } catch { flash(false, "Error de conexion"); }
     setSaving(false);
@@ -1152,80 +1165,69 @@ function MiniDestinatarios() {
 
   function toggle(idx: number) {
     const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
-    setList(updated);
+    setLists(prev => ({ ...prev, [tab]: updated }));
     persist(updated);
   }
 
   function setAll(activo: boolean) {
     const updated = list.map(d => ({ ...d, activo }));
-    setList(updated);
-    persist(updated);
-  }
-
-  function guardarPredeterminado() {
-    const emails = list.filter(d => d.activo).map(d => d.email);
-    localStorage.setItem("dest_default", JSON.stringify(emails));
-    setDefaultEmails(emails);
-    flash(true, "Predeterminado guardado");
-  }
-
-  function cargarPredeterminado() {
-    if (defaultEmails.length === 0) return;
-    const updated = list.map(d => ({ ...d, activo: defaultEmails.includes(d.email) }));
-    setList(updated);
+    setLists(prev => ({ ...prev, [tab]: updated }));
     persist(updated);
   }
 
   const activos = list.filter(d => d.activo).length;
-  const todosActivos   = list.length > 0 && activos === list.length;
-  const todosInactivos = list.length > 0 && activos === 0;
-  if (list.length === 0) return null;
+  const todosActivos = list.length > 0 && activos === list.length;
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-gray-400">{activos} activo{activos !== 1 ? "s" : ""}</span>
-      </div>
-
-      {/* Acciones masivas */}
-      <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-gray-100">
-        <button onClick={() => setAll(true)} disabled={todosActivos || saving}
-          className="text-[10px] px-2 py-1 rounded border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
-          Activar todos
-        </button>
-        <button onClick={() => setAll(false)} disabled={todosInactivos || saving}
-          className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
-          Desactivar todos
-        </button>
-        <div className="flex-1"/>
-        {defaultEmails.length > 0 && (
-          <button onClick={cargarPredeterminado} disabled={saving}
-            className="text-[10px] px-2 py-1 rounded border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition-colors">
-            Cargar pred.
+      {/* Pestañas */}
+      <div className="flex gap-0 mb-3 border-b border-gray-100">
+        {(["sur","turco","peral"] as MiniTab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`flex-1 py-1.5 text-[10px] font-medium border-b-2 transition-colors -mb-px ${
+              tab === t ? MINI_COLOR[t] : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}>
+            {MINI_LABEL[t]}
+            <span className={`ml-1 text-[9px] px-1 py-0.5 rounded-full ${tab === t ? MINI_BADGE[t] : "bg-gray-100 text-gray-400"}`}>
+              {lists[t].filter(d => d.activo).length}
+            </span>
           </button>
-        )}
-        <button onClick={guardarPredeterminado}
-          className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-white hover:bg-gray-50 transition-colors">
-          Guardar pred.
-        </button>
-      </div>
-
-      {/* Lista */}
-      <div className="space-y-1.5">
-        {list.map((d, i) => (
-          <div key={d.email} className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className={"text-xs font-medium truncate " + (d.activo ? "text-gray-700" : "text-gray-300")}>{d.nombre}</p>
-              <p className={"text-[10px] truncate " + (d.activo ? "text-gray-400" : "text-gray-200")}>{d.email}</p>
-            </div>
-            <button onClick={() => toggle(i)} disabled={saving}
-              className={"relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}
-            >
-              <span className={"inline-block h-3 w-3 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-3.5" : "translate-x-0.5")}/>
-            </button>
-          </div>
         ))}
       </div>
+
+      {!loaded[tab] ? (
+        <p className="text-[10px] text-gray-400 text-center py-2">Cargando...</p>
+      ) : (
+        <>
+          {/* Acciones masivas */}
+          <div className="flex gap-1.5 mb-2 pb-2 border-b border-gray-100">
+            <button onClick={() => setAll(true)} disabled={todosActivos || saving}
+              className="text-[10px] px-2 py-1 rounded border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
+              Activar todos
+            </button>
+            <button onClick={() => setAll(false)} disabled={saving}
+              className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+              Desactivar todos
+            </button>
+          </div>
+
+          {/* Lista */}
+          <div className="space-y-1.5">
+            {list.map((d, i) => (
+              <div key={d.email} className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className={"text-xs font-medium truncate " + (d.activo ? "text-gray-700" : "text-gray-300")}>{d.nombre}</p>
+                  <p className={"text-[10px] truncate " + (d.activo ? "text-gray-400" : "text-gray-200")}>{d.email}</p>
+                </div>
+                <button onClick={() => toggle(i)} disabled={saving}
+                  className={"relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors duration-200 " + (d.activo ? "bg-green-500" : "bg-gray-200")}>
+                  <span className={"inline-block h-3 w-3 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-3.5" : "translate-x-0.5")}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {msg && (
         <p className={"mt-2 text-[10px] " + (msg.ok ? "text-green-600" : "text-red-500")}>{msg.text}</p>
