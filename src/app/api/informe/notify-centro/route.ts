@@ -69,7 +69,7 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
     </tr>`
   ).join("");
 
-  return buildEmailShell("Turco", fecha, hora, rowsHtml, "#f59e0b", "#78350f", appUrl);
+  return buildEmailShell("Turco", fecha, hora, rowsHtml, "#6BCF7F", "#14532d", appUrl);
 }
 
 function buildPeralHtml(fecha: string, hora: string, kpis: Record<string, number | null>, appUrl: string): string {
@@ -80,7 +80,6 @@ function buildPeralHtml(fecha: string, hora: string, kpis: Record<string, number
     ["A-24",               kpis.a24_ton,                "ton"],
     ["A-25",               kpis.a25_ton,                "ton"],
     ["A-26",               kpis.a26_ton,                "ton"],
-    ["DMH",                kpis.dmh_ton,                "ton"],
     ["Grancilla",          kpis.grancilla_ton,          "ton"],
   ] as [string, number | null, string][];
 
@@ -101,7 +100,7 @@ function buildEmailShell(planta: string, fecha: string, hora: string, rowsHtml: 
     <!-- Header -->
     <tr><td style="background:${accentHex};padding:24px 32px">
       <p style="margin:0;font-size:11px;color:${darkHex};text-transform:uppercase;letter-spacing:1px;font-weight:700">Fotogrametría Migrin</p>
-      <h1 style="margin:4px 0 0;font-size:22px;color:#ffffff">Nuevo registro — Planta ${planta}</h1>
+      <h1 style="margin:4px 0 0;font-size:22px;color:#ffffff">Control de Existencias — Planta ${planta}</h1>
     </td></tr>
     <!-- Fecha -->
     <tr><td style="padding:16px 32px 8px;border-bottom:1px solid #f0f0f0">
@@ -155,7 +154,7 @@ export async function POST(req: Request) {
       ? buildTurcoHtml(fecha, hora, kpis, appUrl)
       : buildPeralHtml(fecha, hora, kpis, appUrl);
 
-    const subject = `Nuevo registro ${planta.charAt(0).toUpperCase()+planta.slice(1)} — ${fecha}`;
+    const subject = `Control de Existencias ${planta.charAt(0).toUpperCase()+planta.slice(1)} — ${fecha}`;
 
     const graphBody = {
       message: {
