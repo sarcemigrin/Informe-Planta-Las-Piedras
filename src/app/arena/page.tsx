@@ -26,6 +26,7 @@ const FORM_KEY = "arena-form-draft";
 function addMinutes(localStr: string, minutes: number): string {
   // Forzar parseo como UTC para que la aritmética no dependa del timezone del browser
   const d = new Date(localStr.endsWith("Z") ? localStr : localStr + "Z");
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19);
   d.setTime(d.getTime() + minutes * 60_000);
   return d.toISOString().slice(0, 19); // "2026-06-18T09:34:00" — sin Z
 }
