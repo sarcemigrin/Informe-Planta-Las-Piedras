@@ -814,7 +814,7 @@ export default function ArenaPage() {
           </button>
 
           {/* Destinatarios del informe */}
-          <MiniDestinatarios />
+          <MiniDestinatarios fixedTab="sur" />
         </div>
 
         {/* Columna derecha */}
