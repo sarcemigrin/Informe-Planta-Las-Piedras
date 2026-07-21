@@ -124,7 +124,7 @@ function CentroRegistroInlineForm() {
       ? (parseFloat(fa_ton) + parseFloat(fb_ton)).toFixed(3)
       : fa_ton || fb_ton || null;
     const { error } = await supabase.from("registros_turco").insert({
-      fecha: f.fecha, hora: f.hora,
+      fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
       tlh_m3: pfc(f.tlh_m3),     tlh_ton: pfc(autoTon(f.tlh_m3)),
       esteril_m3: pfc(f.esteril_m3), esteril_ton: pfc(autoTon(f.esteril_m3)),
@@ -167,7 +167,7 @@ function CentroRegistroInlineForm() {
     const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon(f[k+"_m3"])) || 0);
     const stock = tons.reduce((s,v) => s+v, 0).toFixed(3);
     const { error } = await supabase.from("registros_peral").insert({
-      fecha: f.fecha, hora: f.hora,
+      fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
       a22_m3: pfc(f.a22_m3), a22_ton: pfc(autoTon(f.a22_m3)),
       a24_m3: pfc(f.a24_m3), a24_ton: pfc(autoTon(f.a24_m3)),
