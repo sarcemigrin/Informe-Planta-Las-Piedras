@@ -866,10 +866,10 @@ export default function Dashboard() {
 
                 {/* ══ TURCO ══ */}
                 <div className="space-y-4">
-                    {/* Header con botón nuevo registro */}
-                    <div className="flex items-center justify-between">
+                    {/* Header Turco */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-5 rounded-full bg-amber-500 shrink-0" />
                       <h3 className="font-semibold text-amber-700">Planta El Turco</h3>
-                      <a href="/arena?planta=turco" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-amber-500 hover:bg-amber-600 text-white transition-colors">+ Registro Turco</a>
                     </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -987,10 +987,10 @@ export default function Dashboard() {
 
                 {/* ══ PERAL ══ */}
                 <div className="space-y-4">
-                    {/* Header con botón nuevo registro */}
-                    <div className="flex items-center justify-between">
+                    {/* Header Peral */}
+                    <div className="flex items-center gap-2">
+                      <span className="w-1 h-5 rounded-full bg-cyan-500 shrink-0" />
                       <h3 className="font-semibold text-cyan-700">Planta Peral</h3>
-                      <a href="/arena?planta=peral" className="text-xs px-3 py-1.5 rounded-lg font-medium bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">+ Registro Peral</a>
                     </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">

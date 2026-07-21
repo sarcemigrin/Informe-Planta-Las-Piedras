@@ -285,13 +285,13 @@ function CentroRegistroInlineForm() {
 
 
 export default function ArenaPage() {
-  const [zona, setZona] = useState<"sur"|"centro">(() => {
-    if (typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("planta");
-      if (p === "turco" || p === "peral") return "centro";
-    }
-    return "sur";
-  });
+  const [zona, setZona] = useState<"sur"|"centro">("sur");
+
+  // Si llega con ?planta=turco o ?planta=peral → abrir automáticamente en Zona Centro
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("planta");
+    if (p === "turco" || p === "peral") setZona("centro");
+  }, []);
   const [form, setForm] = useState<Record<string, string>>(loadDraft);
 
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
