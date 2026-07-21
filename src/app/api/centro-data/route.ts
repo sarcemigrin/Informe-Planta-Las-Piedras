@@ -28,20 +28,9 @@ export async function GET(req: Request) {
   if (eTurco) console.error("[centro-data] turco:", eTurco.message);
   if (ePeral) console.error("[centro-data] peral:", ePeral.message);
 
-  // Deduplicar por fecha_hora (o fecha+hora si fecha_hora es null)
-  const dedup = <T extends { fecha_hora?: string | null; fecha: string; hora: string }>(rows: T[]): T[] => {
-    const seen = new Set<string>();
-    return rows.filter(r => {
-      const key = r.fecha_hora ?? `${r.fecha} ${r.hora}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-
   return NextResponse.json({
-    turco: dedup(turco ?? []),
-    peral: dedup(peral ?? []),
+    turco: turco ?? [],
+    peral: peral ?? [],
     _debug: { turcoCount: turco?.length ?? 0, peralCount: peral?.length ?? 0, turcoError: eTurco?.message, peralError: ePeral?.message },
   });
 }
