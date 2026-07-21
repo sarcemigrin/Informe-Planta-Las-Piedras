@@ -85,6 +85,7 @@ export default function Dashboard() {
   const [turcoRows,      setTurcoRows]      = useState<RegistroTurco[]>([]);
   const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
   const [centroLoaded,   setCentroLoaded]   = useState(false);
+  const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
   const [centroVerTodo,  setCentroVerTodo]  = useState(false);
   const [showPicker,     setShowPicker]     = useState(false);
   const [realRol,        setRealRol]        = useState<string | null>(null);
@@ -864,7 +865,32 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* ── Pestañas Turco / Peral ── */}
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+                  <button
+                    onClick={() => setCentroTab("turco")}
+                    className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      centroTab === "turco"
+                        ? "bg-amber-500 text-white shadow-sm"
+                        : "text-gray-500 hover:text-amber-600 hover:bg-amber-50"
+                    }`}
+                  >
+                    Turco
+                  </button>
+                  <button
+                    onClick={() => setCentroTab("peral")}
+                    className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      centroTab === "peral"
+                        ? "bg-cyan-600 text-white shadow-sm"
+                        : "text-gray-500 hover:text-cyan-600 hover:bg-cyan-50"
+                    }`}
+                  >
+                    Peral
+                  </button>
+                </div>
+
                 {/* ══ TURCO ══ */}
+                {centroTab === "turco" && (
                 <div className="space-y-4">
                     {/* Header Turco */}
                     <div className="flex items-center gap-2">
@@ -981,11 +1007,10 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-
-                {/* ── Separador ── */}
-                <div className="border-t border-gray-200 pt-1" />
+                )}
 
                 {/* ══ PERAL ══ */}
+                {centroTab === "peral" && (
                 <div className="space-y-4">
                     {/* Header Peral */}
                     <div className="flex items-center gap-2">
@@ -1106,6 +1131,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
+                )}
               </>
             );
           })()}
