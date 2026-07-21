@@ -242,35 +242,21 @@ export default function Dashboard() {
 
           {/* Zona Centro */}
           <button
-            onClick={() => isAdmin && setPlanta("centro")}
-            disabled={!isAdmin}
-            className={`flex-1 group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all bg-white ${
-              isAdmin
-                ? "border-gray-200 hover:border-blue-400 hover:shadow-lg cursor-pointer"
-                : "border-gray-100 cursor-not-allowed opacity-60"
-            }`}
+            onClick={() => setPlanta("centro")}
+            className="flex-1 group flex flex-col items-center gap-4 p-8 rounded-2xl border-2 transition-all bg-white border-gray-200 hover:border-blue-400 hover:shadow-lg cursor-pointer"
           >
             <div className="w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
               style={{ backgroundColor: "#3b82f622" }}>
-              {isAdmin ? (
-                <svg className="w-8 h-8" fill="none" stroke="#3b82f6" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              ) : (
-                <svg className="w-8 h-8" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              )}
+              <svg className="w-8 h-8" fill="none" stroke="#3b82f6" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
             <div className="text-center">
-              <div className={`font-bold text-lg ${isAdmin ? "text-gray-900 group-hover:text-blue-700" : "text-gray-400"}`}>
+              <div className="font-bold text-lg text-gray-900 group-hover:text-blue-700">
                 Zona Centro
               </div>
-              <div className="text-sm text-gray-400 mt-1">
-                {isAdmin ? "Turco · Peral" : "Próximamente"}
-              </div>
+              <div className="text-sm text-gray-400 mt-1">Turco · Peral</div>
             </div>
           </button>
         </div>
