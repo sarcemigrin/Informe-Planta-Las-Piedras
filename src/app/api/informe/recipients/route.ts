@@ -41,6 +41,11 @@ const SEED: Record<Planta, Destinatario[]> = {
   sur: [
     { email: "sarce@migrin.cl",           nombre: "Sebastián Arce González",  activo: true  },
     { email: "jtorres@migrin.cl",         nombre: "Javier Torres",            activo: true  },
+    { email: "nmerino@migrin.cl",         nombre: "Nicolás Merino",           activo: true  },
+    { email: "ajofre@migrin.cl",          nombre: "A. Jofré",                 activo: true  },
+    { email: "daguilera@migrin.cl",       nombre: "Diego Aguilera",           activo: true  },
+    { email: "bveliz.molina@migrin.cl",   nombre: "B. Véliz Molina",          activo: true  },
+    { email: "jefeturnomlp@migrin.cl",    nombre: "Jefe Turno MLP",           activo: true  },
     { email: "rpesce@gestionelalto.cl",   nombre: "Roberto Pesce Martínez",   activo: false },
     { email: "rconcha@gestionelalto.cl",  nombre: "Rodrigo Concha",           activo: false },
     { email: "efernandez@migrin.cl",      nombre: "Esteban Fernández",        activo: false },
@@ -83,7 +88,10 @@ async function loadRecipients(planta: Planta): Promise<Destinatario[]> {
     const { data } = await getClient()
       .from("configuracion").select("valor").eq("clave", CLAVE[planta]).maybeSingle();
     if (!data?.valor) return SEED[planta];
-    return JSON.parse(data.valor) as Destinatario[];
+    const saved = JSON.parse(data.valor) as Destinatario[];
+    // Agregar entradas del SEED que no existan aún en la lista guardada
+    const extras = SEED[planta].filter(s => !saved.some(r => r.email === s.email));
+    return extras.length > 0 ? [...saved, ...extras] : saved;
   } catch { return SEED[planta]; }
 }
 
