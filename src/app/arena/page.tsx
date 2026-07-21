@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AdminGuard } from "@/components/AdminGuard";
@@ -623,7 +623,7 @@ export default function ArenaPage() {
         </div>
       </div>
 
-      {zona === "centro" && <CentroRegistroInlineForm />}
+      {zona === "centro" && <Suspense fallback={null}><CentroRegistroInlineForm /></Suspense>}
 
       {zona === "sur" && (<>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1124,11 +1124,12 @@ const MINI_BADGE: Record<MiniTab, string> = {
 };
 
 function MiniDestinatarios() {
-  const [tab,    setTab]    = useState<MiniTab>("sur");
-  const [lists,  setLists]  = useState<Record<MiniTab, Dest[]>>({ sur: [], turco: [], peral: [] });
-  const [loaded, setLoaded] = useState<Record<MiniTab, boolean>>({ sur: false, turco: false, peral: false });
-  const [saving, setSaving] = useState(false);
-  const [msg,    setMsg]    = useState<{ ok: boolean; text: string } | null>(null);
+  const [tab,      setTab]      = useState<MiniTab>("sur");
+  const [lists,    setLists]    = useState<Record<MiniTab, Dest[]>>({ sur: [], turco: [], peral: [] });
+  const [defaults, setDefaults] = useState<Record<MiniTab, string[] | null>>({ sur: null, turco: null, peral: null });
+  const [loaded,   setLoaded]   = useState<Record<MiniTab, boolean>>({ sur: false, turco: false, peral: false });
+  const [saving,   setSaving]   = useState(false);
+  const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null);
 
   function flash(ok: boolean, text: string) {
     setMsg({ ok, text });
@@ -1141,12 +1142,14 @@ function MiniDestinatarios() {
       .then(r => r.json())
       .then(d => {
         setLists(prev => ({ ...prev, [tab]: d.recipients ?? [] }));
+        setDefaults(prev => ({ ...prev, [tab]: d.defaultEmails ?? null }));
         setLoaded(prev => ({ ...prev, [tab]: true }));
       })
       .catch(() => setLoaded(prev => ({ ...prev, [tab]: true })));
   }, [tab, loaded]);
 
-  const list = lists[tab];
+  const list     = lists[tab];
+  const defEmails = defaults[tab];
 
   async function persist(updated: Dest[]) {
     setSaving(true);
@@ -1157,10 +1160,35 @@ function MiniDestinatarios() {
         body: JSON.stringify({ planta: tab, recipients: updated }),
       });
       const d = await r.json();
-      if (d.ok) { setLists(prev => ({ ...prev, [tab]: updated })); }
-      else       flash(false, d.error ?? "Error");
-    } catch { flash(false, "Error de conexion"); }
+      if (d.ok) setLists(prev => ({ ...prev, [tab]: updated }));
+      else      flash(false, d.error ?? "Error");
+    } catch { flash(false, "Error de conexión"); }
     setSaving(false);
+  }
+
+  async function guardarPredeterminado() {
+    const emails = list.filter(d => d.activo).map(d => d.email);
+    setSaving(true);
+    try {
+      const r = await fetch("/api/informe/recipients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planta: tab, tipo: "default", emails }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setDefaults(prev => ({ ...prev, [tab]: emails }));
+        flash(true, "Predeterminado guardado");
+      } else flash(false, d.error ?? "Error");
+    } catch { flash(false, "Error de conexión"); }
+    setSaving(false);
+  }
+
+  function cargarPredeterminado() {
+    if (!defEmails) return;
+    const updated = list.map(d => ({ ...d, activo: defEmails.includes(d.email) }));
+    setLists(prev => ({ ...prev, [tab]: updated }));
+    persist(updated);
   }
 
   function toggle(idx: number) {
@@ -1175,7 +1203,7 @@ function MiniDestinatarios() {
     persist(updated);
   }
 
-  const activos = list.filter(d => d.activo).length;
+  const activos      = list.filter(d => d.activo).length;
   const todosActivos = list.length > 0 && activos === list.length;
 
   return (
@@ -1199,8 +1227,8 @@ function MiniDestinatarios() {
         <p className="text-[10px] text-gray-400 text-center py-2">Cargando...</p>
       ) : (
         <>
-          {/* Acciones masivas */}
-          <div className="flex gap-1.5 mb-2 pb-2 border-b border-gray-100">
+          {/* Acciones */}
+          <div className="flex flex-wrap gap-1.5 mb-2 pb-2 border-b border-gray-100">
             <button onClick={() => setAll(true)} disabled={todosActivos || saving}
               className="text-[10px] px-2 py-1 rounded border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
               Activar todos
@@ -1208,6 +1236,18 @@ function MiniDestinatarios() {
             <button onClick={() => setAll(false)} disabled={saving}
               className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
               Desactivar todos
+            </button>
+            <div className="flex-1"/>
+            {defEmails && (
+              <button onClick={cargarPredeterminado} disabled={saving}
+                className="text-[10px] px-2 py-1 rounded border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition-colors"
+                title={`Predeterminado: ${defEmails.join(", ")}`}>
+                Cargar pred.
+              </button>
+            )}
+            <button onClick={guardarPredeterminado} disabled={saving}
+              className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 bg-white hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              Guardar pred.
             </button>
           </div>
 

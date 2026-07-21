@@ -1,11 +1,13 @@
 /**
  * GET  /api/informe/recipients?planta=sur|turco|peral
+ * GET  /api/informe/recipients?planta=sur&tipo=default  → carga emails predeterminados
  * PUT  /api/informe/recipients  body: { planta, recipients }
+ * PUT  /api/informe/recipients  body: { planta, tipo:"default", emails:string[] }
  *
- * Claves en tabla `configuracion`:
- *   sur   → report_recipients
- *   turco → turco_recipients
- *   peral → peral_recipients
+ * Claves en configuracion:
+ *   sur   → report_recipients       / sur_default_emails
+ *   turco → turco_recipients        / turco_default_emails
+ *   peral → peral_recipients        / peral_default_emails
  */
 
 import { NextResponse }     from "next/server";
@@ -27,6 +29,12 @@ const CLAVE: Record<Planta, string> = {
   sur:   "report_recipients",
   turco: "turco_recipients",
   peral: "peral_recipients",
+};
+
+const CLAVE_DEFAULT: Record<Planta, string> = {
+  sur:   "sur_default_emails",
+  turco: "turco_default_emails",
+  peral: "peral_default_emails",
 };
 
 const SEED: Record<Planta, Destinatario[]> = {
@@ -72,23 +80,37 @@ function parsePlanta(raw: string | null): Planta {
 
 async function loadRecipients(planta: Planta): Promise<Destinatario[]> {
   try {
-    const { data, error } = await getClient()
-      .from("configuracion")
-      .select("valor")
-      .eq("clave", CLAVE[planta])
-      .maybeSingle();
-    if (error || !data?.valor) return SEED[planta];
+    const { data } = await getClient()
+      .from("configuracion").select("valor").eq("clave", CLAVE[planta]).maybeSingle();
+    if (!data?.valor) return SEED[planta];
     return JSON.parse(data.valor) as Destinatario[];
-  } catch {
-    return SEED[planta];
-  }
+  } catch { return SEED[planta]; }
+}
+
+async function loadDefaultEmails(planta: Planta): Promise<string[] | null> {
+  try {
+    const { data } = await getClient()
+      .from("configuracion").select("valor").eq("clave", CLAVE_DEFAULT[planta]).maybeSingle();
+    if (!data?.valor) return null;
+    return JSON.parse(data.valor) as string[];
+  } catch { return null; }
 }
 
 export async function GET(req: Request) {
-  const planta = parsePlanta(new URL(req.url).searchParams.get("planta"));
+  const url    = new URL(req.url);
+  const planta = parsePlanta(url.searchParams.get("planta"));
+  const tipo   = url.searchParams.get("tipo");
+
   try {
-    const recipients = await loadRecipients(planta);
-    return NextResponse.json({ recipients, planta });
+    if (tipo === "default") {
+      const emails = await loadDefaultEmails(planta);
+      return NextResponse.json({ defaultEmails: emails, planta });
+    }
+    const [recipients, defaultEmails] = await Promise.all([
+      loadRecipients(planta),
+      loadDefaultEmails(planta),
+    ]);
+    return NextResponse.json({ recipients, defaultEmails, planta });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -102,23 +124,40 @@ export async function PUT(req: Request) {
     if (session.user.rol !== "admin")
       return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
 
-    const body = await req.json() as { planta?: string; recipients: Destinatario[] };
-    const planta = parsePlanta(body.planta ?? null);
-    const { recipients } = body;
-
-    if (!Array.isArray(recipients))
-      return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
-
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey)
       return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY no configurada" }, { status: 500 });
 
+    const body = await req.json() as {
+      planta?: string;
+      tipo?:   string;
+      recipients?: Destinatario[];
+      emails?: string[];
+    };
+    const planta = parsePlanta(body.planta ?? null);
     const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+
+    // Guardar predeterminado (solo lista de emails)
+    if (body.tipo === "default") {
+      const emails = body.emails;
+      if (!Array.isArray(emails))
+        return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
+      const { error } = await client.from("configuracion").upsert(
+        { clave: CLAVE_DEFAULT[planta], valor: JSON.stringify(emails) },
+        { onConflict: "clave" }
+      );
+      if (error) throw new Error(error.message);
+      return NextResponse.json({ ok: true, tipo: "default", planta, saved: emails.length });
+    }
+
+    // Guardar lista completa (activo/inactivo)
+    const { recipients } = body;
+    if (!Array.isArray(recipients))
+      return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
     const { error } = await client.from("configuracion").upsert(
       { clave: CLAVE[planta], valor: JSON.stringify(recipients) },
       { onConflict: "clave" }
     );
-
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true, planta, saved: recipients.length });
   } catch (e) {
