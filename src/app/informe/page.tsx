@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useViewerMode } from "@/hooks/useViewerMode";
 import { supabase } from "@/lib/supabase";
 import { fmt } from "@/lib/calculations";
-import type { RegistroArena } from "@/types/database";
+import type { RegistroArena, RegistroTurco, RegistroPeral } from "@/types/database";
 import { format, getISOWeek, getISOWeekYear, startOfISOWeek, addDays, eachDayOfInterval, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
@@ -125,6 +125,12 @@ export default function InformePage() {
   const { viewerMode }    = useViewerMode();
   const isAdmin           = session?.user?.rol === "admin" && !viewerMode;
 
+  const [zona, setZona]               = useState<"sur" | "centro">("sur");
+  const [centroTurco, setCentroTurco] = useState<RegistroTurco[]>([]);
+  const [centroPeral, setCentroPeral] = useState<RegistroPeral[]>([]);
+  const [centroLoading, setCentroLoading] = useState(false);
+  const [centroLoaded,  setCentroLoaded]  = useState(false);
+
   const [rows, setRows]               = useState<RegistroArena[]>([]);
   const [loading, setLoading]         = useState(true);
   const [editRow, setEditRow]         = useState<RegistroArena | null>(null);
@@ -149,6 +155,23 @@ export default function InformePage() {
 
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (zona !== "centro" || centroLoaded || centroLoading) return;
+    setCentroLoading(true);
+    fetch("/api/centro-data?limit=50")
+      .then(r => r.json())
+      .then(d => {
+        const dedup = <T extends { fecha_hora: string }>(rows: T[]) => {
+          const seen = new Set<string>();
+          return rows.filter(r => { if (seen.has(r.fecha_hora)) return false; seen.add(r.fecha_hora); return true; });
+        };
+        setCentroTurco(dedup(d.turco ?? []));
+        setCentroPeral(dedup(d.peral ?? []));
+        setCentroLoaded(true);
+      })
+      .finally(() => setCentroLoading(false));
+  }, [zona, centroLoaded, centroLoading]);
 
   async function generarPDF() {
     if (!cubRef.current || !semRef.current) return;
@@ -422,7 +445,35 @@ export default function InformePage() {
         )}
       </div>
 
-      {/* 
+      {/* ── Pestañas Zona Sur / Centro ── */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setZona("sur")}
+          className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+            zona === "sur"
+              ? "text-white shadow-sm"
+              : "text-gray-500 hover:bg-white/60"
+          }`}
+          style={zona === "sur" ? { backgroundColor: C_DRONE } : {}}
+        >
+          Zona Sur
+        </button>
+        <button
+          onClick={() => setZona("centro")}
+          className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+            zona === "centro"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-gray-500 hover:bg-white/60"
+          }`}
+        >
+          Zona Centro
+        </button>
+      </div>
+
+      {/* ══════════════ ZONA SUR ══════════════ */}
+      {zona === "sur" && (<>
+
+      {/*
           SECCIÓN 1 — POR CUBICACIÓN
        */}
       <section ref={cubRef}>
@@ -957,6 +1008,17 @@ export default function InformePage() {
 
       {/* ── Destinatarios del Informe — movido a página Arena ── */}
 
+      </>)} {/* fin Zona Sur */}
+
+      {/* ══════════════ ZONA CENTRO ══════════════ */}
+      {zona === "centro" && (
+        <CentroInformeView
+          turcoRows={centroTurco}
+          peralRows={centroPeral}
+          loading={centroLoading}
+        />
+      )}
+
     </div>
 
     {editRow && (
@@ -968,6 +1030,242 @@ export default function InformePage() {
       />
     )}
     </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Zona Centro — Vista consolidada en Informe
+───────────────────────────────────────────────*/
+function CentroInformeView({
+  turcoRows, peralRows, loading,
+}: {
+  turcoRows: RegistroTurco[];
+  peralRows: RegistroPeral[];
+  loading: boolean;
+}) {
+  const [centroVerTodo, setCentroVerTodo] = useState(false);
+
+  if (loading) return <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando datos Zona Centro…</div>;
+
+  const tLast = turcoRows[0] ?? null;
+  const pLast = peralRows[0] ?? null;
+
+  // Historial para gráficos (orden cronológico, últimos 12 o todos)
+  const tChart = [...turcoRows].reverse().slice(centroVerTodo ? 0 : -12).map(r => ({
+    mes: r.fecha.slice(0, 10),
+    tlh:      r.tlh_ton      ?? null,
+    arena:    r.arena_mina_ton ?? null,
+    fierrillo:r.fierrillo_total_ton ?? null,
+    grancilla:r.grancilla_ton ?? null,
+  }));
+  const pChart = [...peralRows].reverse().slice(centroVerTodo ? 0 : -12).map(r => ({
+    mes:      r.fecha.slice(0, 10),
+    stock:    r.stock_arena_humeda_ton ?? null,
+    arena:    r.arena_mina_ton ?? null,
+    a22:      r.a22_ton ?? null,
+    a25:      r.a25_ton ?? null,
+    grancilla:r.grancilla_ton ?? null,
+  }));
+
+  return (
+    <div className="space-y-8">
+      {/* ══ TURCO ══ */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 rounded-full bg-amber-500 shrink-0" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-amber-700">Planta El Turco</h2>
+        </div>
+
+        {/* KPIs */}
+        {tLast ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="card flex flex-col gap-1 border-amber-300 bg-amber-50 ring-1 ring-amber-200">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">TLH ★</p>
+              <p className="text-2xl font-bold text-amber-800">{fmt(tLast.tlh_ton)}</p>
+              <p className="text-xs text-amber-600">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Arena Mina</p>
+              <p className="text-xl font-bold text-gray-800">{fmt(tLast.arena_mina_ton)}</p>
+              <p className="text-xs text-gray-400">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Fierrillo Total</p>
+              <p className="text-xl font-bold text-green-700">{fmt(tLast.fierrillo_total_ton)}</p>
+              <p className="text-xs text-gray-400">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Grancilla</p>
+              <p className="text-xl font-bold text-gray-800">{fmt(tLast.grancilla_ton)}</p>
+              <p className="text-xs text-gray-400">ton</p>
+            </div>
+          </div>
+        ) : <p className="text-sm text-gray-400">Sin registros Turco</p>}
+
+        {/* Gráfico */}
+        {tChart.length > 1 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700 text-sm">TLH & Arena Mina — histórico</h3>
+              <button onClick={() => setCentroVerTodo(v => !v)} className="text-xs text-blue-600 hover:underline">
+                {centroVerTodo ? "Últimos 12" : "Ver todo"}
+              </button>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={tChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="mes" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v: unknown) => fmt(v as number, 1) + " ton"} />
+                <Legend />
+                <Line type="monotone" dataKey="tlh"       name="TLH"          stroke="#f59e0b" strokeWidth={3} dot={{ r:3 }} connectNulls />
+                <Line type="monotone" dataKey="arena"     name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} connectNulls />
+                <Line type="monotone" dataKey="fierrillo" name="Fierrillo Ttl" stroke="#16a34a" strokeWidth={2} dot={{ r:2 }} connectNulls strokeDasharray="4 2" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Tabla */}
+        {turcoRows.length > 0 && (
+          <div className="card p-0 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <span className="font-semibold text-gray-700 text-sm">Últimos registros Turco</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="table-th text-left">Fecha</th>
+                    <th className="table-th">TLH ton</th>
+                    <th className="table-th">Arena Mina ton</th>
+                    <th className="table-th">Estéril ton</th>
+                    <th className="table-th">Grancilla ton</th>
+                    <th className="table-th">Fierr. A ton</th>
+                    <th className="table-th">Fierr. B ton</th>
+                    <th className="table-th">Fierr. Total ton</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {turcoRows.slice(0, 10).map((r, i) => (
+                    <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                      <td className="table-td-left font-medium">{r.fecha}</td>
+                      <td className="table-td font-semibold text-amber-700">{fmt(r.tlh_ton)}</td>
+                      <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
+                      <td className="table-td">{fmt(r.esteril_ton)}</td>
+                      <td className="table-td">{fmt(r.grancilla_ton)}</td>
+                      <td className="table-td">{fmt(r.fierrillo_a_ton)}</td>
+                      <td className="table-td">{fmt(r.fierrillo_b_ton)}</td>
+                      <td className="table-td font-semibold text-green-700">{fmt(r.fierrillo_total_ton)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* divider */}
+      <div className="border-t border-gray-200" />
+
+      {/* ══ PERAL ══ */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-5 rounded-full bg-cyan-500 shrink-0" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-cyan-700">Planta Peral</h2>
+        </div>
+
+        {/* KPIs */}
+        {pLast ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50 ring-1 ring-cyan-200">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Stock Húmeda ★</p>
+              <p className="text-2xl font-bold text-cyan-800">{fmt(pLast.stock_arena_humeda_ton)}</p>
+              <p className="text-xs text-cyan-600">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50 ring-1 ring-blue-100">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Arena Mina ★</p>
+              <p className="text-2xl font-bold text-blue-800">{fmt(pLast.arena_mina_ton)}</p>
+              <p className="text-xs text-blue-600">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">A-22</p>
+              <p className="text-xl font-bold text-gray-800">{fmt(pLast.a22_ton)}</p>
+              <p className="text-xs text-gray-400">ton</p>
+            </div>
+            <div className="card flex flex-col gap-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Grancilla</p>
+              <p className="text-xl font-bold text-gray-800">{fmt(pLast.grancilla_ton)}</p>
+              <p className="text-xs text-gray-400">ton</p>
+            </div>
+          </div>
+        ) : <p className="text-sm text-gray-400">Sin registros Peral</p>}
+
+        {/* Gráfico */}
+        {pChart.length > 1 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700 text-sm">Stock Húmeda & Arena Mina — histórico</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={pChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="mes" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v: unknown) => fmt(v as number, 1) + " ton"} />
+                <Legend />
+                <Line type="monotone" dataKey="stock"    name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} connectNulls />
+                <Line type="monotone" dataKey="arena"    name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} connectNulls />
+                <Line type="monotone" dataKey="a22"      name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} connectNulls strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="a25"      name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} connectNulls strokeDasharray="4 2" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Tabla */}
+        {peralRows.length > 0 && (
+          <div className="card p-0 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <span className="font-semibold text-gray-700 text-sm">Últimos registros Peral</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="table-th text-left">Fecha</th>
+                    <th className="table-th">Stock Húmeda</th>
+                    <th className="table-th">Arena Mina</th>
+                    <th className="table-th">A-22</th>
+                    <th className="table-th">A-24</th>
+                    <th className="table-th">A-25</th>
+                    <th className="table-th">A-26</th>
+                    <th className="table-th">DMH</th>
+                    <th className="table-th">Grancilla</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {peralRows.slice(0, 10).map((r, i) => (
+                    <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                      <td className="table-td-left font-medium">{r.fecha}</td>
+                      <td className="table-td font-semibold text-cyan-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                      <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
+                      <td className="table-td">{fmt(r.a22_ton)}</td>
+                      <td className="table-td">{fmt(r.a24_ton)}</td>
+                      <td className="table-td">{fmt(r.a25_ton)}</td>
+                      <td className="table-td">{fmt(r.a26_ton)}</td>
+                      <td className="table-td">{fmt(r.dmh_ton)}</td>
+                      <td className="table-td">{fmt(r.grancilla_ton)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
