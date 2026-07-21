@@ -1126,14 +1126,18 @@ function CentroInformPanel({ planta }: { planta: "turco" | "peral" }) {
 
   useEffect(() => {
     setSelectedId(""); setResult(null);
+    const dedup = <T extends { fecha_hora: string }>(rows: T[]): T[] => {
+      const seen = new Set<string>();
+      return rows.filter(r => { if (seen.has(r.fecha_hora)) return false; seen.add(r.fecha_hora); return true; });
+    };
     if (planta === "turco") {
       supabase.from("registros_turco").select("*")
         .order("fecha", { ascending: false }).order("hora", { ascending: false })
-        .limit(10).then(({ data }) => setTRows(data ?? []));
+        .limit(20).then(({ data }) => setTRows(dedup(data ?? []).slice(0, 10)));
     } else {
       supabase.from("registros_peral").select("*")
         .order("fecha", { ascending: false }).order("hora", { ascending: false })
-        .limit(10).then(({ data }) => setPRows(data ?? []));
+        .limit(20).then(({ data }) => setPRows(dedup(data ?? []).slice(0, 10)));
     }
   }, [planta]);
 
