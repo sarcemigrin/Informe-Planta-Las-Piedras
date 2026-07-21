@@ -85,6 +85,7 @@ export default function Dashboard() {
   const [turcoRows,      setTurcoRows]      = useState<RegistroTurco[]>([]);
   const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
   const [centroLoaded,   setCentroLoaded]   = useState(false);
+  const [centroRefresh,  setCentroRefresh]  = useState(0);
   const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
   const [centroVerTodo,  setCentroVerTodo]  = useState(false);
   const [showPicker,     setShowPicker]     = useState(false);
@@ -122,7 +123,7 @@ export default function Dashboard() {
     setCentroLoaded(false);
     async function loadCentro() {
       try {
-        const res  = await fetch("/api/centro-data?limit=200");
+        const res  = await fetch(`/api/centro-data?limit=200&t=${Date.now()}`);
         if (!res.ok) { console.error("[centro-data] HTTP", res.status); return; }
         const json = await res.json() as { turco: RegistroTurco[]; peral: RegistroPeral[]; _debug?: unknown };
         setTurcoRows(json.turco ?? []);
@@ -134,7 +135,7 @@ export default function Dashboard() {
       }
     }
     loadCentro();
-  }, [planta]);
+  }, [planta, centroRefresh]);
 
   const sel          = arenaRows[selectedIdx];
   const prev         = arenaRows[selectedIdx + 1];
@@ -372,6 +373,19 @@ export default function Dashboard() {
             </svg>
             Ir a {planta === "sur" ? "Zona Centro" : "Zona Sur"}
           </button>
+          {planta === "centro" && (
+            <button
+              onClick={() => setCentroRefresh(n => n + 1)}
+              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition-colors border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50"
+              title="Recargar datos Centro"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Actualizar
+            </button>
+          )}
           <button
             onClick={exportarExcel}
             className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-green-700 transition-colors border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-green-50 hover:border-green-300"
@@ -874,6 +888,13 @@ export default function Dashboard() {
                     Peral
                   </button>
                 </div>
+
+                {/* contador debug */}
+                <p className="text-xs text-gray-400">
+                  Turco: {turcoRows.length} registros · Peral: {peralRows.length} registros
+                  {turcoRows[0] && <> · Último Turco: {turcoRows[0].fecha}</>}
+                  {peralRows[0] && <> · Último Peral: {peralRows[0].fecha}</>}
+                </p>
 
                 {/* ══ TURCO ══ */}
                 {centroTab === "turco" && (
