@@ -28,9 +28,12 @@ export async function GET(req: Request) {
   if (eTurco) console.error("[centro-data] turco:", eTurco.message);
   if (ePeral) console.error("[centro-data] peral:", ePeral.message);
 
-  return NextResponse.json({
-    turco: turco ?? [],
-    peral: peral ?? [],
-    _debug: { turcoCount: turco?.length ?? 0, peralCount: peral?.length ?? 0, turcoError: eTurco?.message, peralError: ePeral?.message },
-  });
+  return NextResponse.json(
+    {
+      turco: turco ?? [],
+      peral: peral ?? [],
+      _debug: { turcoCount: turco?.length ?? 0, peralCount: peral?.length ?? 0, turcoError: eTurco?.message, peralError: ePeral?.message },
+    },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+  );
 }
