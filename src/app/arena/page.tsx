@@ -1126,9 +1126,9 @@ function CentroInformPanel({ planta }: { planta: "turco" | "peral" }) {
 
   useEffect(() => {
     setSelectedId(""); setResult(null);
-    const dedup = <T extends { fecha_hora: string }>(rows: T[]): T[] => {
+    const dedup = <T extends { fecha_hora?: string | null; fecha: string; hora: string }>(rows: T[]): T[] => {
       const seen = new Set<string>();
-      return rows.filter(r => { if (seen.has(r.fecha_hora)) return false; seen.add(r.fecha_hora); return true; });
+      return rows.filter(r => { const k = r.fecha_hora ?? `${r.fecha} ${r.hora}`; if (seen.has(k)) return false; seen.add(k); return true; });
     };
     if (planta === "turco") {
       supabase.from("registros_turco").select("*")

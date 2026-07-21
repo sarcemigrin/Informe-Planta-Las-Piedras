@@ -28,12 +28,13 @@ export async function GET(req: Request) {
   if (eTurco) console.error("[centro-data] turco:", eTurco.message);
   if (ePeral) console.error("[centro-data] peral:", ePeral.message);
 
-  // Deduplicar por fecha_hora (registros guardados más de una vez)
-  const dedup = <T extends { fecha_hora: string }>(rows: T[]): T[] => {
+  // Deduplicar por fecha_hora (o fecha+hora si fecha_hora es null)
+  const dedup = <T extends { fecha_hora?: string | null; fecha: string; hora: string }>(rows: T[]): T[] => {
     const seen = new Set<string>();
     return rows.filter(r => {
-      if (seen.has(r.fecha_hora)) return false;
-      seen.add(r.fecha_hora);
+      const key = r.fecha_hora ?? `${r.fecha} ${r.hora}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
   };

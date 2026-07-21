@@ -118,13 +118,13 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (planta !== "centro" || centroLoaded) return;
+    if (planta !== "centro") return;
+    setCentroLoaded(false);
     async function loadCentro() {
       try {
         const res  = await fetch("/api/centro-data?limit=200");
         if (!res.ok) { console.error("[centro-data] HTTP", res.status); return; }
         const json = await res.json() as { turco: RegistroTurco[]; peral: RegistroPeral[]; _debug?: unknown };
-        console.log("[centro-data] turco:", json.turco?.length, "peral:", json.peral?.length, json._debug);
         setTurcoRows(json.turco ?? []);
         setPeralRows(json.peral ?? []);
       } catch (e) {
@@ -134,7 +134,7 @@ export default function Dashboard() {
       }
     }
     loadCentro();
-  }, [planta, centroLoaded]);
+  }, [planta]);
 
   const sel          = arenaRows[selectedIdx];
   const prev         = arenaRows[selectedIdx + 1];
