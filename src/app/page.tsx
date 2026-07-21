@@ -85,8 +85,8 @@ export default function Dashboard() {
   const [turcoRows,      setTurcoRows]      = useState<RegistroTurco[]>([]);
   const [peralRows,      setPeralRows]      = useState<RegistroPeral[]>([]);
   const [centroLoaded,   setCentroLoaded]   = useState(false);
-  const [centroTab,      setCentroTab]      = useState<"turco"|"peral">("turco");
   const [centroVerTodo,  setCentroVerTodo]  = useState(false);
+  const [showPicker,     setShowPicker]     = useState(false);
   const [realRol,        setRealRol]        = useState<string | null>(null);
   const { data: session } = useSession();
   const { viewerMode } = useViewerMode();
@@ -396,7 +396,41 @@ export default function Dashboard() {
             </svg>
             Exportar Excel
           </button>
-          <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
+          {planta !== "centro" ? (
+            <Link href="/arena" className="btn-primary">+ Añadir Nuevo Registro</Link>
+          ) : (
+            <div className="relative">
+              <button
+                onClick={() => setShowPicker(v => !v)}
+                className="btn-primary flex items-center gap-1.5"
+              >
+                + Añadir Nuevo Registro
+                <svg className="w-3 h-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showPicker && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
+                  <Link
+                    href="/arena?planta=turco"
+                    onClick={() => setShowPicker(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    Planta Turco
+                  </Link>
+                  <Link
+                    href="/arena?planta=peral"
+                    onClick={() => setShowPicker(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-cyan-700 hover:bg-cyan-50 border-t border-gray-100 transition-colors"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 shrink-0" />
+                    Planta Peral
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -800,14 +834,6 @@ export default function Dashboard() {
               return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
             })();
 
-            /* ── Comparativo mensual: Fierrillo Total vs Stock Húmeda ── */
-            const allMonths = Array.from(new Set([...turcoMonthly.map(r=>r.mes), ...peralLines.map(r=>r.mes)])).sort();
-            const compData = allMonths.map(mes => ({
-              mes,
-              fierrillo: turcoMonthly.find(r=>r.mes===mes)?.fierrillo ?? null,
-              stock: peralLines.find(r=>r.mes===mes)?.stock ?? null,
-            }));
-
             function varBadge(v: number) {
               const color = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-gray-400";
               const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "–";
@@ -821,7 +847,6 @@ export default function Dashboard() {
             })();
             const turcoChart  = turcoMonthly.filter(r => last3Months.includes(r.mes));
             const peralChart  = peralLines.filter(r => last3Months.includes(r.mes));
-            const compChart   = compData.filter(r => last3Months.includes(r.mes));
 
             return (
               <>
@@ -839,27 +864,8 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* ── Sub-tabs con color por planta ── */}
-                <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-                  {(["turco","peral","comparativo"] as const).map(t => {
-                    const active = centroTab === t;
-                    const color = t === "turco"
-                      ? (active ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-amber-600")
-                      : t === "peral"
-                      ? (active ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-cyan-600")
-                      : (active ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700");
-                    return (
-                      <button key={t} onClick={() => setCentroTab(t as "turco"|"peral")}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${color}`}>
-                        {t.charAt(0).toUpperCase()+t.slice(1)}
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {/* ══ TURCO ══ */}
-                {centroTab === "turco" && (
-                  <div className="space-y-4">
+                <div className="space-y-4">
                     {/* Header con botón nuevo registro */}
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-amber-700">Planta El Turco</h3>
@@ -975,11 +981,12 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                )}
+
+                {/* ── Separador ── */}
+                <div className="border-t border-gray-200 pt-1" />
 
                 {/* ══ PERAL ══ */}
-                {centroTab === "peral" && (
-                  <div className="space-y-4">
+                <div className="space-y-4">
                     {/* Header con botón nuevo registro */}
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-cyan-700">Planta Peral</h3>
@@ -1099,54 +1106,6 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* ══ COMPARATIVO ══ */}
-                {centroTab === ("comparativo" as "turco"|"peral") && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-400">Fierrillo Total (Turco) vs Stock Húmeda (Peral) — evolución mensual</p>
-                      <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
-                        {centroVerTodo ? "Ver últimos 3 meses" : "Ver todo el histórico"}
-                      </button>
-                    </div>
-                    {compChart.length > 0 && (
-                      <div className="card">
-                        <h3 className="font-semibold text-gray-700 mb-4 text-sm">Stock total por planta — por mes</h3>
-                        <ResponsiveContainer width="100%" height={280}>
-                          <ComposedChart data={compChart} margin={{ top:5, right:20, left:10, bottom:5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="mes" tick={{ fontSize:10 }} />
-                            <YAxis tick={{ fontSize:10 }} />
-                            <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
-                            <Legend />
-                            <Line type="monotone" dataKey="fierrillo" name="Fierrillo Total (Turco)" stroke="#f59e0b" strokeWidth={3} dot={{ r:4 }} connectNulls />
-                            <Line type="monotone" dataKey="stock"     name="Stock Húmeda (Peral)"    stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} connectNulls />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                    {/* Mini resumen lado a lado */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="card border-amber-200">
-                        <div className="font-semibold text-amber-700 text-sm mb-3">Turco — último registro</div>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">TLH</span><span className="font-bold text-amber-700">{fmt(tLast?.tlh_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(tLast?.arena_mina_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Fierr. Total</span><span className="font-bold">{fmt(tLast?.fierrillo_total_ton)} ton</span></div>
-                        </div>
-                      </div>
-                      <div className="card border-green-200">
-                        <div className="font-semibold text-cyan-700 text-sm mb-3">Peral — último registro</div>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between"><span className="text-gray-500">Stock Húmeda</span><span className="font-bold text-cyan-700">{fmt(pLast?.stock_arena_humeda_ton)} ton</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Arena Mina</span><span className="font-bold text-blue-700">{fmt(pLast?.arena_mina_ton)} ton</span></div>
-
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             );
           })()}

@@ -276,13 +276,22 @@ function CentroRegistroInlineForm() {
           {saving ? "Guardando…" : "Guardar registro"}
         </button>
       </div>
+
+      {/* Destinatarios + Reenvío + Historial para la planta activa */}
+      <CentroInformPanel planta={ctab} />
     </div>
   );
 }
 
 
 export default function ArenaPage() {
-  const [zona, setZona] = useState<"sur"|"centro">("sur");
+  const [zona, setZona] = useState<"sur"|"centro">(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("planta");
+      if (p === "turco" || p === "peral") return "centro";
+    }
+    return "sur";
+  });
   const [form, setForm] = useState<Record<string, string>>(loadDraft);
 
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
@@ -1107,6 +1116,142 @@ function PreviewRow({ label, value, unit, colorClass }: {
   );
 }
 
+/* ── Panel informe Zona Centro (destinatarios + reenvío + historial) ─ */
+function CentroInformPanel({ planta }: { planta: "turco" | "peral" }) {
+  const [tRows, setTRows] = useState<RegistroTurco[]>([]);
+  const [pRows, setPRows] = useState<RegistroPeral[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [sending,    setSending]    = useState(false);
+  const [result,     setResult]     = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    setSelectedId(""); setResult(null);
+    if (planta === "turco") {
+      supabase.from("registros_turco").select("*")
+        .order("fecha", { ascending: false }).order("hora", { ascending: false })
+        .limit(10).then(({ data }) => setTRows(data ?? []));
+    } else {
+      supabase.from("registros_peral").select("*")
+        .order("fecha", { ascending: false }).order("hora", { ascending: false })
+        .limit(10).then(({ data }) => setPRows(data ?? []));
+    }
+  }, [planta]);
+
+  const hasRows = planta === "turco" ? tRows.length > 0 : pRows.length > 0;
+
+  async function reenviar() {
+    if (!selectedId) return;
+    setSending(true); setResult(null);
+    try {
+      let fecha = "", hora = "", kpis: Record<string, unknown> = {};
+      if (planta === "turco") {
+        const { data } = await supabase.from("registros_turco").select("*").eq("id", selectedId).single();
+        if (!data) throw new Error("no data");
+        fecha = data.fecha; hora = data.hora; kpis = data as Record<string, unknown>;
+      } else {
+        const { data } = await supabase.from("registros_peral").select("*").eq("id", selectedId).single();
+        if (!data) throw new Error("no data");
+        fecha = data.fecha; hora = data.hora; kpis = data as Record<string, unknown>;
+      }
+      const resp = await fetch("/api/informe/notify-centro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planta, fecha, hora, kpis }),
+      });
+      const d = await resp.json() as { ok?: boolean; error?: string };
+      setResult(d.ok ? { ok: true, text: "Email reenviado correctamente" } : { ok: false, text: d.error ?? "Error" });
+    } catch { setResult({ ok: false, text: "Error de conexión" }); }
+    setSending(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Destinatarios de esta planta (sin pestañas) */}
+      <MiniDestinatarios key={planta} fixedTab={planta} />
+
+      {/* Reenviar */}
+      {hasRows && (
+        <section className="card">
+          <h2 className="font-semibold text-gray-800 mb-1 text-sm">Reenviar Informe</h2>
+          <p className="text-xs text-gray-400 mb-2">Selecciona un registro para reenviar el email a los destinatarios activos</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <select className="input text-sm flex-1" value={selectedId}
+              onChange={e => { setSelectedId(e.target.value); setResult(null); }}>
+              <option value="">— Seleccionar registro —</option>
+              {planta === "turco"
+                ? tRows.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.fecha.split("-").reverse().join("/")} {r.hora?.slice(0,5)} – TLH {r.tlh_ton != null ? Math.round(r.tlh_ton) : "—"} ton
+                    </option>
+                  ))
+                : pRows.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.fecha.split("-").reverse().join("/")} {r.hora?.slice(0,5)} – Stock {r.stock_arena_humeda_ton != null ? Math.round(r.stock_arena_humeda_ton) : "—"} ton
+                    </option>
+                  ))
+              }
+            </select>
+            <button onClick={reenviar} disabled={!selectedId || sending}
+              className="btn-primary px-5 py-2 text-sm disabled:opacity-40 shrink-0">
+              {sending ? "Enviando…" : "Reenviar"}
+            </button>
+          </div>
+          {result && (
+            <div className={"mt-3 text-sm px-3 py-2 rounded-lg " + (result.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
+              {result.text}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Historial reciente */}
+      {hasRows && (
+        <section className="card p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <span className="font-semibold text-gray-700 text-sm">
+              Historial reciente — {planta === "turco" ? "Turco" : "Peral"}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="table-th text-left">Fecha / Hora</th>
+                  {planta === "turco" ? (
+                    <><th className="table-th">TLH ton</th><th className="table-th">Arena Mina ton</th><th className="table-th">Fierr. Total ton</th></>
+                  ) : (
+                    <><th className="table-th">Stock Húmeda ton</th><th className="table-th">Arena Mina ton</th><th className="table-th">Grancilla ton</th></>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {planta === "turco"
+                  ? tRows.map((r, i) => (
+                    <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
+                      <td className="table-td-left font-medium">{r.fecha} {r.hora?.slice(0,5)}</td>
+                      <td className="table-td font-semibold text-amber-700">{fmt(r.tlh_ton)}</td>
+                      <td className="table-td text-blue-700">{fmt(r.arena_mina_ton)}</td>
+                      <td className="table-td text-green-700">{fmt(r.fierrillo_total_ton)}</td>
+                    </tr>
+                  ))
+                  : pRows.map((r, i) => (
+                    <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
+                      <td className="table-td-left font-medium">{r.fecha} {r.hora?.slice(0,5)}</td>
+                      <td className="table-td font-semibold text-cyan-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                      <td className="table-td text-blue-700">{fmt(r.arena_mina_ton)}</td>
+                      <td className="table-td">{fmt(r.grancilla_ton)}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 /* ── Mini panel destinatarios — 3 pestañas ────────────────────── */
 interface Dest { email: string; nombre: string; activo: boolean; }
 type MiniTab = "sur" | "turco" | "peral";
@@ -1122,11 +1267,17 @@ const MINI_BADGE: Record<MiniTab, string> = {
   peral: "bg-cyan-100 text-cyan-700",
 };
 
-function MiniDestinatarios() {
-  const [tab,      setTab]      = useState<MiniTab>("sur");
+function MiniDestinatarios({ fixedTab }: { fixedTab?: MiniTab } = {}) {
+  const [tab,      setTab]      = useState<MiniTab>(fixedTab ?? "sur");
   const [lists,    setLists]    = useState<Record<MiniTab, Dest[]>>({ sur: [], turco: [], peral: [] });
   const [defaults, setDefaults] = useState<Record<MiniTab, string[] | null>>({ sur: null, turco: null, peral: null });
   const [loaded,   setLoaded]   = useState<Record<MiniTab, boolean>>({ sur: false, turco: false, peral: false });
+
+  // Sync tab when fixedTab prop changes (e.g. Turco ↔ Peral)
+  useEffect(() => {
+    if (fixedTab && fixedTab !== tab) setTab(fixedTab);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedTab]);
   const [saving,   setSaving]   = useState(false);
   const [msg,      setMsg]      = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -1207,20 +1358,29 @@ function MiniDestinatarios() {
 
   return (
     <div className="card">
-      {/* Pestañas */}
-      <div className="flex gap-0 mb-3 border-b border-gray-100">
-        {(["sur","turco","peral"] as MiniTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-1.5 text-[10px] font-medium border-b-2 transition-colors -mb-px ${
-              tab === t ? MINI_COLOR[t] : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}>
-            {MINI_LABEL[t]}
-            <span className={`ml-1 text-[9px] px-1 py-0.5 rounded-full ${tab === t ? MINI_BADGE[t] : "bg-gray-100 text-gray-400"}`}>
-              {lists[t].filter(d => d.activo).length}
-            </span>
-          </button>
-        ))}
-      </div>
+      {/* Pestañas — solo si no hay fixedTab */}
+      {!fixedTab ? (
+        <div className="flex gap-0 mb-3 border-b border-gray-100">
+          {(["sur","turco","peral"] as MiniTab[]).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-1.5 text-[10px] font-medium border-b-2 transition-colors -mb-px ${
+                tab === t ? MINI_COLOR[t] : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}>
+              {MINI_LABEL[t]}
+              <span className={`ml-1 text-[9px] px-1 py-0.5 rounded-full ${tab === t ? MINI_BADGE[t] : "bg-gray-100 text-gray-400"}`}>
+                {lists[t].filter(d => d.activo).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className={`text-xs font-semibold mb-3 pb-2 border-b border-gray-100 ${MINI_COLOR[fixedTab]}`}>
+          Destinatarios — {MINI_LABEL[fixedTab]}
+          <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full ${MINI_BADGE[fixedTab]}`}>
+            {lists[fixedTab].filter(d => d.activo).length}
+          </span>
+        </p>
+      )}
 
       {!loaded[tab] ? (
         <p className="text-[10px] text-gray-400 text-center py-2">Cargando...</p>
