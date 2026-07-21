@@ -973,19 +973,27 @@ export default function InformePage() {
 }
 
 /* ─────────────────────────────────────────────
-   Panel de gestión de destinatarios del informe
+   Panel de gestión de destinatarios — 3 pestañas
 ───────────────────────────────────────────────*/
 interface Destinatario { email: string; nombre: string; activo: boolean; }
+type PlantaTab = "sur" | "turco" | "peral";
+
+const TAB_LABEL: Record<PlantaTab, string> = { sur: "Zona Sur", turco: "Turco", peral: "Peral" };
+const TAB_COLOR: Record<PlantaTab, { active: string; badge: string }> = {
+  sur:   { active: "border-green-500 text-green-700",  badge: "bg-green-100 text-green-700"  },
+  turco: { active: "border-amber-500 text-amber-700",  badge: "bg-amber-100 text-amber-700"  },
+  peral: { active: "border-cyan-500  text-cyan-700",   badge: "bg-cyan-100  text-cyan-700"   },
+};
 
 function DestinatariosPanel() {
-  const [list,      setList]      = useState<Destinatario[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState<PlantaTab>("sur");
+  const [lists,     setLists]     = useState<Record<PlantaTab, Destinatario[]>>({ sur: [], turco: [], peral: [] });
+  const [loaded,    setLoaded]    = useState<Record<PlantaTab, boolean>>({ sur: false, turco: false, peral: false });
   const [saving,    setSaving]    = useState(false);
   const [msg,       setMsg]       = useState<{ok:boolean;text:string}|null>(null);
   const [newEmail,  setNewEmail]  = useState("");
   const [newNombre, setNewNombre] = useState("");
   const [open,      setOpen]      = useState(false);
-  const [defaultEmails, setDefaultEmails] = useState<string[]>([]);
 
   function flash(ok: boolean, text: string) {
     setMsg({ ok, text });
@@ -993,18 +1001,18 @@ function DestinatariosPanel() {
   }
 
   useEffect(() => {
-    fetch("/api/informe/recipients")
+    if (loaded[tab]) return;
+    fetch(`/api/informe/recipients?planta=${tab}`)
       .then(r => r.json())
       .then(d => {
-        const recips: Destinatario[] = d.recipients ?? [];
-        setList(recips);
-        // cargar predeterminado si existe
-        const raw = localStorage.getItem("dest_default");
-        if (raw) { try { setDefaultEmails(JSON.parse(raw)); } catch { /* */ } }
-        setLoading(false);
+        setLists(prev => ({ ...prev, [tab]: d.recipients ?? [] }));
+        setLoaded(prev => ({ ...prev, [tab]: true }));
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(() => setLoaded(prev => ({ ...prev, [tab]: true })));
+  }, [tab, loaded]);
+
+  const list = lists[tab];
+  const isLoading = !loaded[tab];
 
   async function persist(updated: Destinatario[]) {
     setSaving(true); setMsg(null);
@@ -1012,40 +1020,25 @@ function DestinatariosPanel() {
       const r = await fetch("/api/informe/recipients", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipients: updated }),
+        body: JSON.stringify({ planta: tab, recipients: updated }),
       });
       const d = await r.json();
-      if (d.ok) { setList(updated); flash(true, "Guardado"); }
+      if (d.ok) { setLists(prev => ({ ...prev, [tab]: updated })); flash(true, "Guardado"); }
       else       flash(false, d.error ?? "Error al guardar");
     } catch { flash(false, "Error de conexión"); }
     setSaving(false);
   }
 
-  // Optimistic toggle: actualiza UI de inmediato, persiste en background
   function toggle(idx: number) {
     const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
-    setList(updated);        // UI instantánea
+    setLists(prev => ({ ...prev, [tab]: updated }));
     persist(updated);
   }
 
   function setAll(activo: boolean) {
     const updated = list.map(d => ({ ...d, activo }));
-    setList(updated);
+    setLists(prev => ({ ...prev, [tab]: updated }));
     persist(updated);
-  }
-
-  function cargarPredeterminado() {
-    if (defaultEmails.length === 0) return;
-    const updated = list.map(d => ({ ...d, activo: defaultEmails.includes(d.email) }));
-    setList(updated);
-    persist(updated);
-  }
-
-  function guardarPredeterminado() {
-    const activos = list.filter(d => d.activo).map(d => d.email);
-    localStorage.setItem("dest_default", JSON.stringify(activos));
-    setDefaultEmails(activos);
-    flash(true, "Selección guardada como predeterminada");
   }
 
   function remove(idx: number) {
@@ -1063,18 +1056,40 @@ function DestinatariosPanel() {
   }
 
   const activos = list.filter(d => d.activo).length;
-  const todosActivos   = list.length > 0 && activos === list.length;
-  const todosInactivos = list.length > 0 && activos === 0;
+  const todosActivos = list.length > 0 && activos === list.length;
+  const colors = TAB_COLOR[tab];
 
   return (
     <section className="card mt-6">
       {/* Cabecera */}
-      <div className="flex items-start justify-between mb-3 gap-3">
+      <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <h2 className="font-semibold text-gray-800">Destinatarios del Informe</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{activos} activo{activos !== 1 ? "s" : ""} de {list.length} · el PDF les llega al enviar</p>
+          <h2 className="font-semibold text-gray-800">Destinatarios por Planta</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Cada planta notifica solo a sus destinatarios al guardar un registro</p>
         </div>
         <button onClick={() => setOpen(o => !o)} className="btn-secondary text-xs px-3 py-1.5 shrink-0">+ Agregar</button>
+      </div>
+
+      {/* Pestañas */}
+      <div className="flex gap-1 mb-4 border-b border-gray-100">
+        {(["sur","turco","peral"] as PlantaTab[]).map(t => (
+          <button
+            key={t}
+            onClick={() => { setTab(t); setOpen(false); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              tab === t
+                ? TAB_COLOR[t].active
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            {TAB_LABEL[t]}
+            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+              tab === t ? TAB_COLOR[t].badge : "bg-gray-100 text-gray-400"
+            }`}>
+              {lists[t].filter(d => d.activo).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Formulario agregar */}
@@ -1091,57 +1106,38 @@ function DestinatariosPanel() {
               value={newEmail} onChange={e => setNewEmail(e.target.value)}
               onKeyDown={e => e.key === "Enter" && add()}/>
           </div>
-          <button onClick={add} className="btn-primary text-xs px-4 py-2">Agregar</button>
+          <button onClick={add} className="btn-primary text-xs px-4 py-2">Agregar a {TAB_LABEL[tab]}</button>
           <button onClick={() => setOpen(false)} className="btn-secondary text-xs px-3 py-2">Cancelar</button>
         </div>
       )}
 
       {/* Acciones masivas */}
-      {!loading && list.length > 0 && (
+      {!isLoading && list.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-gray-100">
-          <button
-            onClick={() => setAll(true)}
-            disabled={todosActivos || saving}
+          <button onClick={() => setAll(true)} disabled={todosActivos || saving}
             className="text-xs px-3 py-1.5 rounded-lg border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
             Activar todos
           </button>
-          <button
-            onClick={() => setAll(false)}
+          <button onClick={() => setAll(false)} disabled={saving}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
             Desactivar todos
-          </button>
-          <div className="flex-1"/>
-          {defaultEmails.length > 0 && (
-            <button
-              onClick={cargarPredeterminado}
-              disabled={saving}
-              className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 transition-colors"
-              title={"Activa: " + defaultEmails.join(", ")}>
-              Cargar predeterminado
-            </button>
-          )}
-          <button
-            onClick={guardarPredeterminado}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 bg-white hover:bg-gray-50 transition-colors">
-            Guardar como predeterminado
           </button>
         </div>
       )}
 
       {/* Lista */}
-      {loading ? (
+      {isLoading ? (
         <p className="text-xs text-gray-400 py-4 text-center">Cargando...</p>
+      ) : list.length === 0 ? (
+        <p className="text-xs text-gray-400 py-4 text-center">Sin destinatarios — agrega uno con el botón de arriba</p>
       ) : (
         <div className="divide-y divide-gray-50">
           {list.map((d, i) => (
             <div key={d.email} className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => toggle(i)}
-                  disabled={saving}
+                <button onClick={() => toggle(i)} disabled={saving}
                   className={"relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:cursor-wait " + (d.activo ? "bg-green-500" : "bg-gray-200")}
-                  title={d.activo ? "Desactivar" : "Activar"}
-                >
+                  title={d.activo ? "Desactivar" : "Activar"}>
                   <span className={"inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-4" : "translate-x-0.5")}/>
                 </button>
                 <div>
@@ -1150,10 +1146,10 @@ function DestinatariosPanel() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (d.activo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400")}>
+                <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (d.activo ? colors.badge : "bg-gray-100 text-gray-400")}>
                   {d.activo ? "Activo" : "Inactivo"}
                 </span>
-                <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-400 transition-colors text-xs px-1" title="Eliminar">x</button>
+                <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-400 transition-colors text-xs px-1" title="Eliminar">✕</button>
               </div>
             </div>
           ))}
