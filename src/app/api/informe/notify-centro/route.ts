@@ -55,7 +55,6 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
   const rows = [
     ["TLH",            kpis.tlh_ton,            "ton"],
     ["Arena Mina",     kpis.arena_mina_ton,      "ton"],
-    ["Estéril",        kpis.esteril_ton,         "ton"],
     ["Grancilla",      kpis.grancilla_ton,       "ton"],
     ["Fierrillo A",    kpis.fierrillo_a_ton,     "ton"],
     ["Fierrillo B",    kpis.fierrillo_b_ton,     "ton"],

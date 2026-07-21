@@ -1,0 +1,16 @@
+--- a/src/lib/informe-pdf.ts
++++ b/src/lib/informe-pdf.ts
+@@ -743,13 +743,3 @@
+   const pdfBytes = await pdfDoc.save();
+   return pdfBytes;
+ }
+-rentSem ? fB : fR, 6.5, (cell as { color?: ReturnType<typeof rgb> }).color ?? DARK);
+-      cx2 += col.w;
+-    });
+-  });
+-
+-  pageFooter(p2, fR, W, M, 2);
+-
+-  const pdfBytes = await pdfDoc.save();
+-  return pdfBytes;
+-}

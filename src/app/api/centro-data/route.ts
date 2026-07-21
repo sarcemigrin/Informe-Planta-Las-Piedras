@@ -21,8 +21,8 @@ export async function GET(req: Request) {
 
   const sb = getAdmin();
   const [{ data: turco, error: eTurco }, { data: peral, error: ePeral }] = await Promise.all([
-    sb.from("registros_turco").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(limit),
-    sb.from("registros_peral").select("*").order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(limit),
+    sb.from("registros_turco").select("*").order("fecha_hora", { ascending: false, nullsFirst: false }).limit(2000),
+    sb.from("registros_peral").select("*").order("fecha_hora", { ascending: false, nullsFirst: false }).limit(2000),
   ]);
 
   if (eTurco) console.error("[centro-data] turco:", eTurco.message);
