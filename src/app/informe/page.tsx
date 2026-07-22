@@ -1060,7 +1060,7 @@ function CentroInformeView({
   }));
   const pChart = [...peralRows].reverse().slice(centroVerTodo ? 0 : -12).map(r => ({
     mes:      r.fecha.slice(0, 10),
-    stock:    r.stock_arena_humeda_ton ?? null,
+    humeda:   (r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0),
     arena:    r.arena_mina_ton ?? null,
     a22:      r.a22_ton ?? null,
     a25:      r.a25_ton ?? null,
@@ -1180,9 +1180,9 @@ function CentroInformeView({
         {pLast ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50 ring-1 ring-cyan-200">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Stock Húmeda ★</p>
-              <p className="text-2xl font-bold text-cyan-800">{fmt(pLast.stock_arena_humeda_ton)}</p>
-              <p className="text-xs text-cyan-600">ton</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Arena Húmeda ★</p>
+              <p className="text-2xl font-bold text-cyan-800">{fmt((pLast.a24_ton ?? 0) + (pLast.a25_ton ?? 0) + (pLast.a26_ton ?? 0))}</p>
+              <p className="text-xs text-cyan-600">ton · A24+A25+A26</p>
             </div>
             <div className="card flex flex-col gap-1 border-blue-200 bg-blue-50 ring-1 ring-blue-100">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Arena Mina ★</p>
@@ -1206,7 +1206,7 @@ function CentroInformeView({
         {pChart.length > 1 && (
           <div className="card">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-700 text-sm">Stock Húmeda & Arena Mina — histórico</h3>
+              <h3 className="font-semibold text-gray-700 text-sm">Arena Húmeda & Arena Mina — histórico</h3>
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={pChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
@@ -1215,7 +1215,7 @@ function CentroInformeView({
                 <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(v: unknown) => fmt(v as number, 1) + " ton"} />
                 <Legend />
-                <Line type="monotone" dataKey="stock"    name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} connectNulls />
+                <Line type="monotone" dataKey="humeda"   name="Arena Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} connectNulls />
                 <Line type="monotone" dataKey="arena"    name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} connectNulls />
                 <Line type="monotone" dataKey="a22"      name="A-22"         stroke="#f59e0b" strokeWidth={1.5} dot={{ r:2 }} connectNulls strokeDasharray="4 2" />
                 <Line type="monotone" dataKey="a25"      name="A-25"         stroke="#a78bfa" strokeWidth={1.5} dot={{ r:2 }} connectNulls strokeDasharray="4 2" />
@@ -1235,7 +1235,7 @@ function CentroInformeView({
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="table-th text-left">Fecha</th>
-                    <th className="table-th">Stock Húmeda</th>
+                    <th className="table-th">Arena Húmeda (A24+A25+A26)</th>
                     <th className="table-th">Arena Mina</th>
                     <th className="table-th">A-22</th>
                     <th className="table-th">A-24</th>
@@ -1249,7 +1249,7 @@ function CentroInformeView({
                   {peralRows.slice(0, 10).map((r, i) => (
                     <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                       <td className="table-td-left font-medium">{r.fecha}</td>
-                      <td className="table-td font-semibold text-cyan-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                      <td className="table-td font-semibold text-cyan-700">{fmt((r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0))}</td>
                       <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                       <td className="table-td">{fmt(r.a22_ton)}</td>
                       <td className="table-td">{fmt(r.a24_ton)}</td>

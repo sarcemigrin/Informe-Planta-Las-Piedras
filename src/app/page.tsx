@@ -810,14 +810,16 @@ export default function Dashboard() {
             /* ── Peral calcs ── */
             const pLast  = peralRows[0];
             const pIniMes = iniMes(peralRows);
-            const pStockVar = (pLast?.stock_arena_humeda_ton ?? 0) - (pIniMes?.stock_arena_humeda_ton ?? 0);
+            const pHumedaTot = (pLast?.a24_ton ?? 0) + (pLast?.a25_ton ?? 0) + (pLast?.a26_ton ?? 0);
+            const pHumedaIni = (pIniMes?.a24_ton ?? 0) + (pIniMes?.a25_ton ?? 0) + (pIniMes?.a26_ton ?? 0);
+            const pStockVar = pHumedaTot - pHumedaIni;
             const pDias  = diasDesde(pLast?.fecha);
 
             const peralLines = (() => {
               const map: Record<string, { stock:number; arena:number; a22:number; a24:number; a25:number; a26:number; dmh:number; grancilla:number }> = {};
               for (const r of [...peralRows].reverse()) {
                 const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
-                map[ym] = { stock: r.stock_arena_humeda_ton ?? 0, arena: r.arena_mina_ton ?? 0, a22: r.a22_ton ?? 0, a24: r.a24_ton ?? 0, a25: r.a25_ton ?? 0, a26: r.a26_ton ?? 0, dmh: r.dmh_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
+                map[ym] = { humeda: (r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0), arena: r.arena_mina_ton ?? 0, a22: r.a22_ton ?? 0, a24: r.a24_ton ?? 0, a25: r.a25_ton ?? 0, a26: r.a26_ton ?? 0, dmh: r.dmh_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
               }
               return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
             })();
@@ -1006,11 +1008,11 @@ export default function Dashboard() {
                     </div>
                     {/* KPIs */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-                      {/* Stock Húmeda — destacado principal */}
+                      {/* Arena Húmeda — destacado principal (A-24 + A-25 + A-26) */}
                       <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50 ring-1 ring-cyan-200">
-                        <div className="stat-label text-cyan-700">Stock Húmeda ★</div>
-                        <div className="text-2xl font-bold text-cyan-800">{pLast?.stock_arena_humeda_ton != null ? fmt(pLast.stock_arena_humeda_ton) : "—"}</div>
-                        <div className="text-xs text-cyan-600">ton</div>
+                        <div className="stat-label text-cyan-700">Arena Húmeda ★</div>
+                        <div className="text-2xl font-bold text-cyan-800">{fmt(pHumedaTot)}</div>
+                        <div className="text-xs text-cyan-600">ton · A24+A25+A26</div>
                         <div className="mt-1">{varBadge(pStockVar)}</div>
                         <div className="text-xs text-gray-400">vs inicio mes</div>
                       </div>
@@ -1040,7 +1042,7 @@ export default function Dashboard() {
                         {/* Gráfico 1: Stock Húmeda + Arena Mina */}
                         <div className="card">
                           <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-gray-700 text-sm">Stock Húmeda & Arena Mina</h3>
+                            <h3 className="font-semibold text-gray-700 text-sm">Arena Húmeda & Arena Mina</h3>
                             <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
                               {centroVerTodo ? "Últimos 3 meses" : "Ver histórico"}
                             </button>
@@ -1052,7 +1054,7 @@ export default function Dashboard() {
                               <YAxis tick={{ fontSize:10 }} />
                               <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                               <Legend />
-                              <Line type="monotone" dataKey="stock" name="Stock Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
+                              <Line type="monotone" dataKey="humeda" name="Arena Húmeda" stroke="#6BCF7F" strokeWidth={3} dot={{ r:4 }} />
                               <Line type="monotone" dataKey="arena" name="Arena Mina"   stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
                             </ComposedChart>
                           </ResponsiveContainer>
