@@ -816,7 +816,7 @@ export default function Dashboard() {
             const pDias  = diasDesde(pLast?.fecha);
 
             const peralLines = (() => {
-              const map: Record<string, { stock:number; arena:number; a22:number; a24:number; a25:number; a26:number; dmh:number; grancilla:number }> = {};
+              const map: Record<string, { humeda:number; arena:number; a22:number; a24:number; a25:number; a26:number; dmh:number; grancilla:number }> = {};
               for (const r of [...peralRows].reverse()) {
                 const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
                 map[ym] = { humeda: (r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0), arena: r.arena_mina_ton ?? 0, a22: r.a22_ton ?? 0, a24: r.a24_ton ?? 0, a25: r.a25_ton ?? 0, a26: r.a26_ton ?? 0, dmh: r.dmh_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
