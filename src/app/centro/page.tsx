@@ -120,7 +120,7 @@ function TurcoTab() {
   async function loadHistorial() {
     const { data } = await supabase
       .from("registros_turco").select("*")
-      .order("fecha_hora", { ascending: false }).limit(300);
+      .order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(300);
     if (data) setHistorial(data as RegistroTurco[]);
   }
 
@@ -130,7 +130,7 @@ function TurcoTab() {
   async function handleSave() {
     setSaving(true); setMsg(null);
     const { error } = await supabase.from("registros_turco").insert({
-      fecha: form.fecha, hora: form.hora,
+      fecha: form.fecha, hora: form.hora, fecha_hora: `${form.fecha}T${form.hora}:00`,
       arena_mina_m3: pf(form.arena_mina_m3), arena_mina_ton: pf(form.arena_mina_ton),
       tlh_m3: pf(form.tlh_m3), tlh_ton: pf(form.tlh_ton),
       esteril_m3: pf(form.esteril_m3), esteril_ton: pf(form.esteril_ton),
@@ -302,7 +302,7 @@ function PeralTab() {
   async function loadHistorial() {
     const { data } = await supabase
       .from("registros_peral").select("*")
-      .order("fecha_hora", { ascending: false }).limit(300);
+      .order("fecha", { ascending: false }).order("hora", { ascending: false }).limit(300);
     if (data) setHistorial(data as RegistroPeral[]);
   }
 
@@ -312,7 +312,7 @@ function PeralTab() {
   async function handleSave() {
     setSaving(true); setMsg(null);
     const { error } = await supabase.from("registros_peral").insert({
-      fecha: form.fecha, hora: form.hora,
+      fecha: form.fecha, hora: form.hora, fecha_hora: `${form.fecha}T${form.hora}:00`,
       arena_mina_m3: pf(form.arena_mina_m3), arena_mina_ton: pf(form.arena_mina_ton),
       a22_m3: pf(form.a22_m3), a22_ton: pf(form.a22_ton),
       a24_m3: pf(form.a24_m3), a24_ton: pf(form.a24_ton),
