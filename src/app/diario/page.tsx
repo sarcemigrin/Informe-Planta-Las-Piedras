@@ -1,38 +1,28 @@
 "use client";
 
-
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useViewerMode } from "@/hooks/useViewerMode";
-import { supabase } from "@/lib/supabase";
-import { fmt } from "@/lib/calculations";
-import type { RegistroArena } from "@/types/database";
 import {
-  format, eachDayOfInterval, parseISO, getISOWeek, addDays,
-  startOfMonth, endOfMonth, getDay, isBefore, isToday,
-  addMonths, subMonths, startOfDay,
+  format, eachDayOfInterval, getDay, isBefore, isToday,
+  addMonths, subMonths, startOfMonth, endOfMonth, startOfDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
 
+// ── Colores por planta (mismos que el resto de la app) ──────────────────────
+// scheduledDow: días de la semana programados (0=dom,1=lun,...,6=sáb)
+const PLANTAS = [
+  { key: "turco",   label: "El Turco",    color: "#f59e0b", scheduledDow: [1,3,5,6] }, // lun+mié+vie/sáb
+  { key: "peral",   label: "El Peral",    color: "#06b6d4", scheduledDow: [3,6]     }, // mié+sáb
+  { key: "piedras", label: "Las Piedras", color: "#22c55e", scheduledDow: [1,2,3,4,5] }, // lun-vie
+] as const;
 
-const TABLE_PAGE = 10;
+type PlantaKey = "turco" | "peral" | "piedras";
 
-interface DiaRow {
-  fecha:            Date;
-  semana:           number;
-  mes:              number;
-  anio:             number;
-  esDroneo:         boolean;
-  prodDroneTotal:   number;
-  despachosTotal:   number;
-  horasTotal:       number;
-  fierrilloTotal:   number;
-  prodDroneDia:     number;
-  despachosDia:     number;
-  horasDia:         number;
-  productividad:    number;
-  productividadReal:number;
-  fierrilloDia:     number;
+interface VuelosData {
+  turco:   string[];
+  peral:   string[];
+  piedras: string[];
 }
 
 interface Anotacion {
@@ -41,90 +31,38 @@ interface Anotacion {
 }
 
 export default function DiarioPage() {
-  const [rows, setRows]         = useState<DiaRow[]>([]);
   const { data: session } = useSession();
   const { viewerMode } = useViewerMode();
   const isAdmin = session?.user?.rol === "admin" && !viewerMode;
-  const [loading, setLoading]   = useState(true);
-  const [filtroMes, setFiltroMes] = useState<string>("");
-  const [tablePage, setTablePage] = useState(1);
 
-  // Calendario
-  const [calMes, setCalMes]         = useState(() => startOfMonth(new Date()));
+  const [loading, setLoading]     = useState(true);
+  const [vuelos, setVuelos]       = useState<VuelosData>({ turco: [], peral: [], piedras: [] });
   const [anotaciones, setAnotaciones] = useState<Map<string, string>>(new Map());
-  const [droneoDias, setDroneoDias]   = useState<Set<string>>(new Set());
+  const [calMes, setCalMes]       = useState(() => startOfMonth(new Date()));
 
   // Modal anotación
-  const [modalFecha, setModalFecha]   = useState<string | null>(null);
-  const [modalMotivo, setModalMotivo] = useState("");
+  const [modalFecha, setModalFecha]     = useState<string | null>(null);
+  const [modalMotivo, setModalMotivo]   = useState("");
   const [modalGuardando, setModalGuardando] = useState(false);
 
   useEffect(() => {
-    loadDiario();
-    loadAnotaciones();
+    load();
   }, []);
 
-  async function loadDiario() {
-    const { data: arena } = await supabase
-      .from("registros_arena")
-      .select("*")
-      .order("fecha_hora", { ascending: true });
-
-    if (!arena || arena.length < 2) { setLoading(false); return; }
-
-    const dias: DiaRow[] = [];
-    const droneo = new Set<string>();
-
-    for (let i = 1; i < arena.length; i++) {
-      const curr = arena[i];
-      const prev = arena[i - 1];
-
-      const fechaCurr = parseISO(curr.fecha);
-      const fechaPrev = parseISO(prev.fecha);
-
-      const intervalo  = eachDayOfInterval({ start: addDays(fechaPrev, 1), end: fechaCurr });
-      const diasPeriodo = Math.max(intervalo.length, 1);
-
-      for (const dia of intervalo) {
-        const esDroneo = dia.getTime() === fechaCurr.getTime();
-        if (esDroneo) droneo.add(format(dia, "yyyy-MM-dd"));
-        dias.push({
-          fecha:    dia,
-          semana:   getISOWeek(dia),
-          mes:      dia.getMonth() + 1,
-          anio:     dia.getFullYear(),
-          esDroneo,
-          prodDroneTotal:   esDroneo ? (curr.produccion_drone   ?? 0) : 0,
-          despachosTotal:   esDroneo ? (curr.despachos_ton      ?? 0) : 0,
-          horasTotal:       esDroneo ? (curr.horas_reales       ?? 0) : 0,
-          fierrilloTotal:   esDroneo ? (curr.fierrillo          ?? 0) : 0,
-          prodDroneDia:     (curr.produccion_drone ?? 0) / diasPeriodo,
-          despachosDia:     (curr.despachos_ton    ?? 0) / diasPeriodo,
-          horasDia:         (curr.horas_reales     ?? 0) / diasPeriodo,
-          productividad:    curr.productividad_drone        ?? 0,
-          productividadReal:curr.productividad_hrs_reales   ?? 0,
-          fierrilloDia:     (curr.fierrillo ?? 0) / diasPeriodo,
-        });
-      }
-    }
-
-    setDroneoDias(droneo);
-    setRows(dias.reverse());
-    setLoading(false);
-  }
-
-  async function loadAnotaciones() {
-    try {
-      const anio = new Date().getFullYear();
-      const res  = await fetch(`/api/anotaciones?anio=${anio}`);
-      if (!res.ok) return;
-      const data: Anotacion[] = await res.json();
+  async function load() {
+    setLoading(true);
+    const [vRes, aRes] = await Promise.all([
+      fetch("/api/vuelos"),
+      fetch(`/api/anotaciones?anio=${new Date().getFullYear()}`),
+    ]);
+    if (vRes.ok) setVuelos(await vRes.json());
+    if (aRes.ok) {
+      const data: Anotacion[] = await aRes.json();
       const map = new Map<string, string>();
       data.forEach((a) => map.set(a.fecha, a.motivo));
       setAnotaciones(map);
-    } catch {
-      // silencioso
     }
+    setLoading(false);
   }
 
   async function guardarAnotacion() {
@@ -136,12 +74,8 @@ export default function DiarioPage() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ fecha: modalFecha, motivo: modalMotivo.trim() }),
       });
-      if (!res.ok) {
-        const { error } = await res.json();
-        alert("Error al guardar: " + error);
-        return;
-      }
-      setAnotaciones((prev) => new Map(prev).set(modalFecha, modalMotivo.trim()));
+      if (!res.ok) { alert("Error al guardar"); return; }
+      setAnotaciones((prev) => new Map(prev).set(modalFecha!, modalMotivo.trim()));
       setModalFecha(null);
       setModalMotivo("");
     } finally {
@@ -149,21 +83,35 @@ export default function DiarioPage() {
     }
   }
 
-  // ---- Datos tabla / gráfico ----
-  const meses = Array.from(new Set(rows.map((r) => `${r.anio}-${String(r.mes).padStart(2, "0")}`))).sort().reverse();
-  const filtrados = rows.filter((r) =>
-    !filtroMes || `${r.anio}-${String(r.mes).padStart(2, "0")}` === filtroMes
-  );
-  const totalTablePages = Math.ceil(filtrados.length / TABLE_PAGE);
-  const paginados = filtrados.slice((tablePage - 1) * TABLE_PAGE, tablePage * TABLE_PAGE);
+  // ── Conjuntos para lookup rápido ──────────────────────────────────────────
+  const sets: Record<PlantaKey, Set<string>> = {
+    turco:   new Set(vuelos.turco),
+    peral:   new Set(vuelos.peral),
+    piedras: new Set(vuelos.piedras),
+  };
 
-  // ---- Calendario ----
-  const calDays = (() => {
-    const start = startOfMonth(calMes);
-    const end   = endOfMonth(calMes);
-    // lunes = 0, domingo = 6
-    const startDow = (getDay(start) + 6) % 7; // ajuste a lunes primero
-    const blanks = Array(startDow).fill(null);
+  // ── KPIs del mes actual ───────────────────────────────────────────────────
+  const mesKey = format(calMes, "yyyy-MM");
+  function vuelosMes(key: PlantaKey) {
+    return [...sets[key]].filter((f) => f.startsWith(mesKey)).length;
+  }
+  // Días programados transcurridos en el mes para una planta
+  function diasProgramadosMes(scheduledDow: readonly number[]) {
+    const start  = startOfMonth(calMes);
+    const end    = endOfMonth(calMes);
+    const today  = startOfDay(new Date());
+    const limite = isBefore(end, today) ? end : today;
+    if (isBefore(limite, start)) return 0;
+    return eachDayOfInterval({ start, end: limite })
+      .filter((d) => scheduledDow.includes(d.getDay())).length;
+  }
+
+  // ── Celdas del calendario ────────────────────────────────────────────────
+  const calDays: (Date | null)[] = (() => {
+    const start   = startOfMonth(calMes);
+    const end     = endOfMonth(calMes);
+    const startDow = (getDay(start) + 6) % 7; // lunes = 0
+    const blanks  = Array<null>(startDow).fill(null);
     const days: (Date | null)[] = [...blanks];
     eachDayOfInterval({ start, end }).forEach((d) => days.push(d));
     return days;
@@ -171,213 +119,151 @@ export default function DiarioPage() {
 
   const hoy = startOfDay(new Date());
 
-  function esFindeSemana(d: Date): boolean {
-    const dow = d.getDay(); // 0=dom, 6=sáb
-    return dow === 0 || dow === 6;
+  // finde global solo para el número del día (estilo visual)
+  // Domingo siempre es finde. Sábado es finde solo si ninguna planta lo usa.
+  function esFinde(d: Date) {
+    const dow = d.getDay();
+    if (dow === 0) return true; // domingo siempre
+    if (dow === 6) return !PLANTAS.some((p) => p.scheduledDow.includes(6)); // sáb solo si nadie lo usa
+    return false;
   }
-
-  function calClass(d: Date): string {
-    const key    = format(d, "yyyy-MM-dd");
-    const futuro = isBefore(hoy, startOfDay(d)) && !isToday(d);
-    if (futuro) return "cal-day-futuro";
-    if (droneoDias.has(key)) return "cal-day-droneo";
-    if (esFindeSemana(d)) return "cal-day-finde";
-    if (anotaciones.has(key)) return "cal-day-anotado";
-    if (isBefore(startOfDay(d), hoy) || isToday(d)) return "cal-day-sin";
-    return "";
+  function esFuturo(d: Date) { return isBefore(hoy, startOfDay(d)) && !isToday(d); }
+  // ¿Es día programado para esta planta?
+  function esScheduled(d: Date, scheduledDow: readonly number[]) {
+    return scheduledDow.includes(d.getDay());
   }
 
   function abrirModal(d: Date) {
     if (!isAdmin) return;
-    const key    = format(d, "yyyy-MM-dd");
-    const futuro = isBefore(hoy, startOfDay(d)) && !isToday(d);
-    if (futuro || droneoDias.has(key) || esFindeSemana(d)) return;
+    const key = format(d, "yyyy-MM-dd");
+    if (esFinde(d) || esFuturo(d)) return;
     setModalFecha(key);
     setModalMotivo(anotaciones.get(key) ?? "");
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>
+  );
 
   return (
     <div className="space-y-6">
+
+      {/* ── Encabezado ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Control Vuelos</h1>
-          <p className="text-sm text-gray-500">
-            Días de droneo: valores reales. Días intermedios: promedio del período distribuido.
-          </p>
+          <p className="text-sm text-gray-500">Registro de droneos por planta</p>
         </div>
-        <div className="flex gap-2 items-center">
-          <select
-            className="input w-40"
-            value={filtroMes}
-            onChange={(e) => { setFiltroMes(e.target.value); setTablePage(1); }}
-          >
-            <option value="">Todos los meses</option>
-            {meses.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
+        <div className="flex gap-1">
+          <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => subMonths(m, 1))}>‹</button>
+          <span className="btn-secondary text-xs px-4 py-1 capitalize">
+            {format(calMes, "MMMM yyyy", { locale: es })}
+          </span>
+          <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => addMonths(m, 1))}>›</button>
         </div>
       </div>
 
-      {/* ---- Calendario ---- */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-700 capitalize">
-            {format(calMes, "MMMM yyyy", { locale: es })}
-          </h2>
-          <div className="flex gap-1">
-            <button
-              className="btn-secondary text-xs px-3 py-1"
-              onClick={() => setCalMes((m) => subMonths(m, 1))}
-            >‹</button>
-            <button
-              className="btn-secondary text-xs px-3 py-1"
-              onClick={() => setCalMes((m) => addMonths(m, 1))}
-            >›</button>
-          </div>
-        </div>
+      {/* ── KPIs por planta ── */}
+      <div className="grid grid-cols-3 gap-4">
+        {PLANTAS.map((p) => {
+          const realizados    = vuelosMes(p.key);
+          const programados   = diasProgramadosMes(p.scheduledDow);
+          const noRealizados  = Math.max(programados - realizados, 0);
+          const pct           = programados > 0 ? Math.round((realizados / programados) * 100) : 0;
+          return (
+            <div key={p.key} className="card" style={{ borderLeft: `4px solid ${p.color}` }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-block w-3 h-3 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                <span className="text-xs font-semibold text-gray-600">{p.label}</span>
+              </div>
+              <div className="text-2xl font-bold" style={{ color: p.color }}>{realizados}</div>
+              <div className="text-xs text-gray-500">
+                {noRealizados > 0 ? `${noRealizados} sin droneo · ` : ""}{pct}% cumplimiento
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Días de semana */}
-        <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-          {["L","M","X","J","V","S","D"].map((d) => (
-            <div key={d} className="text-center text-[10px] text-gray-400 font-medium py-0.5">{d}</div>
+      {/* ── Leyenda ── */}
+      <div className="flex items-center gap-6 flex-wrap text-xs text-gray-500">
+        {PLANTAS.map((p) => (
+          <div key={p.key} className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full" style={{ background: p.color }} />
+            {p.label}
+          </div>
+        ))}
+        <span className="text-gray-300">·</span>
+        <span>Encendido = droneo realizado · Apagado = sin droneo</span>
+      </div>
+
+      {/* ── Calendario semáforo ── */}
+      <div className="card">
+        {/* Cabecera días de semana */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map((d) => (
+            <div key={d} className="text-center text-[10px] text-gray-400 font-medium py-1">{d}</div>
           ))}
         </div>
 
-        {/* Celdas del calendario — compactas */}
-        <div className="grid grid-cols-7 gap-0.5">
+        {/* Celdas */}
+        <div className="grid grid-cols-7 gap-1">
           {calDays.map((d, i) => {
             if (!d) return <div key={`b${i}`} />;
             const key    = format(d, "yyyy-MM-dd");
-            const cls    = calClass(d);
+            const futuro = esFuturo(d);
+            const finde  = esFinde(d);
+            const hoyDia = isToday(d);
             const nota   = anotaciones.get(key);
-            const futuro = cls === "cal-day-futuro";
+
             return (
               <div
                 key={key}
-                onClick={() => isAdmin && !futuro && abrirModal(d)}
-                title={nota ? `Anotación: ${nota}` : cls === "cal-day-droneo" ? "Día de droneo" : "Sin droneo — click para anotar"}
+                onClick={() => !futuro && !finde && abrirModal(d)}
+                title={nota ? `Anotación: ${nota}` : undefined}
                 className={`
-                  flex flex-col items-center justify-center rounded py-1 text-[11px] font-medium
-                  border border-transparent transition-colors select-none
-                  ${cls === "cal-day-droneo" ? "bg-green-100 text-green-800" : ""}
-                  ${cls === "cal-day-sin"    ? "bg-red-50 text-red-700 cursor-pointer hover:border-red-300" : ""}
-                  ${cls === "cal-day-anotado"? "bg-amber-100 text-amber-800 cursor-pointer hover:border-amber-400" : ""}
-                  ${cls === "cal-day-finde"  ? "bg-gray-100 text-gray-400" : ""}
-                  ${cls === "cal-day-futuro" ? "text-gray-300" : ""}
-                  ${!cls ? "text-gray-500 cursor-pointer hover:bg-gray-50" : ""}
+                  rounded-lg flex flex-col items-center py-2 gap-1.5 select-none transition-colors
+                  ${finde  ? "bg-gray-50" : ""}
+                  ${futuro ? "opacity-30" : ""}
+                  ${!finde && !futuro && isAdmin ? "cursor-pointer hover:bg-gray-50" : ""}
+                  ${hoyDia ? "ring-2 ring-migrin ring-offset-1" : ""}
                 `}
               >
-                {format(d, "d")}
-                {cls === "cal-day-droneo"  && <span className="w-1 h-1 rounded-full bg-green-500 mt-0.5" />}
-                {cls === "cal-day-sin"     && <span className="w-1 h-1 rounded-full bg-red-400 mt-0.5" />}
-                {cls === "cal-day-anotado" && <span className="w-1 h-1 rounded-full bg-amber-500 mt-0.5" />}
+                {/* Número del día */}
+                <span className={`text-[11px] font-medium ${hoyDia ? "text-migrin" : "text-gray-500"} ${finde ? "text-gray-300" : ""}`}>
+                  {format(d, "d")}
+                </span>
+
+                {/* Tres luces */}
+                {!futuro && (
+                  <div className="flex gap-[3px]">
+                    {PLANTAS.map((p) => {
+                      const on         = sets[p.key].has(key);
+                      const scheduled  = esScheduled(d, p.scheduledDow);
+                      // encendido si realizó; apagado-visible si era día programado; casi invisible si no era día programado
+                      const opacity    = on ? 1 : scheduled ? 0.18 : 0.05;
+                      return (
+                        <span
+                          key={p.key}
+                          className="inline-block rounded-full"
+                          style={{ width: 11, height: 11, background: p.color, opacity }}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Punto de anotación */}
+                {nota && !futuro && (
+                  <span className="w-1 h-1 rounded-full bg-amber-400 mt-0.5" title={nota} />
+                )}
               </div>
             );
           })}
         </div>
-
-        {/* Leyenda */}
-        <div className="flex gap-4 flex-wrap mt-4 pt-3 border-t border-gray-100">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="inline-block w-3 h-3 rounded-sm bg-green-100 border border-green-300" />Droneo
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="inline-block w-3 h-3 rounded-sm bg-red-50 border border-red-200" />Sin droneo
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="inline-block w-3 h-3 rounded-sm bg-amber-100 border border-amber-300" />Con anotación
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="inline-block w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />Fin de semana
-          </div>
-          <span className="text-xs text-gray-400">Click en días sin droneo para agregar motivo</span>
-        </div>
       </div>
 
-      {/* ---- Tabla ---- */}
-        <div className="card overflow-auto">
-          <table className="w-full min-w-[800px] text-sm">
-            <thead className="border-b border-gray-100">
-              <tr>
-                <th className="table-th text-left">Fecha</th>
-                <th className="table-th">Sem</th>
-                <th className="table-th">Droneo</th>
-                <th className="table-th">Productividad</th>
-                <th className="table-th">Producción</th>
-                <th className="table-th">Prod. Total</th>
-                <th className="table-th">Horas/día</th>
-                <th className="table-th">Fierrillo/día</th>
-                <th className="table-th">Despachos/día</th>
-                <th className="table-th">Despachos Total</th>
-                <th className="table-th">Anotación</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {paginados.map((r, i) => {
-                const key  = format(r.fecha, "yyyy-MM-dd");
-                const nota = anotaciones.get(key);
-                return (
-                  <tr key={i} className={`hover:bg-gray-50 ${r.esDroneo ? "bg-green-50/60" : ""}`}>
-                    <td className="table-td-left font-medium text-gray-800">
-                      {format(r.fecha, "EEE dd/MM/yyyy", { locale: es })}
-                    </td>
-                    <td className="table-td text-gray-400">S{r.semana}</td>
-                    <td className="table-td text-center">
-                      {r.esDroneo
-                        ? <span className="text-green-600 font-bold text-base">✓</span>
-                        : <span className="text-gray-300">–</span>}
-                    </td>
-                    <td className="table-td text-gray-800">{r.esDroneo ? `${fmt(r.productividad)} t/h` : "–"}</td>
-                    <td className="table-td text-gray-800">{fmt(r.prodDroneDia)}</td>
-                    <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.prodDroneTotal) : "–"}</td>
-                    <td className="table-td text-gray-800">{fmt(r.horasDia, 1)}</td>
-                    <td className="table-td text-gray-800">{fmt(r.fierrilloDia)}</td>
-                    <td className="table-td text-gray-800">{fmt(r.despachosDia)}</td>
-                    <td className="table-td text-gray-800">{r.esDroneo ? fmt(r.despachosTotal) : "–"}</td>
-                    <td className="table-td">
-                      {esFindeSemana(r.fecha)
-                        ? <span className="text-gray-400 text-xs">Fin de semana</span>
-                        : nota
-                          ? (isAdmin
-                          ? <button onClick={() => abrirModal(r.fecha)} className="text-amber-700 text-xs font-medium hover:underline text-left">{nota}</button>
-                          : <span className="text-amber-700 text-xs font-medium">{nota}</span>)
-                          : !r.esDroneo
-                            ? (isAdmin ? <button
-                                onClick={() => abrirModal(r.fecha)}
-                                className="text-gray-300 hover:text-migrin text-xs transition-colors"
-                              >+ anotar</button> : null)
-                            : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
-            <span className="text-xs text-gray-400">
-              Mostrando {(tablePage - 1) * TABLE_PAGE + 1}–{Math.min(tablePage * TABLE_PAGE, filtrados.length)} de {filtrados.length}
-            </span>
-            <div className="flex gap-2">
-              <button
-                className="btn-secondary text-xs py-1 px-3"
-                disabled={tablePage === 1}
-                onClick={() => setTablePage((p) => p - 1)}
-              >← Anterior</button>
-              <button
-                className="btn-secondary text-xs py-1 px-3"
-                disabled={tablePage >= totalTablePages}
-                onClick={() => setTablePage((p) => p + 1)}
-              >Siguiente →</button>
-            </div>
-          </div>
-        </div>
-
-      {/* ---- Modal anotación ---- */}
+      {/* ── Modal anotación ── */}
       {modalFecha && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
@@ -389,7 +275,7 @@ export default function DiarioPage() {
           >
             <h3 className="font-semibold text-gray-800 mb-1">Anotación</h3>
             <p className="text-sm text-gray-500 mb-3">
-              {modalFecha} — {anotaciones.has(modalFecha) ? "Editar motivo" : "¿Por qué no hubo droneo?"}
+              {modalFecha} — {anotaciones.has(modalFecha) ? "Editar motivo" : "¿Agregar nota para este día?"}
             </p>
             <textarea
               className="input w-full"
@@ -400,9 +286,7 @@ export default function DiarioPage() {
               autoFocus
             />
             <div className="flex gap-2 mt-3 justify-end">
-              <button className="btn-secondary text-sm" onClick={() => setModalFecha(null)}>
-                Cancelar
-              </button>
+              <button className="btn-secondary text-sm" onClick={() => setModalFecha(null)}>Cancelar</button>
               <button
                 className="btn-primary text-sm"
                 onClick={guardarAnotacion}
@@ -414,6 +298,7 @@ export default function DiarioPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
