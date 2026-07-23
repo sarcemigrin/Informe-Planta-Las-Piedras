@@ -37,7 +37,12 @@ export default function DiarioPage() {
   const [modalMotivo,    setModalMotivo]    = useState("");
   const [modalGuardando, setModalGuardando] = useState(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -199,12 +204,17 @@ export default function DiarioPage() {
           <h1 className="text-2xl font-bold">Control Vuelos</h1>
           <p className="text-sm text-gray-500">Seguimiento de frecuencia de droneos</p>
         </div>
-        <div className="flex gap-1">
-          <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => subMonths(m, 1))}>‹</button>
-          <span className="btn-secondary text-xs px-4 py-1 capitalize pointer-events-none">
-            {format(calMes, "MMMM yyyy", { locale: es })}
-          </span>
-          <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => addMonths(m, 1))}>›</button>
+        <div className="flex gap-2">
+          <button className="btn-secondary text-xs px-3 py-1" onClick={() => load()} disabled={loading}>
+            {loading ? "..." : "↻ Actualizar"}
+          </button>
+          <div className="flex gap-1">
+            <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => subMonths(m, 1))}>‹</button>
+            <span className="btn-secondary text-xs px-4 py-1 capitalize pointer-events-none">
+              {format(calMes, "MMMM yyyy", { locale: es })}
+            </span>
+            <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => addMonths(m, 1))}>›</button>
+          </div>
         </div>
       </div>
 
