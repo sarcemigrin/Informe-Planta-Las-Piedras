@@ -290,14 +290,14 @@ function PeralTab() {
 
   useEffect(() => { loadHistorial(); }, []);
 
-  // Auto-calcular stock total cuando cambia cualquier ton
+  // Auto-calcular Arena Húmeda = A-24 + A-25 + A-26 (A-22 y Grancilla son independientes)
   useEffect(() => {
-    const vals = ["a22_ton","a24_ton","a25_ton","a26_ton","dmh_ton","grancilla_ton"];
+    const vals = ["a24_ton","a25_ton","a26_ton"];
     const total = vals.reduce((s, k) => s + (parseFloat(form[k]) || 0), 0);
     if (vals.some(k => form[k])) {
       setForm(f => ({ ...f, stock_arena_humeda_ton: total.toFixed(3) }));
     }
-  }, [form.a22_ton, form.a24_ton, form.a25_ton, form.a26_ton, form.dmh_ton, form.grancilla_ton]);
+  }, [form.a24_ton, form.a25_ton, form.a26_ton]);
 
   async function loadHistorial() {
     const { data } = await supabase
@@ -343,7 +343,7 @@ function PeralTab() {
             <KpiCard label="A-26"               m3={last.a26_m3}        ton={last.a26_ton} />
             <KpiCard label="DMH"                m3={last.dmh_m3}        ton={last.dmh_ton} />
             <KpiCard label="Grancilla"          m3={last.grancilla_m3}  ton={last.grancilla_ton} />
-            <KpiCard label="Stock Arena Húmeda" ton={last.stock_arena_humeda_ton} highlight />
+            <KpiCard label="Arena Húmeda (A24+A25+A26)" ton={last.stock_arena_humeda_ton} highlight />
           </div>
         </div>
       )}

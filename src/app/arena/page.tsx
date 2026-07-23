@@ -164,8 +164,9 @@ function CentroRegistroInlineForm() {
   async function savePeral() {
     setSaving(true); setMsg(null);
     const f = pForm;
-    const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon(f[k+"_m3"])) || 0);
-    const stock = tons.reduce((s,v) => s+v, 0).toFixed(3);
+    // Arena Húmeda = solo A-24 + A-25 + A-26 (A-22 y Grancilla son independientes)
+    const humedaTons = ["a24","a25","a26"].map(k => parseFloat(autoTon(f[k+"_m3"])) || 0);
+    const stock = humedaTons.reduce((s,v) => s+v, 0).toFixed(3);
     const { error } = await supabase.from("registros_peral").insert({
       fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),

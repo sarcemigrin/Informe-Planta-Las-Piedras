@@ -1091,7 +1091,7 @@ export default function Dashboard() {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="table-th text-left">Fecha</th>
-                              <th className="table-th">Stock Húmeda</th>
+                              <th className="table-th">Arena Húmeda</th>
                               <th className="table-th">Arena Mina</th>
                               <th className="table-th">A-22</th>
                               <th className="table-th">A-24</th>
@@ -1105,7 +1105,7 @@ export default function Dashboard() {
                             {peralRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
-                                <td className="table-td font-semibold text-cyan-700">{fmt(r.stock_arena_humeda_ton)}</td>
+                                <td className="table-td font-semibold text-cyan-700">{fmt((r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0))}</td>
                                 <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.a22_ton)}</td>
                                 <td className="table-td">{fmt(r.a24_ton)}</td>
