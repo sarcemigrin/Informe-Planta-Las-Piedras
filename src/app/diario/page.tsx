@@ -5,23 +5,20 @@ import { useSession } from "next-auth/react";
 import { useViewerMode } from "@/hooks/useViewerMode";
 import {
   format, eachDayOfInterval, getDay, isBefore, isToday,
-  addMonths, subMonths, startOfMonth, endOfMonth, startOfDay, parseISO,
+  addMonths, subMonths, startOfMonth, endOfMonth, startOfDay,
+  parseISO, getISOWeek, startOfISOWeek, endOfISOWeek,
 } from "date-fns";
 import { es } from "date-fns/locale";
 
-// ── Plantas con colores y días programados ──────────────────────────────────
-// scheduledDow: 0=dom 1=lun 2=mar 3=mié 4=jue 5=vie 6=sáb
 const PLANTAS = [
-  { key: "turco",   label: "El Turco",    color: "#f59e0b", scheduledDow: [1,3,5,6] as number[] },
-  { key: "peral",   label: "El Peral",    color: "#06b6d4", scheduledDow: [3,6]     as number[] },
-  { key: "piedras", label: "Las Piedras", color: "#22c55e", scheduledDow: [1,2,3,4,5] as number[] },
+  { key: "turco",   label: "El Turco",    color: "#f59e0b", bg: "#fffbeb", textColor: "#92400e", scheduledDow: [1,3,5,6] as number[], freqLabel: "3×/sem" },
+  { key: "peral",   label: "El Peral",    color: "#06b6d4", bg: "#ecfeff", textColor: "#155e75", scheduledDow: [3,6]     as number[], freqLabel: "2×/sem" },
+  { key: "piedras", label: "Las Piedras", color: "#22c55e", bg: "#f0fdf4", textColor: "#166534", scheduledDow: [1,2,3,4,5] as number[], freqLabel: "5×/sem" },
 ];
 type PlantaKey = "turco" | "peral" | "piedras";
 
 interface VuelosData { turco: string[]; peral: string[]; piedras: string[]; }
 interface Anotacion  { fecha: string; planta: string; motivo: string; }
-
-// Mapa de anotaciones: "fecha|planta" → motivo
 type AnotMap = Map<string, string>;
 const anotKey = (fecha: string, planta: string) => `${fecha}|${planta}`;
 
@@ -30,16 +27,15 @@ export default function DiarioPage() {
   const { viewerMode }    = useViewerMode();
   const isAdmin = session?.user?.rol === "admin" && !viewerMode;
 
-  const [loading, setLoading]   = useState(true);
-  const [vuelos, setVuelos]     = useState<VuelosData>({ turco: [], peral: [], piedras: [] });
-  const [anots, setAnots]       = useState<AnotMap>(new Map());
-  const [calMes, setCalMes]     = useState(() => startOfMonth(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [vuelos, setVuelos]   = useState<VuelosData>({ turco: [], peral: [], piedras: [] });
+  const [anots, setAnots]     = useState<AnotMap>(new Map());
+  const [calMes, setCalMes]   = useState(() => startOfMonth(new Date()));
 
-  // Modal
-  const [modalFecha,    setModalFecha]    = useState<string | null>(null);
-  const [modalPlanta,   setModalPlanta]   = useState<PlantaKey>("turco");
-  const [modalMotivo,   setModalMotivo]   = useState("");
-  const [modalGuardando,setModalGuardando]= useState(false);
+  const [modalFecha,     setModalFecha]     = useState<string | null>(null);
+  const [modalPlanta,    setModalPlanta]    = useState<PlantaKey>("turco");
+  const [modalMotivo,    setModalMotivo]    = useState("");
+  const [modalGuardando, setModalGuardando] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -65,9 +61,9 @@ export default function DiarioPage() {
     setModalGuardando(true);
     try {
       const res = await fetch("/api/anotaciones-vuelos", {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ fecha: modalFecha, planta: modalPlanta, motivo: modalMotivo.trim() }),
+        body: JSON.stringify({ fecha: modalFecha, planta: modalPlanta, motivo: modalMotivo.trim() }),
       });
       if (!res.ok) { alert("Error al guardar"); return; }
       setAnots((prev) => {
@@ -89,30 +85,90 @@ export default function DiarioPage() {
     piedras: new Set(vuelos.piedras),
   };
 
-  // ── KPIs del mes ─────────────────────────────────────────────────────────
   const mesKey = format(calMes, "yyyy-MM");
-  function vuelosMes(key: PlantaKey) {
-    return [...sets[key]].filter((f) => f.startsWith(mesKey)).length;
-  }
+  const hoy    = startOfDay(new Date());
+
+  // Días programados transcurridos en el mes para una planta
   function diasProgramadosMes(scheduledDow: number[]) {
     const start  = startOfMonth(calMes);
     const end    = endOfMonth(calMes);
-    const today  = startOfDay(new Date());
-    const limite = isBefore(end, today) ? end : today;
+    const limite = isBefore(end, hoy) ? end : hoy;
     if (isBefore(limite, start)) return 0;
     return eachDayOfInterval({ start, end: limite })
       .filter((d) => scheduledDow.includes(d.getDay())).length;
   }
 
-  // ── Helpers de calendario ────────────────────────────────────────────────
+  // ── Semanas del mes para la tabla ────────────────────────────────────────
+  interface WeekRow {
+    label:   string;
+    start:   Date;
+    end:     Date;
+    counts:  Record<PlantaKey, { real: number; prog: number }>;
+  }
+
+  const weekRows: WeekRow[] = (() => {
+    const mesStart = startOfMonth(calMes);
+    const mesEnd   = endOfMonth(calMes);
+    const days     = eachDayOfInterval({ start: mesStart, end: mesEnd });
+    const semanas  = new Map<number, Date[]>();
+    days.forEach((d) => {
+      const w = getISOWeek(d);
+      if (!semanas.has(w)) semanas.set(w, []);
+      semanas.get(w)!.push(d);
+    });
+    return Array.from(semanas.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, dias]) => {
+        const wStart = dias[0];
+        const wEnd   = dias[dias.length - 1];
+        const limite = isBefore(wEnd, hoy) ? wEnd : (isBefore(hoy, wStart) ? null : hoy);
+        const counts = {} as Record<PlantaKey, { real: number; prog: number }>;
+        for (const p of PLANTAS) {
+          const prog = limite
+            ? dias.filter((d) => p.scheduledDow.includes(d.getDay()) && !isBefore(hoy, startOfDay(d))).length
+            : 0;
+          const real = dias.filter((d) => p.scheduledDow.includes(d.getDay()) && sets[p.key as PlantaKey].has(format(d, "yyyy-MM-dd"))).length;
+          counts[p.key as PlantaKey] = { real, prog };
+        }
+        return {
+          label:  `${format(wStart, "d")}–${format(wEnd, "d MMM", { locale: es })}`,
+          start:  wStart,
+          end:    wEnd,
+          counts,
+        };
+      }).reverse();
+  })();
+
+  // ── Incidencias del mes ──────────────────────────────────────────────────
+  interface Incidencia {
+    fecha:   string;
+    planta:  PlantaKey;
+    motivo?: string;
+  }
+  const incidencias: Incidencia[] = (() => {
+    const start  = startOfMonth(calMes);
+    const end    = endOfMonth(calMes);
+    const limite = isBefore(end, hoy) ? end : hoy;
+    if (isBefore(limite, start)) return [];
+    const result: Incidencia[] = [];
+    eachDayOfInterval({ start, end: limite }).forEach((d) => {
+      const key = format(d, "yyyy-MM-dd");
+      for (const p of PLANTAS) {
+        if (p.scheduledDow.includes(d.getDay()) && !sets[p.key as PlantaKey].has(key)) {
+          result.push({ fecha: key, planta: p.key as PlantaKey, motivo: anots.get(anotKey(key, p.key)) });
+        }
+      }
+    });
+    return result.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  })();
+
+  // ── Calendario ───────────────────────────────────────────────────────────
   const sabadoEsLaboral = PLANTAS.some((p) => p.scheduledDow.includes(6));
   function esFinde(d: Date) {
     const dow = d.getDay();
     return dow === 0 || (dow === 6 && !sabadoEsLaboral);
   }
   function esFuturo(d: Date) { return isBefore(hoy, startOfDay(d)) && !isToday(d); }
-
-  const hoy = startOfDay(new Date());
 
   const calDays: (Date | null)[] = (() => {
     const start    = startOfMonth(calMes);
@@ -124,18 +180,13 @@ export default function DiarioPage() {
   })();
 
   function abrirModal(d: Date, planta?: PlantaKey) {
-    if (!isAdmin || esFinde(d) || esFuturo(d)) return;
+    if (!isAdmin || esFuturo(d)) return;
     const key = format(d, "yyyy-MM-dd");
     const p   = planta ?? "turco";
     setModalFecha(key);
     setModalPlanta(p);
     setModalMotivo(anots.get(anotKey(key, p)) ?? "");
   }
-
-  // ── Días con datos para la tabla ─────────────────────────────────────────
-  const allFechas = Array.from(
-    new Set([...vuelos.turco, ...vuelos.peral, ...vuelos.piedras, ...[...anots.keys()].map((k) => k.split("|")[0])])
-  ).filter((f) => f.startsWith(mesKey)).sort().reverse();
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Cargando...</div>;
 
@@ -146,7 +197,7 @@ export default function DiarioPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Control Vuelos</h1>
-          <p className="text-sm text-gray-500">Registro de droneos por planta</p>
+          <p className="text-sm text-gray-500">Seguimiento de frecuencia de droneos</p>
         </div>
         <div className="flex gap-1">
           <button className="btn-secondary text-xs px-3 py-1" onClick={() => setCalMes((m) => subMonths(m, 1))}>‹</button>
@@ -157,48 +208,56 @@ export default function DiarioPage() {
         </div>
       </div>
 
-      {/* ── KPIs ── */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* ── Acumulado mensual — barras de progreso ── */}
+      <div className="card space-y-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Acumulado mensual — {format(calMes, "MMMM yyyy", { locale: es })}
+        </p>
         {PLANTAS.map((p) => {
-          const realizados   = vuelosMes(p.key as PlantaKey);
-          const programados  = diasProgramadosMes(p.scheduledDow);
-          const noRealizados = Math.max(programados - realizados, 0);
-          const pct          = programados > 0 ? Math.round((realizados / programados) * 100) : 0;
+          const realizados  = [...sets[p.key as PlantaKey]].filter((f) => f.startsWith(mesKey)).length;
+          const programados = diasProgramadosMes(p.scheduledDow);
+          const pct         = programados > 0 ? Math.round((realizados / programados) * 100) : 0;
+          const color       = pct >= 90 ? p.color : pct >= 70 ? "#f59e0b" : "#ef4444";
           return (
-            <div key={p.key} className="card" style={{ borderLeft: `4px solid ${p.color}` }}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="inline-block w-3 h-3 rounded-full flex-shrink-0" style={{ background: p.color }} />
-                <span className="text-xs font-semibold text-gray-600">{p.label}</span>
+            <div key={p.key} className="flex items-center gap-3">
+              <div className="flex items-center gap-2 w-28 flex-shrink-0">
+                <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                <span className="text-xs font-medium text-gray-700">{p.label}</span>
               </div>
-              <div className="text-2xl font-bold" style={{ color: p.color }}>{realizados}</div>
-              <div className="text-xs text-gray-500">
-                {noRealizados > 0 ? `${noRealizados} sin droneo · ` : ""}{pct}% cumplimiento
+              <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative">
+                <div
+                  className="h-full rounded-md flex items-center px-2 transition-all"
+                  style={{ width: `${Math.max(pct, 8)}%`, background: color }}
+                >
+                  <span className="text-white text-[10px] font-semibold whitespace-nowrap">
+                    {realizados} / {programados}
+                  </span>
+                </div>
               </div>
+              <span className="text-xs font-semibold w-10 text-right" style={{ color }}>
+                {pct}%
+              </span>
+              <span className="text-[10px] text-gray-400 w-12 flex-shrink-0">{p.freqLabel}</span>
             </div>
           );
         })}
       </div>
 
-      {/* ── Leyenda ── */}
-      <div className="flex items-center gap-5 flex-wrap text-xs text-gray-400">
-        {PLANTAS.map((p) => (
-          <div key={p.key} className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ background: p.color }} />
-            {p.label}
-          </div>
-        ))}
-        <span className="text-gray-200">·</span>
-        <span>Encendido = realizado · Tenue = día programado sin droneo</span>
-      </div>
-
       {/* ── Calendario semáforo ── */}
       <div className="card">
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map((d) => (
-            <div key={d} className="text-center text-[10px] text-gray-400 font-medium py-1">{d}</div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Semáforo diario</p>
+          <div className="flex items-center gap-4 text-[10px] text-gray-400">
+            <span>Encendido = realizado</span>
+            <span>Tenue = día programado sin droneo</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 mb-1">
+          {["L","M","X","J","V","S","D"].map((d) => (
+            <div key={d} className="text-center text-[10px] text-gray-300 font-medium py-0.5">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5">
           {calDays.map((d, i) => {
             if (!d) return <div key={`b${i}`} />;
             const key    = format(d, "yyyy-MM-dd");
@@ -210,29 +269,25 @@ export default function DiarioPage() {
               <div
                 key={key}
                 onClick={() => abrirModal(d)}
-                className={`
-                  rounded-lg flex flex-col items-center py-2 gap-1.5 select-none transition-colors
+                className={`rounded flex flex-col items-center py-1.5 gap-1 select-none transition-colors
                   ${finde ? "bg-gray-50" : ""}
-                  ${futuro ? "opacity-30" : ""}
-                  ${!finde && !futuro && isAdmin ? "cursor-pointer hover:bg-gray-50" : ""}
-                  ${hoyDia ? "ring-2 ring-migrin ring-offset-1" : ""}
+                  ${futuro ? "opacity-25" : ""}
+                  ${!futuro && isAdmin ? "cursor-pointer hover:bg-gray-50" : ""}
+                  ${hoyDia ? "ring-1 ring-migrin ring-offset-0" : ""}
                 `}
               >
-                <span className={`text-[11px] font-medium ${hoyDia ? "text-migrin" : finde ? "text-gray-300" : "text-gray-500"}`}>
+                <span className={`text-[10px] font-medium ${hoyDia ? "text-migrin" : finde ? "text-gray-300" : "text-gray-400"}`}>
                   {format(d, "d")}
                 </span>
                 {!futuro && (
-                  <div className="flex gap-[3px]">
+                  <div className="flex gap-0.5">
                     {PLANTAS.map((p) => {
-                      const on        = sets[p.key as PlantaKey].has(key);
-                      const scheduled = p.scheduledDow.includes(d.getDay());
-                      const opacity   = on ? 1 : scheduled ? 0.18 : 0.05;
+                      const on       = sets[p.key as PlantaKey].has(key);
+                      const sched    = p.scheduledDow.includes(d.getDay());
+                      const opacity  = on ? 1 : sched ? 0.2 : 0.05;
                       return (
-                        <span
-                          key={p.key}
-                          className="inline-block rounded-full"
-                          style={{ width: 11, height: 11, background: p.color, opacity }}
-                        />
+                        <span key={p.key} className="inline-block rounded-full"
+                          style={{ width: 9, height: 9, background: p.color, opacity }} />
                       );
                     })}
                   </div>
@@ -244,129 +299,166 @@ export default function DiarioPage() {
             );
           })}
         </div>
+        <div className="flex gap-4 mt-3 pt-2 border-t border-gray-50">
+          {PLANTAS.map((p) => (
+            <div key={p.key} className="flex items-center gap-1.5 text-[10px] text-gray-400">
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+              {p.label}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── Tabla de registros ── */}
-      {allFechas.length > 0 && (
-        <div className="card overflow-auto">
-          <h2 className="font-semibold text-gray-700 mb-3 text-sm">
-            Registros — {format(calMes, "MMMM yyyy", { locale: es })}
-          </h2>
-          <table className="w-full text-sm min-w-[560px]">
-            <thead className="border-b border-gray-100">
-              <tr>
-                <th className="table-th text-left">Fecha</th>
-                {PLANTAS.map((p) => (
-                  <th key={p.key} className="table-th text-center">
-                    <span className="flex items-center justify-center gap-1">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
-                      {p.label}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {allFechas.map((fecha) => {
-                const d = parseISO(fecha);
-                return (
-                  <tr key={fecha} className="hover:bg-gray-50">
-                    <td className="table-td-left font-medium text-gray-700">
-                      {format(d, "EEE dd/MM/yyyy", { locale: es })}
-                    </td>
-                    {PLANTAS.map((p) => {
-                      const on    = sets[p.key as PlantaKey].has(fecha);
-                      const nota  = anots.get(anotKey(fecha, p.key));
-                      const sched = p.scheduledDow.includes(d.getDay());
-                      return (
-                        <td key={p.key} className="table-td text-center">
-                          {on ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: p.color }}>
-                              <span className="inline-block w-2 h-2 rounded-full" style={{ background: p.color }} />
-                              Realizado
-                            </span>
-                          ) : sched ? (
-                            <div>
-                              <span className="text-xs text-red-400 font-medium">Sin droneo</span>
-                              {nota ? (
-                                <p className="text-[11px] text-amber-700 mt-0.5">{nota}</p>
-                              ) : isAdmin ? (
-                                <button
-                                  onClick={() => abrirModal(d, p.key as PlantaKey)}
-                                  className="text-[11px] text-gray-300 hover:text-migrin block mx-auto mt-0.5"
-                                >
-                                  + justificar
-                                </button>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-gray-200 text-xs">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* ── Tabla semanal ── */}
+      <div className="card overflow-auto">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Cumplimiento semanal</p>
+        <table className="w-full text-sm min-w-[480px]">
+          <thead className="border-b border-gray-100">
+            <tr>
+              <th className="table-th text-left">Semana</th>
+              {PLANTAS.map((p) => (
+                <th key={p.key} className="table-th text-center">
+                  <span className="flex items-center justify-center gap-1">
+                    <span className="inline-block w-2 h-2 rounded-full" style={{ background: p.color }} />
+                    <span>{p.label}</span>
+                    <span className="text-gray-300 font-normal">({p.freqLabel})</span>
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {weekRows.map((w) => {
+              const isFuture = isBefore(hoy, startOfDay(w.start));
+              return (
+                <tr key={w.label} className={`hover:bg-gray-50 ${isFuture ? "opacity-40" : ""}`}>
+                  <td className="table-td-left text-gray-500 text-xs">{w.label}</td>
+                  {PLANTAS.map((p) => {
+                    const { real, prog } = w.counts[p.key as PlantaKey];
+                    const ok = real >= prog && prog > 0;
+                    const pct = prog > 0 ? Math.round((real / prog) * 100) : null;
+                    return (
+                      <td key={p.key} className="table-td text-center">
+                        {isFuture ? (
+                          <span className="text-gray-200 text-xs">—</span>
+                        ) : prog === 0 ? (
+                          <span className="text-gray-200 text-xs">—</span>
+                        ) : (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
+                            style={{
+                              background: ok ? p.bg : real === 0 ? "#fee2e2" : "#fef9c3",
+                              color: ok ? p.textColor : real === 0 ? "#991b1b" : "#92400e",
+                            }}
+                          >
+                            {real}/{prog}
+                            {pct !== null && pct < 100 && <span className="font-normal ml-1 opacity-70">{pct}%</span>}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-      {/* ── Modal anotación ── */}
+      {/* ── Log de incidencias ── */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incidencias del mes</p>
+          {incidencias.length === 0 && (
+            <span className="text-xs text-green-600 font-medium">Sin incidencias ✓</span>
+          )}
+        </div>
+        {incidencias.length === 0 ? (
+          <p className="text-sm text-gray-300 text-center py-4">Todos los droneos programados se realizaron</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {incidencias.map((inc) => {
+              const planta = PLANTAS.find((p) => p.key === inc.planta)!;
+              const d      = parseISO(inc.fecha);
+              return (
+                <div key={`${inc.fecha}-${inc.planta}`} className="flex items-start gap-3 py-2.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1" style={{ background: planta.color }} />
+                  <div className="w-20 flex-shrink-0">
+                    <p className="text-xs font-medium text-gray-600">
+                      {format(d, "EEE dd/MM", { locale: es })}
+                    </p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-700">{planta.label}</p>
+                    {inc.motivo ? (
+                      <p className="text-xs text-gray-400 mt-0.5">{inc.motivo}</p>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-amber-500">Sin justificación</p>
+                        {isAdmin && (
+                          <button
+                            onClick={() => abrirModal(d, inc.planta)}
+                            className="text-[11px] text-migrin hover:underline"
+                          >
+                            + agregar
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {inc.motivo && isAdmin && (
+                    <button
+                      onClick={() => abrirModal(d, inc.planta)}
+                      className="text-[11px] text-gray-300 hover:text-gray-500 flex-shrink-0"
+                    >
+                      editar
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Modal ── */}
       {modalFecha && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-          onClick={() => setModalFecha(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={() => setModalFecha(null)}>
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold text-gray-800 mb-1">Justificación de vuelo</h3>
             <p className="text-sm text-gray-500 mb-4">{modalFecha}</p>
-
-            {/* Selector de planta */}
             <div className="mb-3">
               <label className="label mb-1">Planta</label>
               <div className="flex gap-2">
                 {PLANTAS.map((p) => (
-                  <button
-                    key={p.key}
+                  <button key={p.key}
                     onClick={() => {
                       setModalPlanta(p.key as PlantaKey);
                       setModalMotivo(anots.get(anotKey(modalFecha!, p.key)) ?? "");
                     }}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors ${
-                      modalPlanta === p.key
-                        ? "text-white border-transparent"
-                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
-                    }`}
-                    style={modalPlanta === p.key ? { background: p.color, borderColor: p.color } : {}}
+                    className="flex-1 py-1.5 px-2 rounded-lg text-xs font-medium border transition-colors"
+                    style={modalPlanta === p.key
+                      ? { background: p.color, borderColor: p.color, color: "#fff" }
+                      : { background: "#fff", borderColor: "#e5e7eb", color: "#6b7280" }}
                   >
                     {p.label}
                   </button>
                 ))}
               </div>
             </div>
-
             <label className="label mb-1">Motivo</label>
-            <textarea
-              className="input w-full"
-              rows={3}
+            <textarea className="input w-full" rows={3}
               placeholder="Ej: Lluvia, Mantención equipo, Sin personal..."
               value={modalMotivo}
               onChange={(e) => setModalMotivo(e.target.value)}
               autoFocus
             />
-
             <div className="flex gap-2 mt-4 justify-end">
               <button className="btn-secondary text-sm" onClick={() => setModalFecha(null)}>Cancelar</button>
-              <button
-                className="btn-primary text-sm"
-                onClick={guardarAnotacion}
-                disabled={!modalMotivo.trim() || modalGuardando}
-              >
+              <button className="btn-primary text-sm" onClick={guardarAnotacion}
+                disabled={!modalMotivo.trim() || modalGuardando}>
                 {modalGuardando ? "Guardando..." : "Guardar"}
               </button>
             </div>
