@@ -365,61 +365,6 @@ export default function DiarioPage() {
         </table>
       </div>
 
-      {/* ── Log de incidencias ── */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incidencias del mes</p>
-          {incidencias.length === 0 && (
-            <span className="text-xs text-green-600 font-medium">Sin incidencias ✓</span>
-          )}
-        </div>
-        {incidencias.length === 0 ? (
-          <p className="text-sm text-gray-300 text-center py-4">Todos los droneos programados se realizaron</p>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {incidencias.map((inc) => {
-              const planta = PLANTAS.find((p) => p.key === inc.planta)!;
-              const d      = parseISO(inc.fecha);
-              return (
-                <div key={`${inc.fecha}-${inc.planta}`} className="flex items-start gap-3 py-2.5">
-                  <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1" style={{ background: planta.color }} />
-                  <div className="w-20 flex-shrink-0">
-                    <p className="text-xs font-medium text-gray-600">
-                      {format(d, "EEE dd/MM", { locale: es })}
-                    </p>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-700">{planta.label}</p>
-                    {inc.motivo ? (
-                      <p className="text-xs text-gray-400 mt-0.5">{inc.motivo}</p>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs text-amber-500">Sin justificación</p>
-                        {isAdmin && (
-                          <button
-                            onClick={() => abrirModal(d, inc.planta)}
-                            className="text-[11px] text-migrin hover:underline"
-                          >
-                            + agregar
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {inc.motivo && isAdmin && (
-                    <button
-                      onClick={() => abrirModal(d, inc.planta)}
-                      className="text-[11px] text-gray-300 hover:text-gray-500 flex-shrink-0"
-                    >
-                      editar
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {/* ── Modal ── */}
       {modalFecha && (
