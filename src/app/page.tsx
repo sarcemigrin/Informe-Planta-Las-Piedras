@@ -798,15 +798,6 @@ export default function Dashboard() {
             const tFierVar= (tLast?.fierrillo_total_ton ?? 0) - (tIniMes?.fierrillo_total_ton ?? 0);
             const tDias  = diasDesde(tLast?.fecha);
 
-            const turcoMonthly = (() => {
-              const map: Record<string, { tlh:number; fierrillo:number; arena:number; grancilla:number }> = {};
-              for (const r of [...turcoRows].reverse()) {
-                const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
-                map[ym] = { tlh: r.tlh_ton ?? 0, fierrillo: r.fierrillo_total_ton ?? 0, arena: r.arena_mina_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
-              }
-              return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
-            })();
-
             /* ── Peral calcs ── */
             const pLast  = peralRows[0];
             const pIniMes = iniMes(peralRows);
@@ -815,28 +806,31 @@ export default function Dashboard() {
             const pStockVar = pHumedaTot - pHumedaIni;
             const pDias  = diasDesde(pLast?.fecha);
 
-            const peralLines = (() => {
-              const map: Record<string, { humeda:number; arena:number; a22:number; a24:number; a25:number; a26:number; dmh:number; grancilla:number }> = {};
-              for (const r of [...peralRows].reverse()) {
-                const ym = r.fecha?.slice(0,7) ?? ""; if (!ym) continue;
-                map[ym] = { humeda: (r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0), arena: r.arena_mina_ton ?? 0, a22: r.a22_ton ?? 0, a24: r.a24_ton ?? 0, a25: r.a25_ton ?? 0, a26: r.a26_ton ?? 0, dmh: r.dmh_ton ?? 0, grancilla: r.grancilla_ton ?? 0 };
-              }
-              return Object.entries(map).map(([ym,v]) => ({ mes: ym.slice(5), ...v }));
-            })();
-
             function varBadge(v: number) {
               const color = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-gray-400";
               const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "–";
               return <span className={`text-xs font-semibold ${color}`}>{arrow} {fmt(Math.abs(v))} ton</span>;
             }
 
-            // Filtro 3 meses por defecto
-            const last3Months = (() => {
-              const all = [...new Set([...turcoMonthly.map(r=>r.mes), ...peralLines.map(r=>r.mes)])].sort();
-              return centroVerTodo ? all : all.slice(-3);
-            })();
-            const turcoChart  = turcoMonthly.filter(r => last3Months.includes(r.mes));
-            const peralChart  = peralLines.filter(r => last3Months.includes(r.mes));
+            // Gráficos por registro individual (sin agregación mensual)
+            const N = centroVerTodo ? 50 : 10;
+            const turcoChart = turcoRows.slice(0, N).reverse().map(r => ({
+              fecha: r.fecha?.slice(5) ?? "",   // "MM-DD"
+              tlh:       r.tlh_ton ?? 0,
+              fierrillo: r.fierrillo_total_ton ?? 0,
+              arena:     r.arena_mina_ton ?? 0,
+              grancilla: r.grancilla_ton ?? 0,
+            }));
+            const peralChart = peralRows.slice(0, N).reverse().map(r => ({
+              fecha:    r.fecha?.slice(5) ?? "",
+              humeda:   (r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0),
+              arena:    r.arena_mina_ton ?? 0,
+              a22:      r.a22_ton ?? 0,
+              a24:      r.a24_ton ?? 0,
+              a25:      r.a25_ton ?? 0,
+              a26:      r.a26_ton ?? 0,
+              grancilla:r.grancilla_ton ?? 0,
+            }));
 
             return (
               <>
@@ -925,13 +919,13 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="font-semibold text-gray-700 text-sm">Inventario & TLH</h3>
                             <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
-                              {centroVerTodo ? "Últimos 3 meses" : "Ver histórico"}
+                              {centroVerTodo ? "Últimos 10" : "Ver 50 registros"}
                             </button>
                           </div>
                           <ResponsiveContainer width="100%" height={220}>
                             <ComposedChart data={turcoChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
                               <YAxis tick={{ fontSize:10 }} />
                               <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                               <Legend />
@@ -948,7 +942,7 @@ export default function Dashboard() {
                           <ResponsiveContainer width="100%" height={220}>
                             <ComposedChart data={turcoChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
                               <YAxis tick={{ fontSize:10 }} />
                               <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                               <Legend />
@@ -1044,13 +1038,13 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="font-semibold text-gray-700 text-sm">Arena Húmeda & Arena Mina</h3>
                             <button onClick={() => setCentroVerTodo(v=>!v)} className="text-xs text-blue-600 hover:underline">
-                              {centroVerTodo ? "Últimos 3 meses" : "Ver histórico"}
+                              {centroVerTodo ? "Últimos 10" : "Ver 50 registros"}
                             </button>
                           </div>
                           <ResponsiveContainer width="100%" height={220}>
                             <ComposedChart data={peralChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
                               <YAxis tick={{ fontSize:10 }} />
                               <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                               <Legend />
@@ -1067,7 +1061,7 @@ export default function Dashboard() {
                           <ResponsiveContainer width="100%" height={220}>
                             <ComposedChart data={peralChart} margin={{ top:5, right:10, left:0, bottom:5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="mes" tick={{ fontSize:10 }} />
+                              <XAxis dataKey="fecha" tick={{ fontSize:10 }} />
                               <YAxis tick={{ fontSize:10 }} />
                               <Tooltip formatter={(v:unknown) => fmt(v as number,1)+" ton"} />
                               <Legend />
