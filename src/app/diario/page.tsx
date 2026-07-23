@@ -11,7 +11,7 @@ import {
 import { es } from "date-fns/locale";
 
 const PLANTAS = [
-  { key: "turco",   label: "El Turco",    color: "#f59e0b", bg: "#fffbeb", textColor: "#92400e", scheduledDow: [1,3,5,6] as number[], freqLabel: "3×/sem" },
+  { key: "turco",   label: "El Turco",    color: "#f59e0b", bg: "#fffbeb", textColor: "#92400e", scheduledDow: [1,3,5] as number[], freqLabel: "3×/sem" },
   { key: "peral",   label: "El Peral",    color: "#06b6d4", bg: "#ecfeff", textColor: "#155e75", scheduledDow: [3,6]     as number[], freqLabel: "2×/sem" },
   { key: "piedras", label: "Las Piedras", color: "#22c55e", bg: "#f0fdf4", textColor: "#166534", scheduledDow: [1,2,3,4,5] as number[], freqLabel: "5×/sem" },
 ];
