@@ -120,11 +120,12 @@ export default function DiarioPage() {
   const hoy = startOfDay(new Date());
 
   // finde global solo para el número del día (estilo visual)
-  // Domingo siempre es finde. Sábado es finde solo si ninguna planta lo usa.
+  // Domingo siempre es finde. Sábado es finde solo si ninguna planta lo tiene programado.
+  const sabadoEsLaboral = PLANTAS.some((p) => (p.scheduledDow as readonly number[]).includes(6));
   function esFinde(d: Date) {
     const dow = d.getDay();
-    if (dow === 0) return true; // domingo siempre
-    if (dow === 6) return !PLANTAS.some((p) => p.scheduledDow.includes(6)); // sáb solo si nadie lo usa
+    if (dow === 0) return true;
+    if (dow === 6) return !sabadoEsLaboral;
     return false;
   }
   function esFuturo(d: Date) { return isBefore(hoy, startOfDay(d)) && !isToday(d); }
