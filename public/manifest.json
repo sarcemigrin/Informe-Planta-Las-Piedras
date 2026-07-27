@@ -1,7 +1,7 @@
 {
-  "name": "Control P&P LP",
-  "short_name": "Control P&P LP",
-  "description": "Control de Producción y Productividad – Planta Las Piedras",
+  "name": "Fotogrametría Migrin",
+  "short_name": "Fotogrametría",
+  "description": "Control de Fotogrametría – Faena Las Piedras, Turco y Peral",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
