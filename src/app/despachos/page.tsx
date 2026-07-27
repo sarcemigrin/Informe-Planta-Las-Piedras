@@ -125,10 +125,10 @@ export default function DespachosPage() {
     let ok = 0, errors = 0;
 
     for (let i = 0; i < data.length; i += 500) {
-      const lote = data.slice(i, i + 500).map((row) => {
+      const loteRaw = data.slice(i, i + 500).map((row) => {
         const fecha = parseExcelDate(row["Fecha"] ?? row["fecha"]);
         const hora  = parseExcelTime(row["Hora"]  ?? row["hora"]);
-        const fh    = fecha && hora ? `${fecha}T${hora}:00+00:00` : null;
+        const fh    = fecha && hora ? `${fecha}T${hora}:00` : null;
 
         return {
           tipo:                  String(row["Tipo"] ?? ""),
@@ -137,7 +137,7 @@ export default function DespachosPage() {
           folio:                 toInt(row["Folio"]),
           fecha:                 fecha ?? "",
           hora:                  hora  ?? "00:00",
-          fecha_hora:            fh    ?? "",
+          fecha_hora:            fh    ?? null,
           cliente:               String(row["Cliente"]  ?? ""),
           nombre:                String(row["Nombre"]   ?? ""),
           articulo:              String(row["Articulo"] ?? ""),
@@ -154,7 +154,10 @@ export default function DespachosPage() {
           bodega_origen:         String(row["BodegaOrigen"]      ?? ""),
           bodega_destino:        String(row["BodegaDestino"]     ?? ""),
         };
-      }).filter((r) => r.fecha && r.fecha_hora);
+      });
+      const sinFecha = loteRaw.filter((r) => !r.fecha).length;
+      if (sinFecha > 0) errors += sinFecha;
+      const lote = loteRaw.filter((r) => r.fecha);
 
       const { error } =       await supabase.from("despachos").upsert(lote, { onConflict: "doc_entry" });
       if (error) { errors += lote.length; }
@@ -164,7 +167,9 @@ export default function DespachosPage() {
 
     setMsg({
       type: errors > 0 ? "err" : "ok",
-      text: `Importación completa: ${ok} ok, ${errors} con error.`,
+      text: errors > 0
+        ? `Importación completa: ${ok} registros ok, ${errors} descartados por fecha inválida o error. Revisa el formato de la columna Fecha.`
+        : `Importación completa: ${ok} registros importados correctamente.`,
     });
     await loadDespachos();
     setUploading(false);
@@ -399,16 +404,24 @@ export default function DespachosPage() {
 // ---- Helpers de parseo ----
 function parseExcelDate(v: unknown): string | null {
   if (!v) return null;
-  if (v instanceof Date) return format(v, "yyyy-MM-dd");
+  if (v instanceof Date && !isNaN(v.getTime())) return format(v, "yyyy-MM-dd");
   if (typeof v === "string") {
-    const m = v.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-    const parts = v.split("/");
-    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    const s = v.trim();
+    // YYYY-MM-DD
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    // DD/MM/YYYY o DD-MM-YYYY
+    const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,"0")}-${dmy[1].padStart(2,"0")}`;
+    // MM/DD/YYYY
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (mdy) return `${mdy[3]}-${mdy[1].padStart(2,"0")}-${mdy[2].padStart(2,"0")}`;
   }
-  if (typeof v === "number") {
-    const d = new Date((v - 25569) * 86400 * 1000);
-    return format(d, "yyyy-MM-dd");
+  if (typeof v === "number" && v > 0) {
+    // Excel serial — ajuste para Mac (1904) vs Windows (1900)
+    const epoch = v > 60000 ? v - 25569 : v - 25568;
+    const d = new Date(epoch * 86400 * 1000);
+    if (!isNaN(d.getTime())) return format(d, "yyyy-MM-dd");
   }
   return null;
 }
