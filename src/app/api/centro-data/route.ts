@@ -1,10 +1,13 @@
 /**
- * GET /api/centro-data
- * Devuelve registros de registros_turco y registros_peral.
- * Usa service role key para saltar RLS.
+ * GET  /api/centro-data          — Devuelve registros de registros_turco y registros_peral.
+ * POST /api/centro-data          — Inserta un registro usando service role (bypasa RLS).
+ *
+ * Usa service role key para saltar RLS en ambas operaciones.
  */
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse }     from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions }      from "@/lib/authOptions";
+import { createClient }     from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -36,4 +39,40 @@ export async function GET(req: Request) {
     },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
+}
+
+const ALLOWED_TABLES = ["registros_peral", "registros_turco"] as const;
+type AllowedTable = typeof ALLOWED_TABLES[number];
+
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user)               return NextResponse.json({ error: "No autenticado" },  { status: 401 });
+  if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },    { status: 403 });
+
+  let body: { table: AllowedTable; record: Record<string, unknown> };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  const { table, record } = body;
+  if (!ALLOWED_TABLES.includes(table as AllowedTable)) {
+    return NextResponse.json({ error: `Tabla no permitida: ${table}` }, { status: 400 });
+  }
+  if (!record || typeof record !== "object") {
+    return NextResponse.json({ error: "Record inválido" }, { status: 400 });
+  }
+
+  const sb = getAdmin();
+  const { data, error } = await sb.from(table).insert(record).select().single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "Insert silencioso — 0 filas insertadas" }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, data }, { headers: { "Cache-Control": "no-store" } });
 }

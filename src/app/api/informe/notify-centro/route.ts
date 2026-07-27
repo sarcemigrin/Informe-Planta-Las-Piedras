@@ -72,8 +72,11 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
 }
 
 function buildPeralHtml(fecha: string, hora: string, kpis: Record<string, number | null>, appUrl: string): string {
+  // Arena Húmeda = A-24 + A-25 + A-26 (calcular si el campo guardado es null)
+  const stockHumeda = kpis.stock_arena_humeda_ton
+    ?? ((kpis.a24_ton ?? 0) + (kpis.a25_ton ?? 0) + (kpis.a26_ton ?? 0));
   const rows = [
-    ["Stock Arena Húmeda", kpis.stock_arena_humeda_ton, "ton"],
+    ["Stock Arena Húmeda (A24+A25+A26)", stockHumeda, "ton"],
     ["Arena Mina",         kpis.arena_mina_ton,         "ton"],
     ["A-22",               kpis.a22_ton,                "ton"],
     ["A-24",               kpis.a24_ton,                "ton"],

@@ -123,7 +123,8 @@ function CentroRegistroInlineForm() {
     const ftotal = fa_ton && fb_ton
       ? (parseFloat(fa_ton) + parseFloat(fb_ton)).toFixed(3)
       : fa_ton || fb_ton || null;
-    const { error } = await supabase.from("registros_turco").insert({
+
+    const record = {
       fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
       tlh_m3: pfc(f.tlh_m3),     tlh_ton: pfc(autoTon(f.tlh_m3)),
@@ -133,11 +134,22 @@ function CentroRegistroInlineForm() {
       fierrillo_b_m3: pfc(f.fierrillo_b_m3), fierrillo_b_ton: pfc(fb_ton),
       fierrillo_total_ton: pfc(ftotal ?? ""),
       notas: f.notas || null,
+    };
+
+    // Usar API con service role (bypass RLS)
+    const res = await fetch("/api/centro-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "registros_turco", record }),
     });
-    if (error) { setMsg({ type:"err", text:"Error: "+error.message }); }
-    else {
+    const json = await res.json() as { ok?: boolean; error?: string };
+
+    if (!res.ok || !json.ok) {
+      setMsg({ type:"err", text:"Error: " + (json.error ?? "no se pudo guardar") });
+    } else {
       setMsg({ type:"ok", text:"Registro Turco guardado." });
       setTForm(defaultTurcoForm());
+      window.dispatchEvent(new CustomEvent("centro:saved"));
       // Notificación email — fire and forget
       fetch("/api/informe/notify-centro", {
         method: "POST",
@@ -167,7 +179,9 @@ function CentroRegistroInlineForm() {
     // Arena Húmeda = solo A-24 + A-25 + A-26 (A-22 y Grancilla son independientes)
     const humedaTons = ["a24","a25","a26"].map(k => parseFloat(autoTon(f[k+"_m3"])) || 0);
     const stock = humedaTons.reduce((s,v) => s+v, 0).toFixed(3);
-    const { error } = await supabase.from("registros_peral").insert({
+    const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon((f as Record<string,string>)[k+"_m3"])) || 0);
+
+    const record = {
       fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
       a22_m3: pfc(f.a22_m3), a22_ton: pfc(autoTon(f.a22_m3)),
@@ -178,13 +192,23 @@ function CentroRegistroInlineForm() {
       grancilla_m3: pfc(f.grancilla_m3), grancilla_ton: pfc(autoTon(f.grancilla_m3)),
       stock_arena_humeda_ton: pfc(stock),
       notas: f.notas || null,
+    };
+
+    // Usar API con service role (bypass RLS)
+    const res = await fetch("/api/centro-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "registros_peral", record }),
     });
-    if (error) { setMsg({ type:"err", text:"Error: "+error.message }); }
-    else {
+    const json = await res.json() as { ok?: boolean; error?: string };
+
+    if (!res.ok || !json.ok) {
+      setMsg({ type:"err", text:"Error: " + (json.error ?? "no se pudo guardar") });
+    } else {
       setMsg({ type:"ok", text:"Registro Peral guardado." });
       setPForm(defaultPeralForm());
+      window.dispatchEvent(new CustomEvent("centro:saved"));
       // Notificación email — fire and forget
-      const tons = ["a22","a24","a25","a26","dmh","grancilla"].map(k => parseFloat(autoTon((f as Record<string,string>)[k+"_m3"])) || 0);
       fetch("/api/informe/notify-centro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

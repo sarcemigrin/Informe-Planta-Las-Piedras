@@ -129,7 +129,7 @@ function TurcoTab() {
 
   async function handleSave() {
     setSaving(true); setMsg(null);
-    const { error } = await supabase.from("registros_turco").insert({
+    const record = {
       fecha: form.fecha, hora: form.hora, fecha_hora: `${form.fecha}T${form.hora}:00`,
       arena_mina_m3: pf(form.arena_mina_m3), arena_mina_ton: pf(form.arena_mina_ton),
       tlh_m3: pf(form.tlh_m3), tlh_ton: pf(form.tlh_ton),
@@ -139,9 +139,15 @@ function TurcoTab() {
       fierrillo_b_m3: pf(form.fierrillo_b_m3), fierrillo_b_ton: pf(form.fierrillo_b_ton),
       fierrillo_total_ton: pf(form.fierrillo_total_ton),
       notas: form.notas || null,
+    };
+    const res = await fetch("/api/centro-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "registros_turco", record }),
     });
-    if (error) { setMsg({ type: "err", text: "Error: " + error.message }); }
-    else       { setMsg({ type: "ok",  text: "Registro guardado." }); setForm(defaultTurco()); loadHistorial(); }
+    const json = await res.json() as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) { setMsg({ type: "err", text: "Error: " + (json.error ?? "no se pudo guardar") }); }
+    else { setMsg({ type: "ok", text: "Registro guardado." }); setForm(defaultTurco()); loadHistorial(); window.dispatchEvent(new CustomEvent("centro:saved")); }
     setSaving(false);
   }
 
@@ -311,7 +317,7 @@ function PeralTab() {
 
   async function handleSave() {
     setSaving(true); setMsg(null);
-    const { error } = await supabase.from("registros_peral").insert({
+    const record = {
       fecha: form.fecha, hora: form.hora, fecha_hora: `${form.fecha}T${form.hora}:00`,
       arena_mina_m3: pf(form.arena_mina_m3), arena_mina_ton: pf(form.arena_mina_ton),
       a22_m3: pf(form.a22_m3), a22_ton: pf(form.a22_ton),
@@ -322,9 +328,15 @@ function PeralTab() {
       grancilla_m3: pf(form.grancilla_m3), grancilla_ton: pf(form.grancilla_ton),
       stock_arena_humeda_ton: pf(form.stock_arena_humeda_ton),
       notas: form.notas || null,
+    };
+    const res = await fetch("/api/centro-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "registros_peral", record }),
     });
-    if (error) { setMsg({ type: "err", text: "Error: " + error.message }); }
-    else       { setMsg({ type: "ok",  text: "Registro guardado." }); setForm(defaultPeral()); loadHistorial(); }
+    const json = await res.json() as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) { setMsg({ type: "err", text: "Error: " + (json.error ?? "no se pudo guardar") }); }
+    else { setMsg({ type: "ok", text: "Registro guardado." }); setForm(defaultPeral()); loadHistorial(); window.dispatchEvent(new CustomEvent("centro:saved")); }
     setSaving(false);
   }
 

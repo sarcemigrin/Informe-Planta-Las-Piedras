@@ -137,6 +137,17 @@ export default function Dashboard() {
     loadCentro();
   }, [planta, centroRefresh]);
 
+  // Refresca datos Zona Centro cuando se guarda un nuevo registro desde arena/page.tsx
+  useEffect(() => {
+    const handler = () => setCentroRefresh(n => n + 1);
+    window.addEventListener("centro:saved", handler);
+    window.addEventListener("focus", handler);
+    return () => {
+      window.removeEventListener("centro:saved", handler);
+      window.removeEventListener("focus", handler);
+    };
+  }, []);
+
   const sel          = arenaRows[selectedIdx];
   const prev         = arenaRows[selectedIdx + 1];
   const ultimoCuarzo = cuarzoRows[0];

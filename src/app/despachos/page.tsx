@@ -25,7 +25,7 @@ export default function DespachosPage() {
   const [page, setPage]           = useState(1);
   const [periodo, setPeriodo]     = useState<Periodo>("mes");
 
-  const [material, setMaterial]   = useState<string>("todos");
+  const [material, setMaterial]   = useState<string>("A36LGC");
   const [importData, setImportData] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function DespachosPage() {
       if (sinFecha > 0) errors += sinFecha;
       const lote = loteRaw.filter((r) => r.fecha);
 
-      const { error } =       await supabase.from("despachos").upsert(lote, { onConflict: "doc_entry" });
+      const { error } =       await supabase.from("despachos").upsert(lote, { onConflict: "doc_entry,articulo" });
       if (error) { errors += lote.length; }
       else       { ok     += lote.length; }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });

@@ -238,26 +238,43 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   let total = 0;
   const errors: string[] = [];
 
-  // Clave única SAP: doc_entry + articulo
-  const withDocEntry    = despachos.filter((d) => d.doc_entry !== null);
-  const withoutDocEntry = despachos.filter((d) => d.doc_entry === null);
+  // Misma lógica que el import route (usa constraints confirmados en la DB)
+  const withFolio    = despachos.filter((d) => d.folio    !== null && d.folio    !== undefined);
+  const withoutFolio = despachos.filter((d) => d.folio    === null || d.folio    === undefined);
 
-  for (let i = 0; i < withDocEntry.length; i += BATCH) {
+  // Con folio → upsert en constraint UNIQUE(folio)
+  for (let i = 0; i < withFolio.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry", ignoreDuplicates: true })
+      .upsert(withFolio.slice(i, i + BATCH), { onConflict: "folio", ignoreDuplicates: true })
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
   }
-  for (let i = 0; i < withoutDocEntry.length; i += BATCH) {
+
+  // Sin folio → upsert en constraint UNIQUE(fecha_hora, articulo)
+  const withFH    = withoutFolio.filter((d) => d.fecha_hora && d.articulo);
+  const withoutFH = withoutFolio.filter((d) => !d.fecha_hora || !d.articulo);
+
+  for (let i = 0; i < withFH.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .insert(withoutDocEntry.slice(i, i + BATCH))
+      .upsert(withFH.slice(i, i + BATCH), { onConflict: "fecha_hora,articulo", ignoreDuplicates: true })
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
   }
+
+  // Sin folio ni fecha_hora → insert simple (última opción, riesgo de duplicados mínimo)
+  for (let i = 0; i < withoutFH.length; i += BATCH) {
+    const { data, error } = await sb
+      .from("despachos")
+      .insert(withoutFH.slice(i, i + BATCH))
+      .select("id");
+    if (error) errors.push(error.message);
+    else total += data?.length ?? 0;
+  }
+
   return { total, errors };
 }
 
