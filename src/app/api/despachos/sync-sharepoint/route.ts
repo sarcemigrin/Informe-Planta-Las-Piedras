@@ -195,18 +195,13 @@ function parseRows(ws: XLSX.WorkSheet) {
   const despachos: Record<string, unknown>[] = [];
   const skipped: number[] = [];
 
-  // Artículos Las Piedras — se importan todos, el cálculo de arena usa solo A36 y A39
-  const ARTICULOS_LP = new Set(["A36LGC", "A37LGC", "A38LGC", "A39LGC"]);
-
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
 
-    // Filtrar solo artículos de Las Piedras
     const articuloRaw = String(col(r,"Articulo","Artículo","ARTICULO","articulo","ItemCode") ?? "").trim().toUpperCase();
-    if (!ARTICULOS_LP.has(articuloRaw)) { skipped.push(i + 2); continue; }
 
     const fechaRaw = col(r,"Fecha","fecha","FECHA");
-    let fecha = parseExcelDate(fechaRaw);
+    const fecha = parseExcelDate(fechaRaw);
     if (!fecha) { skipped.push(i + 2); continue; }
 
     const horaRaw = col(r,"Hora","hora","HORA");
@@ -226,7 +221,7 @@ function parseRows(ws: XLSX.WorkSheet) {
       descripcion:  String(col(r,"Descripcion","Descripción") ?? "").trim() || null,
       toneladas:    parseNum(col(r,"Toneladas")),
       toneladas_confirmadas: parseNum(col(r,"ToneladasConfirmadas")),
-      ton_final:    parseNum(col(r,"Neto")) ?? parseNum(col(r,"Toneladas")),
+      ton_final:    parseNum(col(r,"Ton. Final","TonFinal","Neto","ton_final")) ?? parseNum(col(r,"Toneladas")),
       precio:       parseNum(col(r,"Precio")),
       total:        parseNum(col(r,"Total")),
       patente:      String(col(r,"Patente") ?? "").trim().toUpperCase() || null,
@@ -250,7 +245,7 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   for (let i = 0; i < withDocEntry.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
+      .upsert(withDocEntry.slice(i, i + BATCH), { onConflict: "doc_entry", ignoreDuplicates: true })
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
