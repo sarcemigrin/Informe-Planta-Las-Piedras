@@ -56,13 +56,19 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ account, profile }) {
       if (account?.provider !== "azure-ad") return false;
-      const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN ?? "migrin.cl";
+      // Soporta múltiples dominios: ALLOWED_EMAIL_DOMAINS=migrin.cl,gestionelalto.cl
+      // También acepta la var anterior ALLOWED_EMAIL_DOMAIN por compatibilidad
+      const allowedDomains = (
+        process.env.ALLOWED_EMAIL_DOMAINS ??
+        process.env.ALLOWED_EMAIL_DOMAIN ??
+        "migrin.cl"
+      ).split(",").map(d => d.trim().toLowerCase()).filter(Boolean);
       const p = profile as Record<string, unknown> | undefined;
       const email =
         (p?.["email"] as string | undefined) ??
         (p?.["preferred_username"] as string | undefined) ??
         (p?.["upn"] as string | undefined);
-      if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+      if (!email || !allowedDomains.some(d => email.toLowerCase().endsWith(`@${d}`))) {
         console.warn("[auth] signIn rechazado - dominio no autorizado");
         return false;
       }
