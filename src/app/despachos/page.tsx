@@ -160,7 +160,8 @@ export default function DespachosPage() {
       const lote = loteRaw.filter((r) => r.fecha);
 
       // No hay constraint UNIQUE confirmada en despachos → no usar upsert/onConflict.
-      // Con folio: se detectan los ya existentes y se separa en INSERT/UPDATE manualmente.
+      // Comportamiento original (ignoreDuplicates: true): folios ya existentes se
+      // saltan, solo se insertan los nuevos.
       const conFolio = lote.filter((r) => r.folio !== null && r.folio !== undefined);
       const sinFolio = lote.filter((r) => r.folio === null  || r.folio === undefined);
 
@@ -173,28 +174,14 @@ export default function DespachosPage() {
         const folios = conFolio.map((r) => r.folio as number);
         const { data: existentes } = await supabase
           .from("despachos")
-          .select("id, folio")
+          .select("folio")
           .in("folio", folios);
-        const idPorFolio = new Map((existentes ?? []).map((e) => [e.folio as number, e.id as string]));
-        const nuevos      = conFolio.filter((r) => !idPorFolio.has(r.folio as number));
-        const existentesB = conFolio.filter((r) => idPorFolio.has(r.folio as number));
+        const folioExistente = new Set((existentes ?? []).map((e) => e.folio as number));
+        const nuevos = conFolio.filter((r) => !folioExistente.has(r.folio as number));
 
         if (nuevos.length > 0) {
           const { error } = await supabase.from("despachos").insert(nuevos);
           if (error) { errors += nuevos.length; } else { ok += nuevos.length; }
-        }
-        // Updates en paralelo (en tandas) — secuencial es demasiado lento para lotes grandes
-        const UPDATE_CONCURRENCY = 25;
-        for (let j = 0; j < existentesB.length; j += UPDATE_CONCURRENCY) {
-          const tanda = existentesB.slice(j, j + UPDATE_CONCURRENCY);
-          const resultados = await Promise.all(
-            tanda.map((r) =>
-              supabase.from("despachos").update(r).eq("id", idPorFolio.get(r.folio as number)!)
-            )
-          );
-          for (const { error } of resultados) {
-            if (error) { errors += 1; } else { ok += 1; }
-          }
         }
       }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });

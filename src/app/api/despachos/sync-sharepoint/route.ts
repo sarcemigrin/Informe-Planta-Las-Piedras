@@ -242,7 +242,8 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   const errors: string[] = [];
 
   // No hay constraint UNIQUE confirmada en la tabla despachos → no usar ON CONFLICT.
-  // En vez de upsert, se busca manualmente qué folios ya existen y se separa en INSERT/UPDATE.
+  // Comportamiento original (ignoreDuplicates: true): los folios ya existentes se
+  // saltan tal cual, solo se insertan los nuevos — nunca se pisan datos existentes.
   const withFolio    = despachos.filter((d) => d.folio    !== null && d.folio    !== undefined);
   const withoutFolio = despachos.filter((d) => d.folio    === null || d.folio    === undefined);
 
@@ -256,41 +257,24 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
     else total += data?.length ?? 0;
   }
 
-  // Con folio → detectar existentes y separar en INSERT (nuevos) / UPDATE (ya existían)
+  // Con folio → detectar cuáles ya existen y solo insertar los nuevos
   for (let i = 0; i < withFolio.length; i += BATCH) {
     const batch = withFolio.slice(i, i + BATCH);
     const folios = batch.map((d) => d.folio as number);
 
     const { data: existentes, error: selError } = await sb
       .from("despachos")
-      .select("id, folio")
+      .select("folio")
       .in("folio", folios);
     if (selError) { errors.push(selError.message); continue; }
 
-    const idPorFolio = new Map((existentes ?? []).map((e) => [e.folio as number, e.id as string]));
-    const nuevos      = batch.filter((d) => !idPorFolio.has(d.folio as number));
-    const existentesB = batch.filter((d) => idPorFolio.has(d.folio as number));
+    const folioExistente = new Set((existentes ?? []).map((e) => e.folio as number));
+    const nuevos = batch.filter((d) => !folioExistente.has(d.folio as number));
 
     if (nuevos.length > 0) {
       const { data, error } = await sb.from("despachos").insert(nuevos).select("id");
       if (error) errors.push(error.message);
       else total += data?.length ?? 0;
-    }
-
-    // Updates en paralelo (en tandas) — uno por uno secuencial es demasiado lento
-    // para un resync completo del historial y hace expirar el timeout de la función.
-    const UPDATE_CONCURRENCY = 25;
-    for (let j = 0; j < existentesB.length; j += UPDATE_CONCURRENCY) {
-      const tanda = existentesB.slice(j, j + UPDATE_CONCURRENCY);
-      const resultados = await Promise.all(
-        tanda.map((d) =>
-          sb.from("despachos").update(d).eq("id", idPorFolio.get(d.folio as number)!)
-        )
-      );
-      for (const { error } of resultados) {
-        if (error) errors.push(error.message);
-        else total += 1;
-      }
     }
   }
 
