@@ -159,9 +159,17 @@ export default function DespachosPage() {
       if (sinFecha > 0) errors += sinFecha;
       const lote = loteRaw.filter((r) => r.fecha);
 
-      const { error } =       await supabase.from("despachos").upsert(lote, { onConflict: "doc_entry,articulo" });
-      if (error) { errors += lote.length; }
-      else       { ok     += lote.length; }
+      // Upsert por folio cuando está disponible; INSERT para el resto
+      const conFolio = lote.filter((r) => r.folio !== null && r.folio !== undefined);
+      const sinFolio = lote.filter((r) => r.folio === null  || r.folio === undefined);
+      if (conFolio.length > 0) {
+        const { error } = await supabase.from("despachos").upsert(conFolio, { onConflict: "folio", ignoreDuplicates: true });
+        if (error) { errors += conFolio.length; } else { ok += conFolio.length; }
+      }
+      if (sinFolio.length > 0) {
+        const { error } = await supabase.from("despachos").insert(sinFolio);
+        if (error) { errors += sinFolio.length; } else { ok += sinFolio.length; }
+      }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });
     }
 

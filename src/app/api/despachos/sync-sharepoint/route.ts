@@ -252,24 +252,11 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
     else total += data?.length ?? 0;
   }
 
-  // Sin folio → upsert en constraint UNIQUE(fecha_hora, articulo)
-  const withFH    = withoutFolio.filter((d) => d.fecha_hora && d.articulo);
-  const withoutFH = withoutFolio.filter((d) => !d.fecha_hora || !d.articulo);
-
-  for (let i = 0; i < withFH.length; i += BATCH) {
+  // Sin folio → INSERT directo (no existe constraint único adicional en DB)
+  for (let i = 0; i < withoutFolio.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .upsert(withFH.slice(i, i + BATCH), { onConflict: "fecha_hora,articulo", ignoreDuplicates: true })
-      .select("id");
-    if (error) errors.push(error.message);
-    else total += data?.length ?? 0;
-  }
-
-  // Sin folio ni fecha_hora → insert simple (última opción, riesgo de duplicados mínimo)
-  for (let i = 0; i < withoutFH.length; i += BATCH) {
-    const { data, error } = await sb
-      .from("despachos")
-      .insert(withoutFH.slice(i, i + BATCH))
+      .insert(withoutFolio.slice(i, i + BATCH))
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
