@@ -5,6 +5,9 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
+// Resync completo puede implicar muchos INSERT/UPDATE — dar margen sobre el default de 10-15s
+export const maxDuration = 60;
+
 // Busca BBDD Despachos VBA.xlsm, .xlsm o .xlsx en todo el drive del usuario
 const ONEDRIVE_FILE_NAMES = ["BBDD Despachos.xlsx", "BBDD Despachos.xlsm", "BBDD Despachos VBA.xlsm"];
 
@@ -274,13 +277,20 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
       else total += data?.length ?? 0;
     }
 
-    for (const d of existentesB) {
-      const { error } = await sb
-        .from("despachos")
-        .update(d)
-        .eq("id", idPorFolio.get(d.folio as number)!);
-      if (error) errors.push(error.message);
-      else total += 1;
+    // Updates en paralelo (en tandas) — uno por uno secuencial es demasiado lento
+    // para un resync completo del historial y hace expirar el timeout de la función.
+    const UPDATE_CONCURRENCY = 25;
+    for (let j = 0; j < existentesB.length; j += UPDATE_CONCURRENCY) {
+      const tanda = existentesB.slice(j, j + UPDATE_CONCURRENCY);
+      const resultados = await Promise.all(
+        tanda.map((d) =>
+          sb.from("despachos").update(d).eq("id", idPorFolio.get(d.folio as number)!)
+        )
+      );
+      for (const { error } of resultados) {
+        if (error) errors.push(error.message);
+        else total += 1;
+      }
     }
   }
 

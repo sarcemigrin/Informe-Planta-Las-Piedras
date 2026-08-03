@@ -14,6 +14,9 @@ import { createClient } from "@supabase/supabase-js";
  *   2. Objeto Power Automate:  { "value": [ ... ] }
  */
 
+// Lotes grandes pueden implicar muchos INSERT/UPDATE — dar margen sobre el default de 10-15s
+export const maxDuration = 60;
+
 function getSupabaseServer() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -190,13 +193,19 @@ export async function POST(request: Request) {
       else total += data?.length ?? 0;
     }
 
-    for (const d of existentesB) {
-      const { error } = await sb
-        .from("despachos")
-        .update(d)
-        .eq("id", idPorFolio.get(d.folio as number)!);
-      if (error) errors.push(error.message);
-      else total += 1;
+    // Updates en paralelo (en tandas) — secuencial es demasiado lento para lotes grandes
+    const UPDATE_CONCURRENCY = 25;
+    for (let j = 0; j < existentesB.length; j += UPDATE_CONCURRENCY) {
+      const tanda = existentesB.slice(j, j + UPDATE_CONCURRENCY);
+      const resultados = await Promise.all(
+        tanda.map((d) =>
+          sb.from("despachos").update(d).eq("id", idPorFolio.get(d.folio as number)!)
+        )
+      );
+      for (const { error } of resultados) {
+        if (error) errors.push(error.message);
+        else total += 1;
+      }
     }
   }
 

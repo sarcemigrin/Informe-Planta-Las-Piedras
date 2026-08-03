@@ -183,12 +183,18 @@ export default function DespachosPage() {
           const { error } = await supabase.from("despachos").insert(nuevos);
           if (error) { errors += nuevos.length; } else { ok += nuevos.length; }
         }
-        for (const r of existentesB) {
-          const { error } = await supabase
-            .from("despachos")
-            .update(r)
-            .eq("id", idPorFolio.get(r.folio as number)!);
-          if (error) { errors += 1; } else { ok += 1; }
+        // Updates en paralelo (en tandas) — secuencial es demasiado lento para lotes grandes
+        const UPDATE_CONCURRENCY = 25;
+        for (let j = 0; j < existentesB.length; j += UPDATE_CONCURRENCY) {
+          const tanda = existentesB.slice(j, j + UPDATE_CONCURRENCY);
+          const resultados = await Promise.all(
+            tanda.map((r) =>
+              supabase.from("despachos").update(r).eq("id", idPorFolio.get(r.folio as number)!)
+            )
+          );
+          for (const { error } of resultados) {
+            if (error) { errors += 1; } else { ok += 1; }
+          }
         }
       }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });
