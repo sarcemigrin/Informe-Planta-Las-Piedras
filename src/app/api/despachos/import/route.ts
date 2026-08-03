@@ -154,25 +154,50 @@ export async function POST(request: Request) {
   let total = 0;
   const errors: string[] = [];
 
+  // No hay constraint UNIQUE confirmada en la tabla despachos → no usar ON CONFLICT.
+  // En vez de upsert, se busca manualmente qué folios ya existen y se separa en INSERT/UPDATE.
   const withFolio    = despachos.filter((d) => d.folio !== null);
   const withoutFolio = despachos.filter((d) => d.folio === null);
 
-  for (let i = 0; i < withFolio.length; i += BATCH) {
-    const { data, error } = await sb
-      .from("despachos")
-      .upsert(withFolio.slice(i, i + BATCH), { onConflict: "folio", ignoreDuplicates: false })
-      .select("id");
-    if (error) errors.push(error.message);
-    else total += data?.length ?? withFolio.slice(i, i + BATCH).length;
-  }
-
+  // Sin folio → INSERT directo (no hay forma de detectar duplicados)
   for (let i = 0; i < withoutFolio.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .upsert(withoutFolio.slice(i, i + BATCH), { onConflict: "fecha_hora,articulo", ignoreDuplicates: true })
+      .insert(withoutFolio.slice(i, i + BATCH))
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
+  }
+
+  // Con folio → detectar existentes y separar en INSERT (nuevos) / UPDATE (ya existían)
+  for (let i = 0; i < withFolio.length; i += BATCH) {
+    const batch = withFolio.slice(i, i + BATCH);
+    const folios = batch.map((d) => d.folio as number);
+
+    const { data: existentes, error: selError } = await sb
+      .from("despachos")
+      .select("id, folio")
+      .in("folio", folios);
+    if (selError) { errors.push(selError.message); continue; }
+
+    const idPorFolio = new Map((existentes ?? []).map((e) => [e.folio as number, e.id as string]));
+    const nuevos      = batch.filter((d) => !idPorFolio.has(d.folio as number));
+    const existentesB = batch.filter((d) => idPorFolio.has(d.folio as number));
+
+    if (nuevos.length > 0) {
+      const { data, error } = await sb.from("despachos").insert(nuevos).select("id");
+      if (error) errors.push(error.message);
+      else total += data?.length ?? 0;
+    }
+
+    for (const d of existentesB) {
+      const { error } = await sb
+        .from("despachos")
+        .update(d)
+        .eq("id", idPorFolio.get(d.folio as number)!);
+      if (error) errors.push(error.message);
+      else total += 1;
+    }
   }
 
   return NextResponse.json({
