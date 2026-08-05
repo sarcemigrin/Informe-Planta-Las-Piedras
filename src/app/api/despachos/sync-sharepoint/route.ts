@@ -241,41 +241,15 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
   let total = 0;
   const errors: string[] = [];
 
-  // No hay constraint UNIQUE confirmada en la tabla despachos → no usar ON CONFLICT.
-  // Comportamiento original (ignoreDuplicates: true): los folios ya existentes se
-  // saltan tal cual, solo se insertan los nuevos — nunca se pisan datos existentes.
-  const withFolio    = despachos.filter((d) => d.folio    !== null && d.folio    !== undefined);
-  const withoutFolio = despachos.filter((d) => d.folio    === null || d.folio    === undefined);
-
-  // Sin folio → INSERT directo (no hay forma de detectar duplicados)
-  for (let i = 0; i < withoutFolio.length; i += BATCH) {
+  // Constraint UNIQUE confirmada en DB: despachos_doc_entry_articulo_unique
+  // sobre (doc_entry, articulo). Upsert nativo → rápido y sin duplicados.
+  for (let i = 0; i < despachos.length; i += BATCH) {
     const { data, error } = await sb
       .from("despachos")
-      .insert(withoutFolio.slice(i, i + BATCH))
+      .upsert(despachos.slice(i, i + BATCH), { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
       .select("id");
     if (error) errors.push(error.message);
     else total += data?.length ?? 0;
-  }
-
-  // Con folio → detectar cuáles ya existen y solo insertar los nuevos
-  for (let i = 0; i < withFolio.length; i += BATCH) {
-    const batch = withFolio.slice(i, i + BATCH);
-    const folios = batch.map((d) => d.folio as number);
-
-    const { data: existentes, error: selError } = await sb
-      .from("despachos")
-      .select("folio")
-      .in("folio", folios);
-    if (selError) { errors.push(selError.message); continue; }
-
-    const folioExistente = new Set((existentes ?? []).map((e) => e.folio as number));
-    const nuevos = batch.filter((d) => !folioExistente.has(d.folio as number));
-
-    if (nuevos.length > 0) {
-      const { data, error } = await sb.from("despachos").insert(nuevos).select("id");
-      if (error) errors.push(error.message);
-      else total += data?.length ?? 0;
-    }
   }
 
   return { total, errors };

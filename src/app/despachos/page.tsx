@@ -159,31 +159,12 @@ export default function DespachosPage() {
       if (sinFecha > 0) errors += sinFecha;
       const lote = loteRaw.filter((r) => r.fecha);
 
-      // No hay constraint UNIQUE confirmada en despachos → no usar upsert/onConflict.
-      // Comportamiento original (ignoreDuplicates: true): folios ya existentes se
-      // saltan, solo se insertan los nuevos.
-      const conFolio = lote.filter((r) => r.folio !== null && r.folio !== undefined);
-      const sinFolio = lote.filter((r) => r.folio === null  || r.folio === undefined);
-
-      if (sinFolio.length > 0) {
-        const { error } = await supabase.from("despachos").insert(sinFolio);
-        if (error) { errors += sinFolio.length; } else { ok += sinFolio.length; }
-      }
-
-      if (conFolio.length > 0) {
-        const folios = conFolio.map((r) => r.folio as number);
-        const { data: existentes } = await supabase
-          .from("despachos")
-          .select("folio")
-          .in("folio", folios);
-        const folioExistente = new Set((existentes ?? []).map((e) => e.folio as number));
-        const nuevos = conFolio.filter((r) => !folioExistente.has(r.folio as number));
-
-        if (nuevos.length > 0) {
-          const { error } = await supabase.from("despachos").insert(nuevos);
-          if (error) { errors += nuevos.length; } else { ok += nuevos.length; }
-        }
-      }
+      // Constraint UNIQUE confirmada en DB: despachos_doc_entry_articulo_unique
+      // sobre (doc_entry, articulo). Upsert nativo — salta duplicados.
+      const { error } = await supabase
+        .from("despachos")
+        .upsert(lote, { onConflict: "doc_entry,articulo", ignoreDuplicates: true });
+      if (error) { errors += lote.length; } else { ok += lote.length; }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });
     }
 
