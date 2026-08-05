@@ -90,7 +90,6 @@ export default function DiarioPage() {
     piedras: new Set(vuelos.piedras),
   };
 
-  const mesKey = format(calMes, "yyyy-MM");
   const hoy    = startOfDay(new Date());
 
   // Días programados transcurridos en el mes para una planta
@@ -101,6 +100,17 @@ export default function DiarioPage() {
     if (isBefore(limite, start)) return 0;
     return eachDayOfInterval({ start, end: limite })
       .filter((d) => scheduledDow.includes(d.getDay())).length;
+  }
+
+  // Droneos realizados en días programados transcurridos del mes (misma base que diasProgramadosMes)
+  function diasRealizadosMes(scheduledDow: number[], planta: PlantaKey) {
+    const start  = startOfMonth(calMes);
+    const end    = endOfMonth(calMes);
+    const limite = isBefore(end, hoy) ? end : hoy;
+    if (isBefore(limite, start)) return 0;
+    return eachDayOfInterval({ start, end: limite })
+      .filter((d) => scheduledDow.includes(d.getDay()) && sets[planta].has(format(d, "yyyy-MM-dd")))
+      .length;
   }
 
   // ── Semanas del mes para la tabla ────────────────────────────────────────
@@ -224,7 +234,7 @@ export default function DiarioPage() {
           Acumulado mensual — {format(calMes, "MMMM yyyy", { locale: es })}
         </p>
         {PLANTAS.map((p) => {
-          const realizados  = [...sets[p.key as PlantaKey]].filter((f) => f.startsWith(mesKey)).length;
+          const realizados  = diasRealizadosMes(p.scheduledDow, p.key as PlantaKey);
           const programados = diasProgramadosMes(p.scheduledDow);
           const pct         = programados > 0 ? Math.round((realizados / programados) * 100) : 0;
           const color       = pct >= 90 ? p.color : pct >= 70 ? "#f59e0b" : "#ef4444";
