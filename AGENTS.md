@@ -43,7 +43,7 @@
 |---|---|
 | `admin` | Todo: registrar datos, configurar, exportar, ver informes |
 | `viewer` | Solo lectura del dashboard y páginas públicas |
-| `sin_acceso` | Autenticado en Azure pero sin fila activa en `usuarios` → acceso denegado |
+| `sin_acceso` | Autenticado en Azure pero sin fila activa en `usuarios`. **En la práctica se comporta igual que `viewer`**: nada en el código bloquea la lectura de datos para este rol, solo queda fuera de las secciones admin (`AdminGuard`, escrituras). Es intencional — cualquier persona con correo `@migrin.cl`/`@gestionelalto.cl` puede ver los datos en modo visualización aunque no esté en `usuarios`. |
 
 ### Regla crítica de seguridad
 - `accessToken` de Azure **no va al cliente** — solo se accede vía `getToken({ req })` en API routes
@@ -256,6 +256,7 @@ const accessToken = token?.accessToken as string | undefined;
 | Dashboard no refrescaba tras guardar | No había evento de actualización | `window.dispatchEvent(new CustomEvent("centro:saved"))` + listener en dashboard |
 | Login bloqueado para @gestionelalto.cl | `ALLOWED_EMAIL_DOMAIN` solo aceptaba un dominio | Cambiar a `ALLOWED_EMAIL_DOMAINS` con lista CSV |
 | Felipe Pollock no podía entrar | No estaba en tabla `usuarios` | Agregado con `rol=viewer, activo=true` |
+| `GET /api/informe/recipients` sin control de acceso | Devolvía nombres/emails reales de destinatarios sin chequear sesión — decisión: los datos de producción/KPI son visibles para cualquier empleado, pero la lista de destinatarios (contacto de personas puntuales) debe quedar solo para admin | Agregado chequeo `session.user.rol !== "admin"` → 403, igual al que ya tenía su PUT |
 
 ---
 

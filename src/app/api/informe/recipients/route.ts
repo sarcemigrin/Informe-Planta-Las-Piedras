@@ -106,6 +106,10 @@ async function loadDefaultEmails(planta: Planta): Promise<string[] | null> {
 }
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user)               return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },   { status: 403 });
+
   const url    = new URL(req.url);
   const planta = parsePlanta(url.searchParams.get("planta"));
   const tipo   = url.searchParams.get("tipo");
