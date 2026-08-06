@@ -20,6 +20,17 @@ const SUGGESTIONS = [
 
 const TOOLTIP_KEY = "arena-chat-tooltip-v1";
 
+// Escapa HTML antes de aplicar el formato — el texto viene del modelo (que a su vez
+// puede incluir datos de la BD o el mensaje del usuario) y no debe interpretarse como HTML.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function MarkdownText({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
@@ -27,7 +38,7 @@ function MarkdownText({ text }: { text: string }) {
       {lines.map((line, i) => {
         const isList = line.startsWith("- ") || line.startsWith("• ");
         const content = isList ? line.slice(2) : line;
-        const formatted = content
+        const formatted = escapeHtml(content)
           .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
           .replace(/\*(.+?)\*/g, "<em>$1</em>");
         if (isList) {
