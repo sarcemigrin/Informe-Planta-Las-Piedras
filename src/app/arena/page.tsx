@@ -181,7 +181,12 @@ function CentroRegistroInlineForm() {
             fierrillo_total_ton:pfc(ftotal ?? ""),
           },
         }),
-      }).catch(() => {/* silencioso */});
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (!j.ok) setMsg({ type: "err", text: `Registro Turco guardado, pero falló el envío del correo: ${j.error ?? "error desconocido"}` });
+        })
+        .catch(() => setMsg({ type: "err", text: "Registro Turco guardado, pero no se pudo confirmar el envío del correo." }));
     }
     setSaving(false);
   }
@@ -236,7 +241,12 @@ function CentroRegistroInlineForm() {
             a26_ton: tons[3], dmh_ton: tons[4], grancilla_ton: tons[5],
           },
         }),
-      }).catch(() => {/* silencioso */});
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (!j.ok) setMsg({ type: "err", text: `Registro Peral guardado, pero falló el envío del correo: ${j.error ?? "error desconocido"}` });
+        })
+        .catch(() => setMsg({ type: "err", text: "Registro Peral guardado, pero no se pudo confirmar el envío del correo." }));
     }
     setSaving(false);
   }
@@ -606,8 +616,18 @@ export default function ArenaPage() {
         }),
       })
         .then(r => r.json())
-        .then(j => { if (!j.ok) console.warn("[report]", j.error); })
-        .catch(e  => console.warn("[report] error:", e));
+        .then(j => {
+          if (!j.ok) {
+            console.warn("[report]", j.error);
+            setMsg({ type: "err", text: `Registro guardado, pero falló la generación del informe: ${j.error ?? "error desconocido"}` });
+          } else if (j.emailOk === false) {
+            setMsg({ type: "err", text: "Registro guardado, pero el informe no se pudo enviar por correo. Reenvíalo desde la sección Informe." });
+          }
+        })
+        .catch(e => {
+          console.warn("[report] error:", e);
+          setMsg({ type: "err", text: "Registro guardado, pero no se pudo confirmar el envío del informe (error de red)." });
+        });
 
       setMsg({ type: "ok", text: " Registro guardado correctamente." });
       // Resetear formulario y limpiar borrador
