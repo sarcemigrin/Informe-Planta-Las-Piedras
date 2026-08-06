@@ -44,6 +44,7 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
     return init;
   });
   const [saving, setSaving] = useState(false);
+  const [recalculando, setRecalculando] = useState(false);
   const [error,  setError]  = useState<string | null>(null);
 
   async function handleSave() {
@@ -105,6 +106,25 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
     }));
     await supabase.from("historial_cambios").insert(historial);
 
+    // Si cambió algo que afecta el cálculo (no solo notas), recalcular este
+    // registro y todos los posteriores — usan su inventario como punto de partida.
+    if (cambios.some(c => c.campo !== "notas")) {
+      setRecalculando(true);
+      try {
+        const r = await fetch("/api/registros/recalcular", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tabla: "arena", registroId: registro.id }),
+        });
+        const d = await r.json();
+        if (!r.ok) setError(`Guardado, pero falló el recálculo: ${d.error ?? "error desconocido"}`);
+      } catch {
+        setError("Guardado, pero falló el recálculo de los registros posteriores.");
+      } finally {
+        setRecalculando(false);
+      }
+    }
+
     setSaving(false);
     onSaved();
   }
@@ -157,7 +177,7 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
           <button onClick={onClose} className="btn-secondary" disabled={saving}>Cancelar</button>
           <button onClick={handleSave} className="btn-primary" disabled={saving}>
-            {saving ? "Guardando..." : "Guardar cambios"}
+            {recalculando ? "Recalculando..." : saving ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
       </div>
