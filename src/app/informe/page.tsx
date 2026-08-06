@@ -139,8 +139,6 @@ export default function InformePage() {
   const [showHistorial, setShowHistorial] = useState(false);
 
   const [generandoPdf, setGenerandoPdf]     = useState(false);
-  const [enviandoEmail, setEnviandoEmail]   = useState(false);
-  const [emailStatus, setEmailStatus]       = useState<"idle"|"ok"|"error">("idle");
   const cubRef = useRef<HTMLElement>(null);
   const semRef = useRef<HTMLElement>(null);
 
@@ -216,45 +214,6 @@ export default function InformePage() {
     }
   }
 
-  async function enviarPorEmail() {
-    if (!cubRef.current || !semRef.current) return;
-    setEnviandoEmail(true);
-    setEmailStatus("idle");
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const opts = { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false };
-      const [c1, c2] = await Promise.all([
-        html2canvas(cubRef.current, opts),
-        html2canvas(semRef.current, opts),
-      ]);
-      const images = [c1.toDataURL("image/png"), c2.toDataURL("image/png")];
-
-      // Etiqueta para el subject: fecha/hora del último registro
-      const last  = rows[rows.length - 1];
-      const label = last
-        ? `${format(parseISO(last.fecha), "dd/MM/yyyy")} ${last.hora}`
-        : new Date().toISOString().slice(0, 10);
-
-      const res = await fetch("/api/informe/email-pdf", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ images, label }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error ?? "Error desconocido");
-      }
-      setEmailStatus("ok");
-      setTimeout(() => setEmailStatus("idle"), 4000);
-    } catch (e) {
-      console.error("Error enviando email:", e);
-      setEmailStatus("error");
-      setTimeout(() => setEmailStatus("idle"), 5000);
-    } finally {
-      setEnviandoEmail(false);
-    }
-  }
-
   async function loadData() {
     const { data } = await supabase
       .from("registros_arena")
@@ -283,8 +242,6 @@ export default function InformePage() {
 
   //  Cubicación: datos dinámicos según cubLimit 
   const cubRows    = rows.slice(-cubLimit);
-  const avgProdKpi = cubRows.reduce((s, r) => s + (r.productividad_drone ?? 0), 0) / (cubRows.length || 1);
-
   const chartCubicacion = cubRows.map((r) => ({
     _id:        r.id,
     fecha:      format(parseISO(r.fecha), "dd/MM"),
@@ -333,7 +290,6 @@ export default function InformePage() {
     }
   }
   const semanalRows      = Object.values(semanas).sort((a, b) => a.semana.localeCompare(b.semana));
-  const anioActual       = new Date().getFullYear();
   const aniosDisponibles = Array.from(new Set(semanalRows.map(s => parseInt(s.semana.split("-")[0])))).sort();
 
   const S1 = Array.from({ length: 26 }, (_, i) => String(i +  1).padStart(2, "0"));
@@ -1267,199 +1223,5 @@ function CentroInformeView({
         )}
       </div>
     </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Panel de gestión de destinatarios — 3 pestañas
-───────────────────────────────────────────────*/
-interface Destinatario { email: string; nombre: string; activo: boolean; }
-type PlantaTab = "sur" | "turco" | "peral";
-
-const TAB_LABEL: Record<PlantaTab, string> = { sur: "Zona Sur", turco: "Turco", peral: "Peral" };
-const TAB_COLOR: Record<PlantaTab, { active: string; badge: string }> = {
-  sur:   { active: "border-green-500 text-green-700",  badge: "bg-green-100 text-green-700"  },
-  turco: { active: "border-amber-500 text-amber-700",  badge: "bg-amber-100 text-amber-700"  },
-  peral: { active: "border-cyan-500  text-cyan-700",   badge: "bg-cyan-100  text-cyan-700"   },
-};
-
-function DestinatariosPanel() {
-  const [tab,       setTab]       = useState<PlantaTab>("sur");
-  const [lists,     setLists]     = useState<Record<PlantaTab, Destinatario[]>>({ sur: [], turco: [], peral: [] });
-  const [loaded,    setLoaded]    = useState<Record<PlantaTab, boolean>>({ sur: false, turco: false, peral: false });
-  const [saving,    setSaving]    = useState(false);
-  const [msg,       setMsg]       = useState<{ok:boolean;text:string}|null>(null);
-  const [newEmail,  setNewEmail]  = useState("");
-  const [newNombre, setNewNombre] = useState("");
-  const [open,      setOpen]      = useState(false);
-
-  function flash(ok: boolean, text: string) {
-    setMsg({ ok, text });
-    setTimeout(() => setMsg(null), 3500);
-  }
-
-  useEffect(() => {
-    if (loaded[tab]) return;
-    fetch(`/api/informe/recipients?planta=${tab}`)
-      .then(r => r.json())
-      .then(d => {
-        setLists(prev => ({ ...prev, [tab]: d.recipients ?? [] }));
-        setLoaded(prev => ({ ...prev, [tab]: true }));
-      })
-      .catch(() => setLoaded(prev => ({ ...prev, [tab]: true })));
-  }, [tab, loaded]);
-
-  const list = lists[tab];
-  const isLoading = !loaded[tab];
-
-  async function persist(updated: Destinatario[]) {
-    setSaving(true); setMsg(null);
-    try {
-      const r = await fetch("/api/informe/recipients", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planta: tab, recipients: updated }),
-      });
-      const d = await r.json();
-      if (d.ok) { setLists(prev => ({ ...prev, [tab]: updated })); flash(true, "Guardado"); }
-      else       flash(false, d.error ?? "Error al guardar");
-    } catch { flash(false, "Error de conexión"); }
-    setSaving(false);
-  }
-
-  function toggle(idx: number) {
-    const updated = list.map((d,i) => i === idx ? { ...d, activo: !d.activo } : d);
-    setLists(prev => ({ ...prev, [tab]: updated }));
-    persist(updated);
-  }
-
-  function setAll(activo: boolean) {
-    const updated = list.map(d => ({ ...d, activo }));
-    setLists(prev => ({ ...prev, [tab]: updated }));
-    persist(updated);
-  }
-
-  function remove(idx: number) {
-    if (!confirm("¿Eliminar este destinatario?")) return;
-    persist(list.filter((_,i) => i !== idx));
-  }
-
-  function add() {
-    const email = newEmail.trim().toLowerCase();
-    const nombre = newNombre.trim();
-    if (!email || !email.includes("@")) return;
-    if (list.some(d => d.email === email)) { flash(false, "El correo ya existe"); return; }
-    persist([...list, { email, nombre: nombre || email, activo: true }]);
-    setNewEmail(""); setNewNombre(""); setOpen(false);
-  }
-
-  const activos = list.filter(d => d.activo).length;
-  const todosActivos = list.length > 0 && activos === list.length;
-  const colors = TAB_COLOR[tab];
-
-  return (
-    <section className="card mt-6">
-      {/* Cabecera */}
-      <div className="flex items-start justify-between mb-4 gap-3">
-        <div>
-          <h2 className="font-semibold text-gray-800">Destinatarios por Planta</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Cada planta notifica solo a sus destinatarios al guardar un registro</p>
-        </div>
-        <button onClick={() => setOpen(o => !o)} className="btn-secondary text-xs px-3 py-1.5 shrink-0">+ Agregar</button>
-      </div>
-
-      {/* Pestañas */}
-      <div className="flex gap-1 mb-4 border-b border-gray-100">
-        {(["sur","turco","peral"] as PlantaTab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setOpen(false); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              tab === t
-                ? TAB_COLOR[t].active
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            {TAB_LABEL[t]}
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-              tab === t ? TAB_COLOR[t].badge : "bg-gray-100 text-gray-400"
-            }`}>
-              {lists[t].filter(d => d.activo).length}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Formulario agregar */}
-      {open && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-xl flex flex-wrap gap-2 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">Nombre</label>
-            <input className="input text-sm w-44" placeholder="Juan Pérez"
-              value={newNombre} onChange={e => setNewNombre(e.target.value)}/>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">Correo</label>
-            <input className="input text-sm w-52" placeholder="email@empresa.com" type="email"
-              value={newEmail} onChange={e => setNewEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && add()}/>
-          </div>
-          <button onClick={add} className="btn-primary text-xs px-4 py-2">Agregar a {TAB_LABEL[tab]}</button>
-          <button onClick={() => setOpen(false)} className="btn-secondary text-xs px-3 py-2">Cancelar</button>
-        </div>
-      )}
-
-      {/* Acciones masivas */}
-      {!isLoading && list.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b border-gray-100">
-          <button onClick={() => setAll(true)} disabled={todosActivos || saving}
-            className="text-xs px-3 py-1.5 rounded-lg border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-40 transition-colors">
-            Activar todos
-          </button>
-          <button onClick={() => setAll(false)} disabled={saving}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 transition-colors">
-            Desactivar todos
-          </button>
-        </div>
-      )}
-
-      {/* Lista */}
-      {isLoading ? (
-        <p className="text-xs text-gray-400 py-4 text-center">Cargando...</p>
-      ) : list.length === 0 ? (
-        <p className="text-xs text-gray-400 py-4 text-center">Sin destinatarios — agrega uno con el botón de arriba</p>
-      ) : (
-        <div className="divide-y divide-gray-50">
-          {list.map((d, i) => (
-            <div key={d.email} className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <button onClick={() => toggle(i)} disabled={saving}
-                  className={"relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:cursor-wait " + (d.activo ? "bg-green-500" : "bg-gray-200")}
-                  title={d.activo ? "Desactivar" : "Activar"}>
-                  <span className={"inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 " + (d.activo ? "translate-x-4" : "translate-x-0.5")}/>
-                </button>
-                <div>
-                  <p className={"text-sm font-medium " + (d.activo ? "text-gray-800" : "text-gray-400")}>{d.nombre}</p>
-                  <p className={"text-xs " + (d.activo ? "text-gray-500" : "text-gray-300")}>{d.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (d.activo ? colors.badge : "bg-gray-100 text-gray-400")}>
-                  {d.activo ? "Activo" : "Inactivo"}
-                </span>
-                <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-400 transition-colors text-xs px-1" title="Eliminar">✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Feedback */}
-      {(saving || msg) && (
-        <div className={"mt-3 text-xs px-3 py-2 rounded-lg " + (saving ? "bg-gray-50 text-gray-400" : msg?.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600")}>
-          {saving ? "Guardando..." : msg?.text}
-        </div>
-      )}
-    </section>
   );
 }
