@@ -365,7 +365,9 @@ export default function ArenaPage() {
   useEffect(() => {
     loadHistorial();
     loadUltimosDespachos();
-    // Sync automático silencioso al cargar la página
+    // Sync automático silencioso al cargar la página — comparte el flag
+    // "syncing" con el botón manual para que no se disparen los dos a la vez.
+    setSyncing(true);
     fetch("/api/despachos/sync-sharepoint", { method: "POST" })
       .then(r => r.json())
       .then((json) => {
@@ -373,7 +375,8 @@ export default function ArenaPage() {
         setNewDespachos(nuevos > 0 ? nuevos : null);
         loadUltimosDespachos();
       })
-      .catch(() => {}); // fallo silencioso
+      .catch(() => {}) // fallo silencioso
+      .finally(() => setSyncing(false));
   }, []);
 
   async function loadUltimosDespachos() {
