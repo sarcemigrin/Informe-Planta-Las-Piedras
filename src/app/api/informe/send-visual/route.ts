@@ -8,7 +8,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson }      from "@/lib/apiGuard";
+import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const uploadUrl = "https://graph.microsoft.com/v1.0/me/drive/root:/" + path + ":/content";
 
     console.log("[send-visual] Uploading:", folder, "/", fileName);
-    const upRes = await fetch(uploadUrl, {
+    const upRes = await fetchWithTimeout(uploadUrl, {
       method:  "PUT",
       headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/pdf" },
       body:    Buffer.from(pdfBytes),
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       saveToSentItems: false,
     };
 
-    const mailRes = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    const mailRes = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me/sendMail", {
       method:  "POST",
       headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
       body:    JSON.stringify(body),

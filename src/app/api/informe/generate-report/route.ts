@@ -15,7 +15,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson }      from "@/lib/apiGuard";
+import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 import { generarInformePDF, type InformeData } from "@/lib/informe-pdf";
 import { generarImagenEmail } from "@/lib/email-image";
@@ -56,7 +56,7 @@ async function uploadToOneDrive(
   const url    = `https://graph.microsoft.com/v1.0/me/drive/root:/${path}:/content`;
 
   console.log("[generate-report] Uploading to OneDrive path:", folder, "file:", fileName);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method:  "PUT",
     headers: {
       Authorization:  `Bearer ${accessToken}`,
@@ -159,7 +159,7 @@ async function sendEmailWithPDF(
     saveToSentItems: false,
   };
 
-  const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+  const res = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me/sendMail", {
     method:  "POST",
     headers: {
       Authorization:  `Bearer ${accessToken}`,

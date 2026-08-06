@@ -15,7 +15,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson }      from "@/lib/apiGuard";
+import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 import { PDFDocument }      from "pdf-lib";
 
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
       saveToSentItems: false,
     };
 
-    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    const res = await fetchWithTimeout("https://graph.microsoft.com/v1.0/me/sendMail", {
       method:  "POST",
       headers: {
         Authorization:  `Bearer ${accessToken}`,

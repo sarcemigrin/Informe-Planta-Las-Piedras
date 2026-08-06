@@ -4,9 +4,14 @@ import { getToken } from "next-auth/jwt";
 import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import { fetchWithTimeout } from "@/lib/apiGuard";
 
 // Resync completo puede implicar muchos INSERT/UPDATE — dar margen sobre el default de 10-15s
 export const maxDuration = 60;
+
+// Timeout corto por llamada — puede haber varias encadenadas (loop de drives),
+// así que cada una individual no debe poder colgar toda la función.
+const GRAPH_TIMEOUT_MS = 10_000;
 
 // Busca BBDD Despachos VBA.xlsm, .xlsm o .xlsx en todo el drive del usuario
 const ONEDRIVE_FILE_NAMES = ["BBDD Despachos.xlsx", "BBDD Despachos.xlsm", "BBDD Despachos VBA.xlsm"];
@@ -19,9 +24,10 @@ interface DriveItem {
 }
 
 async function findFileInFolder(accessToken: string, folderId: string): Promise<DriveItem | null> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`,
-    { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } }
+    { headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" } },
+    GRAPH_TIMEOUT_MS
   );
   if (!res.ok) return null;
   const { value } = await res.json() as { value: DriveItem[] };
@@ -32,7 +38,7 @@ async function searchFileInDrive(accessToken: string, driveId: string): Promise<
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
 
   // Buscar desde la raíz del drive
-  const rootRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/root/children`, { headers });
+  const rootRes = await fetchWithTimeout(`https://graph.microsoft.com/v1.0/drives/${driveId}/root/children`, { headers }, GRAPH_TIMEOUT_MS);
   if (!rootRes.ok) return null;
   const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
 
@@ -45,7 +51,7 @@ async function searchFileInDrive(accessToken: string, driveId: string): Promise<
     f.name.toLowerCase().includes("planificaci") || f.name.toLowerCase().includes("control gesti")
   );
   if (ingFolder) {
-    const ingRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ingFolder.id}/children`, { headers });
+    const ingRes = await fetchWithTimeout(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${ingFolder.id}/children`, { headers }, GRAPH_TIMEOUT_MS);
     if (ingRes.ok) {
       const { value: ingItems } = await ingRes.json() as { value: DriveItem[] };
 
@@ -56,7 +62,7 @@ async function searchFileInDrive(accessToken: string, driveId: string): Promise<
       // En subcarpeta "Reporte"
       const reporteFolder = ingItems.find((f) => f.name.toLowerCase().includes("reporte"));
       if (reporteFolder) {
-        const reporteRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${reporteFolder.id}/children`, { headers });
+        const reporteRes = await fetchWithTimeout(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${reporteFolder.id}/children`, { headers }, GRAPH_TIMEOUT_MS);
         if (reporteRes.ok) {
           const { value: reporteItems } = await reporteRes.json() as { value: DriveItem[] };
           const file = reporteItems.find((f) => ONEDRIVE_FILE_NAMES.includes(f.name));
@@ -73,7 +79,7 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
   const headers = { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" };
 
   // 1) Obtener todos los drives del usuario (personal + business + SharePoint)
-  const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/me/drives`, { headers });
+  const drivesRes = await fetchWithTimeout(`https://graph.microsoft.com/v1.0/me/drives`, { headers }, GRAPH_TIMEOUT_MS);
   const driveNames: string[] = [];
 
   const rootDebugItems: string[] = [];
@@ -83,7 +89,7 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
 
     for (const drive of drives) {
       // Debug: listar raíz del drive
-      const rootRes = await fetch(`https://graph.microsoft.com/v1.0/drives/${drive.id}/root/children`, { headers });
+      const rootRes = await fetchWithTimeout(`https://graph.microsoft.com/v1.0/drives/${drive.id}/root/children`, { headers }, GRAPH_TIMEOUT_MS);
       if (rootRes.ok) {
         const { value: rootItems } = await rootRes.json() as { value: DriveItem[] };
         rootDebugItems.push(...rootItems.map((f) => f.name));
@@ -101,8 +107,8 @@ async function getOneDriveFileInfo(accessToken: string): Promise<{ url: string; 
 
   // 2) Fallback: búsqueda en drive personal + sharedWithMe
   const [myDriveRes, sharedRes] = await Promise.all([
-    fetch(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`, { headers }),
-    fetch(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`, { headers }),
+    fetchWithTimeout(`https://graph.microsoft.com/v1.0/me/drive/search(q='BBDD Despachos')`, { headers }, GRAPH_TIMEOUT_MS),
+    fetchWithTimeout(`https://graph.microsoft.com/v1.0/me/drive/sharedWithMe`, { headers }, GRAPH_TIMEOUT_MS),
   ]);
 
   let items: DriveItem[] = [];
@@ -284,9 +290,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: (e as Error).message }, { status: 502 });
     }
 
-    const fileRes = await fetch(fileUrl, {
+    // Descarga del archivo en sí — puede ser más pesada que una llamada de listado, más margen
+    const fileRes = await fetchWithTimeout(fileUrl, {
       headers: { Authorization: `Bearer ${accessToken}`, "Cache-Control": "no-cache" },
-    });
+    }, 30_000);
 
     if (!fileRes.ok) {
       const err = await fileRes.text();
@@ -350,7 +357,7 @@ export async function GET(request: Request) {
 
   try {
     const { url: fileUrl } = await getOneDriveFileInfo(accessToken);
-    const fileRes = await fetch(fileUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const fileRes = await fetchWithTimeout(fileUrl, { headers: { Authorization: `Bearer ${accessToken}` } }, 30_000);
     if (!fileRes.ok) return NextResponse.json({ error: `OneDrive ${fileRes.status}: ${await fileRes.text()}` }, { status: 502 });
 
     const buffer   = await fileRes.arrayBuffer();
