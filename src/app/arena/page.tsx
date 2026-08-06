@@ -7,6 +7,8 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
+  META_PRODUCTIVIDAD_TON_H, META_PRODUCTIVIDAD_AMBAR,
+  META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
   type ArenaInput,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
@@ -1149,20 +1151,15 @@ export default function ArenaPage() {
   );
 }
 
-//  Metas de control 
-// Inventario: meta mínima 7.500 ton
-// Productividad: meta 32 ton/h
-// Criterio: ≥95% meta → verde | ≥90% → ámbar | <90% → rojo
+//  Metas de control (mismo criterio que dashboard e informe — ver calculations.ts)
 function invColor(invTon: number): string {
-  const r = invTon / 7500;
-  if (r >= 0.95) return "text-green-600";
-  if (r >= 0.90) return "text-amber-600";
+  if (invTon >= META_INVENTARIO_TON)   return "text-green-600";
+  if (invTon >= META_INVENTARIO_AMBAR) return "text-amber-600";
   return "text-red-600";
 }
 function prodColor(prodv: number): string {
-  const r = prodv / 32;
-  if (r >= 0.95) return "text-green-600";
-  if (r >= 0.90) return "text-amber-600";
+  if (prodv >= META_PRODUCTIVIDAD_TON_H) return "text-green-600";
+  if (prodv >= META_PRODUCTIVIDAD_AMBAR) return "text-amber-600";
   return "text-red-600";
 }
 

@@ -10,6 +10,15 @@ export const DENSIDAD_CUARZO  = 1.65;  // ton/m3
 export const FACTOR_PESOMETRO = 0.85;  // Corrección pesómetro (col F = E × 0.85)
 export const FACTOR_CONOS     = 1.4;   // Densidad arena (usada también para conos)
 
+// ---- Metas de control (semáforos de KPI) ----
+// Único lugar con estos números — antes cada pantalla (dashboard, informe,
+// arena, email) los repetía por su cuenta, algunos con criterio distinto
+// (ratio vs. valor absoluto), mostrando colores distintos para el mismo valor.
+export const META_PRODUCTIVIDAD_TON_H = 32;
+export const META_PRODUCTIVIDAD_AMBAR = META_PRODUCTIVIDAD_TON_H * 0.9; // 28.8
+export const META_INVENTARIO_TON      = 7500;
+export const META_INVENTARIO_AMBAR    = 6500;
+
 // ---- Tipos de entrada ----
 export interface ArenaInput {
   fecha:     string; // "YYYY-MM-DD"

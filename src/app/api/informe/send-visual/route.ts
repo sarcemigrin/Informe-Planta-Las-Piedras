@@ -9,6 +9,7 @@ import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
 import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
+import { META_PRODUCTIVIDAD_TON_H } from "@/lib/calculations";
 import { createClient }     from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
         ? v.toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec })
         : "-";
 
-    const kpiOk    = (kpiSummary?.kpiDrone ?? 0) >= 32;
+    const kpiOk    = (kpiSummary?.kpiDrone ?? 0) >= META_PRODUCTIVIDAD_TON_H;
     const kpiColor = kpiOk ? "#22c55e" : "#ef4444";
     const detColor = (kpiSummary?.detencion ?? 0) > 0 ? "#ef4444" : "#374151";
 

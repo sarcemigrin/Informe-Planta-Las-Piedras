@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useViewerMode } from "@/hooks/useViewerMode";
 import { supabase } from "@/lib/supabase";
-import { fmt } from "@/lib/calculations";
+import {
+  fmt,
+  META_PRODUCTIVIDAD_TON_H as PROD_TARGET, META_PRODUCTIVIDAD_AMBAR as PROD_AMBAR,
+  META_INVENTARIO_TON as INV_TARGET, META_INVENTARIO_AMBAR as INV_WARN,
+} from "@/lib/calculations";
 import type { RegistroArena, RegistroTurco, RegistroPeral } from "@/types/database";
 import { format, getISOWeek, getISOWeekYear, startOfISOWeek, addDays, eachDayOfInterval, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -24,10 +28,7 @@ const C_PESO    = "#374151";
 const C_INV     = "#94a3b8";
 const C_SELECTED = "#6BCF7F22";  // fondo fila seleccionada
 
-//  Umbrales 
-const PROD_TARGET = 32;
-const INV_TARGET  = 7500;
-const INV_WARN    = 6500;
+//  Umbrales
 const CUB_INIT    = 15;
 const CUB_STEP    = 10;
 
@@ -47,7 +48,7 @@ interface SemanaStat {
 //  Helpers 
 function prodColor(v?: number | null) {
   if (!v) return "text-gray-700";
-  return v >= PROD_TARGET ? "text-green-600" : v >= PROD_TARGET * 0.9 ? "text-yellow-500" : "text-red-500";
+  return v >= PROD_TARGET ? "text-green-600" : v >= PROD_AMBAR ? "text-yellow-500" : "text-red-500";
 }
 function invColor(v?: number | null) {
   if (!v) return "text-gray-700";

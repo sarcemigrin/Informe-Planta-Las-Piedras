@@ -4,6 +4,9 @@
  */
 
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  META_PRODUCTIVIDAD_TON_H, META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
+} from "@/lib/calculations";
 
 // â”€â”€â”€ Interfaces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface RegistroResumen {
@@ -283,14 +286,14 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
   const c1r1: Array<{ l: string; v: string; u: string; a: ReturnType<typeof rgb>; sub?: string }> = [
     { l: "Ultimo droneo",       v: data.fecha.split("-").reverse().join("/"), u: data.hora.slice(0, 5), a: GRAY },
     { l: "Produccion Drone",    v: fmtN(data.produccion_drone, 0),            u: "ton",  a: GREEN },
-    { l: "Productividad Drone", v: fmtN(data.productividad_drone),            u: "t/h",  a: data.productividad_drone >= 32 ? GREEN : RED },
+    { l: "Productividad Drone", v: fmtN(data.productividad_drone),            u: "t/h",  a: data.productividad_drone >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
     { l: "Prod. Pesometro",     v: fmtN(prodPesoVal, 0),                      u: "ton",  a: BLUE },
   ];
   const c1r2: Array<{ l: string; v: string; u: string; a: ReturnType<typeof rgb>; sub?: string }> = [
-    { l: "Productiv. Pesometro", v: fmtN(data.productividad_pesometro),       u: "t/h",  a: data.productividad_pesometro >= 32 ? GREEN : RED },
+    { l: "Productiv. Pesometro", v: fmtN(data.productividad_pesometro),       u: "t/h",  a: data.productividad_pesometro >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
     { l: "Despachos",            v: fmtN(data.despachos_ton, 0),              u: "ton",  a: DARK,
       sub: `${data.cantidad_despachos ?? 0} viajes` },
-    { l: "Inventario",           v: fmtN(data.inventario_ton, 0),             u: "ton",  a: data.inventario_ton >= 7500 ? GREEN : data.inventario_ton >= 6500 ? AMBER : RED },
+    { l: "Inventario",           v: fmtN(data.inventario_ton, 0),             u: "ton",  a: data.inventario_ton >= META_INVENTARIO_TON ? GREEN : data.inventario_ton >= META_INVENTARIO_AMBAR ? AMBER : RED },
     { l: "Diferencia",           v: difVal != null ? `${(difVal * 100).toFixed(1)}%` : "-", u: "", a: difVal != null && Math.abs(difVal) > 0.1 ? RED : GREEN },
   ];
 
@@ -450,7 +453,7 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
       ? (r.diferencia > 0 ? RED : GREEN) : DARK;
     const cells = [
       { v: `${r.fecha.split("-").reverse().join("/")} ${r.hora.slice(0, 5)}`, r: false },
-      { v: fmtN(kpiD),                                       r: true, color: kpiD >= 32 ? GREEN : RED },
+      { v: fmtN(kpiD),                                       r: true, color: kpiD >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
       { v: fmtN(r.produccion_drone, 0),                      r: true },
       { v: fmtN(r.horas_reales),                             r: true },
       { v: fmtN(r.detencion),                                r: true, color: r.detencion > 0 ? RED : DARK },
@@ -505,9 +508,9 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
     ];
     // Fila 2 — KPI Drone, Prod Drone, KPI Pesometro, Prod Pesometro
     const sRow2 = [
-      { l: "Productividad Drone",  v: fmtN(semKpiD),              u: "t/h", a: semKpiD >= 32 ? GREEN : RED },
+      { l: "Productividad Drone",  v: fmtN(semKpiD),              u: "t/h", a: semKpiD >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
       { l: "Produccion Drone",     v: fmtN(lastSem.prodDrone, 0), u: "ton", a: DARK },
-      { l: "Productividad Pesom.", v: fmtN(semKpiP),              u: "t/h", a: semKpiP >= 32 ? GREEN : RED },
+      { l: "Productividad Pesom.", v: fmtN(semKpiP),              u: "t/h", a: semKpiP >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
       { l: "Produccion Pesom.",    v: fmtN(lastSem.prodPeso, 0),  u: "ton", a: BLUE },
     ];
 
@@ -649,9 +652,9 @@ export async function generarInformePDF(data: InformeData): Promise<Uint8Array> 
 
     const cells2 = [
       { v: s.semana,             r: false },
-      { v: fmtN(kpiD2),          r: true, color: kpiD2 >= 32 ? GREEN : RED },
+      { v: fmtN(kpiD2),          r: true, color: kpiD2 >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
       { v: fmtN(s.prodDrone, 0), r: true },
-      { v: fmtN(kpiP2),          r: true, color: kpiP2 >= 32 ? GREEN : RED },
+      { v: fmtN(kpiP2),          r: true, color: kpiP2 >= META_PRODUCTIVIDAD_TON_H ? GREEN : RED },
       { v: fmtN(s.prodPeso, 0),  r: true },
       { v: fmtN(s.hrsProd, 1),   r: true },
       { v: fmtN(s.detencion, 1), r: true, color: s.detencion > 0 ? RED : DARK },

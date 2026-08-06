@@ -5,6 +5,10 @@
  */
 
 import { ImageResponse } from "next/og";
+import {
+  META_PRODUCTIVIDAD_TON_H, META_PRODUCTIVIDAD_AMBAR,
+  META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
+} from "@/lib/calculations";
 
 export interface EmailCardData {
   fecha:                   string;
@@ -35,8 +39,8 @@ function fmtInt(v: number) {
 
 export async function generarImagenEmail(d: EmailCardData): Promise<Buffer> {
   const fechaFmt = d.fecha.split("-").reverse().join("/");
-  const kpiColor  = d.productividad_drone >= 32 ? "#16a34a" : "#dc2626";
-  const invColor  = d.inventario_ton >= 7500 ? "#16a34a" : d.inventario_ton >= 6500 ? "#d97706" : "#dc2626";
+  const kpiColor  = d.productividad_drone >= META_PRODUCTIVIDAD_TON_H ? "#16a34a" : d.productividad_drone >= META_PRODUCTIVIDAD_AMBAR ? "#d97706" : "#dc2626";
+  const invColor  = d.inventario_ton >= META_INVENTARIO_TON ? "#16a34a" : d.inventario_ton >= META_INVENTARIO_AMBAR ? "#d97706" : "#dc2626";
   const detColor  = d.detencion > 0 ? "#dc2626" : "#16a34a";
   const totalHrs  = d.horas_reales + d.detencion;
   const detPct    = totalHrs > 0 ? ((d.detencion / totalHrs) * 100).toFixed(0) + "%" : "-";

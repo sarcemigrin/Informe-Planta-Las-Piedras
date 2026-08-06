@@ -12,6 +12,7 @@ import { authOptions }       from "@/lib/authOptions";
 import { requireJson }       from "@/lib/apiGuard";
 import { createClient }      from "@supabase/supabase-js";
 import Groq                  from "groq-sdk";
+import { META_PRODUCTIVIDAD_TON_H, META_INVENTARIO_TON } from "@/lib/calculations";
 
 export const dynamic = "force-dynamic";
 
@@ -297,7 +298,7 @@ function buildSystemPrompt(dataContext: string): string {
     "un promedio o analisis de MULTIPLES periodos puedes operar sobre esos valores.",
     "",
     "Responde en espanol. Se claro y directo. Incluye la unidad (ton, t/h, h).",
-    "Referencia: objetivo KPI 32 t/h | objetivo inventario arena 7.500 ton",
+    `Referencia: objetivo KPI ${META_PRODUCTIVIDAD_TON_H} t/h | objetivo inventario arena ${META_INVENTARIO_TON.toLocaleString("es-CL")} ton`,
     "",
     dataContext,
   ].join("\n");

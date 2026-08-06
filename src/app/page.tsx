@@ -6,7 +6,11 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useViewerMode } from "@/hooks/useViewerMode";
-import { fmt } from "@/lib/calculations";
+import {
+  fmt, DENSIDAD_ARENA as DENSIDAD, DENSIDAD_CUARZO,
+  META_PRODUCTIVIDAD_TON_H as PROD_TARGET, META_PRODUCTIVIDAD_AMBAR as PROD_CRIT,
+  META_INVENTARIO_TON as INV_TARGET, META_INVENTARIO_AMBAR as INV_WARN,
+} from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import {
   ComposedChart, LineChart, Line, Bar,
@@ -20,16 +24,6 @@ type ArenaHistRow = Pick<RegistroArena,
   "fecha"|"produccion_drone"|"productividad_drone"|"horas_reales"|
   "cono_1"|"cono_2"|"cono_3"|"pila_1"|"pila_2"|"pila_3"|"pila_4"|"pila_5"|"pila_6"|"pila_7">;
 
-// Productividad
-const PROD_TARGET = 32;
-const PROD_CRIT   = PROD_TARGET * 0.90;
-
-// Inventario
-const INV_TARGET = 7500;
-const INV_WARN   = 6500;
-
-const DENSIDAD        = 1.4;
-const DENSIDAD_CUARZO = 1.65;
 const CAP_CANCHA_NUEVA = 16150;
 const CAP_RINONES      = 1500;
 const CAP_CUARZO       = 5360;
