@@ -298,7 +298,9 @@ export function calcularCuarzo(
   const prodvDrone  = difHoro > 0 ? prodDrone / difHoro : 0;
   const prodvPeso   = difHoro > 0 ? prodPeso  / difHoro : 0;
   const prodvReales = horasReales > 0 ? prodDrone / horasReales : 0;
-  const diferencia  = prodPeso > 0 ? 1 - prodDrone / prodPeso : 0;
+  // Mismo criterio que Arena: comparar tasas (ya protegidas contra difHoro<=0),
+  // no los totales crudos — si el horómetro no avanzó, "diferencia" debe ser 0.
+  const diferencia  = prodvPeso > 0 ? 1 - prodvDrone / prodvPeso : 0;
 
   return {
     fecha_hora:              fechaHora.toISOString(),
