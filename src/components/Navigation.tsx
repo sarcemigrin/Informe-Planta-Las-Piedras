@@ -63,6 +63,16 @@ export function Navigation() {
   const isAdmin = session?.user?.rol === "admin";
   const links   = (isAdmin && !viewerMode) ? linksAdmin : linksViewer;
 
+  // Limpiar estado local por-usuario antes de salir — en un equipo compartido,
+  // el modo visitante o el borrador de un admin no debe aparecerle a otro.
+  function handleLogout() {
+    try {
+      localStorage.removeItem("arena-viewer-mode");
+      localStorage.removeItem("arena-form-draft");
+    } catch { /* localStorage no disponible */ }
+    signOut({ callbackUrl: "/login" });
+  }
+
   return (
     <nav style={{ backgroundColor: "#3D3D3D" }} className="sticky top-0 z-40 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -130,7 +140,7 @@ export function Navigation() {
                   </button>
                 )}
                 <button
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={handleLogout}
                   className="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded"
                 >
                   Salir
@@ -185,7 +195,7 @@ export function Navigation() {
                   Guía
                 </button>
                 <button
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={handleLogout}
                   className="text-xs text-red-400 font-medium hover:text-red-300"
                 >
                   Cerrar sesión
