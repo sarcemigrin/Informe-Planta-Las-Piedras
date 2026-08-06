@@ -242,17 +242,18 @@ from periodos
 order by dia;
 
 -- =============================================
--- RLS (Row Level Security) - habilitar autenticación
--- Por ahora: acceso público para desarrollo
--- Cambiar a políticas por usuario en producción
+-- RLS (Row Level Security)
+-- Lectura pública (cualquier empleado autenticado puede ver los datos —
+-- decisión de negocio). Las ESCRITURAS van todas por /api/registros/write
+-- con sesión admin + service role, que no está sujeto a estas políticas.
+-- NUNCA agregar de vuelta una política "for all using(true)" aquí.
 -- =============================================
 alter table despachos           enable row level security;
 alter table registros_arena     enable row level security;
 alter table registros_cuarzo    enable row level security;
 alter table parametros          enable row level security;
 
--- Políticas permisivas (ajustar con auth en producción)
-create policy "public_all_despachos"       on despachos       for all using (true) with check (true);
-create policy "public_all_arena"           on registros_arena  for all using (true) with check (true);
-create policy "public_all_cuarzo"          on registros_cuarzo for all using (true) with check (true);
-create policy "public_all_parametros"      on parametros       for all using (true) with check (true);
+create policy "public_read_despachos"      on despachos        for select using (true);
+create policy "public_read_arena"          on registros_arena  for select using (true);
+create policy "public_read_cuarzo"         on registros_cuarzo for select using (true);
+create policy "public_read_parametros"     on parametros       for select using (true);

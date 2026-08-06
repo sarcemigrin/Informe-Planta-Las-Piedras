@@ -18,6 +18,19 @@ const nowTime = () => format(new Date(), "HH:mm");
 
 const ARENA_DRAFT_KEY = "arena-form-draft";
 
+// Escrituras a registros_cuarzo pasan por API con sesión admin
+// (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
+async function writeRegistro(body: Record<string, unknown>) {
+  const res  = await fetch("/api/registros/write", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
+
 function loadDefaults(): Record<string, string> {
   const base = { fecha: today(), hora: nowTime(), pesometro: "", horometro: "", volumen: "", notas: "" };
   try {
@@ -130,32 +143,35 @@ export default function CuarzoPage() {
 
       const calc = calcularCuarzo(input, prevInput, despachosTon, despachosViajes);
 
-      const { error } =       await supabase.from("registros_cuarzo").insert({
-        fecha: input.fecha, hora: input.hora + ":00",
-        fecha_hora: calc.fecha_hora,
-        pesometro:  input.pesometro,
-        horometro:  input.horometro,
-        cono_1: input.cono_1, cono_2: input.cono_2, cono_3: input.cono_3,
-        notas: form.notas || null,
-        diferencia_pesometro:    calc.diferencia_pesometro,
-        produccion_pesometro:    calc.produccion_pesometro,
-        diferencia_horometro:    calc.diferencia_horometro,
-        horas_reales:            calc.horas_reales,
-        detencion:               calc.detencion,
-        despachos_ton:           calc.despachos_ton,
-        cantidad_despachos:      calc.cantidad_despachos,
-        conos:                   calc.conos,
-        inventario_m3:           calc.inventario_m3,
-        inventario_ton:          calc.inventario_ton,
-        diferencia_inventario:   calc.diferencia_inventario,
-        produccion_drone:        calc.produccion_drone,
-        productividad_drone:     calc.productividad_drone,
-        productividad_pesometro: calc.productividad_pesometro,
-        productividad_hrs_reales:calc.productividad_hrs_reales,
-        diferencia:              calc.diferencia,
+      await writeRegistro({
+        table:   "registros_cuarzo",
+        op:      "insert",
+        records: [{
+          fecha: input.fecha, hora: input.hora + ":00",
+          fecha_hora: calc.fecha_hora,
+          pesometro:  input.pesometro,
+          horometro:  input.horometro,
+          cono_1: input.cono_1, cono_2: input.cono_2, cono_3: input.cono_3,
+          notas: form.notas || null,
+          diferencia_pesometro:    calc.diferencia_pesometro,
+          produccion_pesometro:    calc.produccion_pesometro,
+          diferencia_horometro:    calc.diferencia_horometro,
+          horas_reales:            calc.horas_reales,
+          detencion:               calc.detencion,
+          despachos_ton:           calc.despachos_ton,
+          cantidad_despachos:      calc.cantidad_despachos,
+          conos:                   calc.conos,
+          inventario_m3:           calc.inventario_m3,
+          inventario_ton:          calc.inventario_ton,
+          diferencia_inventario:   calc.diferencia_inventario,
+          produccion_drone:        calc.produccion_drone,
+          productividad_drone:     calc.productividad_drone,
+          productividad_pesometro: calc.productividad_pesometro,
+          productividad_hrs_reales:calc.productividad_hrs_reales,
+          diferencia:              calc.diferencia,
+        }],
       });
 
-      if (error) throw error;
       setMsg({ type:"ok", text:"Registro guardado." });
       setForm((f) => ({ ...f, pesometro:"", horometro:"", volumen:"", notas:"" }));
       await loadHistorial();

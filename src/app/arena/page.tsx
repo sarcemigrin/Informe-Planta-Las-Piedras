@@ -31,6 +31,19 @@ function addMinutes(localStr: string, minutes: number): string {
   return d.toISOString().slice(0, 19); // "2026-06-18T09:34:00" — sin Z
 }
 
+// Escrituras a registros_arena/registros_cuarzo pasan por API con sesión admin
+// (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
+async function writeRegistro(body: Record<string, unknown>) {
+  const res  = await fetch("/api/registros/write", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
+
 function formToInput(f: Record<string, string>): ArenaInput {
   return {
     fecha:     f.fecha,
@@ -507,41 +520,42 @@ export default function ArenaPage() {
 
       const calc = calcularArena(input, prevInput, despachosTon, despachosViajes);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from("registros_arena").insert({
-        fecha: input.fecha, hora: input.hora + ":00",
-        fecha_hora: calc.fecha_hora,
-        pesometro: input.pesometro,
-        horometro: input.horometro,
-        fierrillo: input.fierrillo,
-        cono_1: input.cono_1, cono_2: input.cono_2, cono_3: input.cono_3,
-        pila_1: input.pila_1, pila_2: input.pila_2, pila_3: input.pila_3,
-        pila_4: input.pila_4, pila_5: input.pila_5, pila_6: input.pila_6,
-        pila_7: input.pila_7,
-        notas: form.notas || null,
-        // Calculados
-        diferencia_pesometro:    calc.diferencia_pesometro,
-        produccion_pesometro:    calc.produccion_pesometro,
-        diferencia_horometro:    calc.diferencia_horometro,
-        horas_reales:            calc.horas_reales,
-        detencion:               calc.detencion,
-        despachos_ton:           calc.despachos_ton,
-        cantidad_despachos:      calc.cantidad_despachos,
-        conos:                   calc.conos,
-        acopio:                  calc.acopio,
-        inventario_m3:           calc.inventario_m3,
-        inventario_ton:          calc.inventario_ton,
-        diferencia_inventario:   calc.diferencia_inventario,
-        produccion_drone:        calc.produccion_drone,
-        productividad_drone:     calc.productividad_drone,
-        productividad_pesometro: calc.productividad_pesometro,
-        productividad_hrs_reales:calc.productividad_hrs_reales,
-        diferencia:              calc.diferencia,
-        cancha_vieja_ton:        calc.cancha_vieja_ton,
-        cancha_nueva_ton:        calc.cancha_nueva_ton,
+      await writeRegistro({
+        table:   "registros_arena",
+        op:      "insert",
+        records: [{
+          fecha: input.fecha, hora: input.hora + ":00",
+          fecha_hora: calc.fecha_hora,
+          pesometro: input.pesometro,
+          horometro: input.horometro,
+          fierrillo: input.fierrillo,
+          cono_1: input.cono_1, cono_2: input.cono_2, cono_3: input.cono_3,
+          pila_1: input.pila_1, pila_2: input.pila_2, pila_3: input.pila_3,
+          pila_4: input.pila_4, pila_5: input.pila_5, pila_6: input.pila_6,
+          pila_7: input.pila_7,
+          notas: form.notas || null,
+          // Calculados
+          diferencia_pesometro:    calc.diferencia_pesometro,
+          produccion_pesometro:    calc.produccion_pesometro,
+          diferencia_horometro:    calc.diferencia_horometro,
+          horas_reales:            calc.horas_reales,
+          detencion:               calc.detencion,
+          despachos_ton:           calc.despachos_ton,
+          cantidad_despachos:      calc.cantidad_despachos,
+          conos:                   calc.conos,
+          acopio:                  calc.acopio,
+          inventario_m3:           calc.inventario_m3,
+          inventario_ton:          calc.inventario_ton,
+          diferencia_inventario:   calc.diferencia_inventario,
+          produccion_drone:        calc.produccion_drone,
+          productividad_drone:     calc.productividad_drone,
+          productividad_pesometro: calc.productividad_pesometro,
+          productividad_hrs_reales:calc.productividad_hrs_reales,
+          diferencia:              calc.diferencia,
+          cancha_vieja_ton:        calc.cancha_vieja_ton,
+          cancha_nueva_ton:        calc.cancha_nueva_ton,
+        }],
       });
-
-      if (error) throw error;
 
       // Guardar cuarzo si se ingresó volumen
       if (form.volumen_cuarzo) {
@@ -551,21 +565,25 @@ export default function ArenaPage() {
           ? { fecha: prevCuarzoRow.fecha, hora: prevCuarzoRow.hora.slice(0, 5), pesometro: prevCuarzoRow.pesometro, horometro: prevCuarzoRow.horometro ?? 0, cono_1: prevCuarzoRow.cono_1, cono_2: prevCuarzoRow.cono_2, cono_3: prevCuarzoRow.cono_3, inventario_ton: prevCuarzoRow.inventario_ton ?? 0 }
           : null;
         const calcC = calcularCuarzo(cuarzoInput, prevCuarzoInput, 0, 0);
-                await supabase.from("registros_cuarzo").insert({
-          fecha: input.fecha, hora: input.hora + ":00",
-          fecha_hora: calcC.fecha_hora,
-          pesometro: null, horometro: 0,
-          cono_1: volC, cono_2: 0, cono_3: 0,
-          notas: null,
-          conos: calcC.conos,
-          inventario_m3: calcC.inventario_m3,
-          inventario_ton: calcC.inventario_ton,
-          diferencia_inventario: calcC.diferencia_inventario,
-          produccion_drone: calcC.produccion_drone,
-          productividad_drone: calcC.productividad_drone,
-          productividad_pesometro: calcC.productividad_pesometro,
-          productividad_hrs_reales: calcC.productividad_hrs_reales,
-          diferencia: calcC.diferencia,
+        await writeRegistro({
+          table:   "registros_cuarzo",
+          op:      "insert",
+          records: [{
+            fecha: input.fecha, hora: input.hora + ":00",
+            fecha_hora: calcC.fecha_hora,
+            pesometro: null, horometro: 0,
+            cono_1: volC, cono_2: 0, cono_3: 0,
+            notas: null,
+            conos: calcC.conos,
+            inventario_m3: calcC.inventario_m3,
+            inventario_ton: calcC.inventario_ton,
+            diferencia_inventario: calcC.diferencia_inventario,
+            produccion_drone: calcC.produccion_drone,
+            productividad_drone: calcC.productividad_drone,
+            productividad_pesometro: calcC.productividad_pesometro,
+            productividad_hrs_reales: calcC.productividad_hrs_reales,
+            diferencia: calcC.diferencia,
+          }],
         });
       }
 

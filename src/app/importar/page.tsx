@@ -9,7 +9,6 @@
 
 import { useRef, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
-import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -18,6 +17,19 @@ interface Progreso {
   ok:     number;
   err:    number;
   total:  number;
+}
+
+// Escrituras pasan por API con sesión admin
+// (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
+async function writeRegistro(body: Record<string, unknown>) {
+  const res  = await fetch("/api/registros/write", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
 }
 
 export default function ImportarPage() {
@@ -139,10 +151,12 @@ export default function ImportarPage() {
       });
 
       if (lote.length >= 100) {
-        const { error } = await supabase.from("registros_arena")
-          .upsert(lote as never[], { onConflict: "fecha_hora" });
-        if (error) { err += lote.length; addLog(`   Lote con error: ${error.message}`); }
-        else        { ok  += lote.length; }
+        try {
+          await writeRegistro({ table: "registros_arena", op: "upsert", records: lote });
+          ok += lote.length;
+        } catch (e) {
+          err += lote.length; addLog(`   Lote con error: ${(e as Error).message}`);
+        }
         lote.length = 0;
         setProgreso({ etapa:"Arena", ok, err, total: rows.length });
       }
@@ -150,10 +164,12 @@ export default function ImportarPage() {
 
     // Último lote
     if (lote.length > 0) {
-      const { error } = await supabase.from("registros_arena")
-        .upsert(lote as never[], { onConflict: "fecha_hora" });
-      if (error) { err += lote.length; }
-      else        { ok  += lote.length; }
+      try {
+        await writeRegistro({ table: "registros_arena", op: "upsert", records: lote });
+        ok += lote.length;
+      } catch {
+        err += lote.length;
+      }
     }
 
     addLog(`   Arena: ${ok} importados, ${err} errores`);
@@ -204,9 +220,12 @@ export default function ImportarPage() {
 
       if (lote.length >= 100) {
         const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
-        const { error } =       await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
-        if (error) { err += lote.length; addLog(`   Cuarzo error: ${error.message}`); }
-        else ok += dedup.length;
+        try {
+          await writeRegistro({ table: "registros_cuarzo", op: "upsert", records: dedup });
+          ok += dedup.length;
+        } catch (e) {
+          err += lote.length; addLog(`   Cuarzo error: ${(e as Error).message}`);
+        }
         lote.length = 0;
         setProgreso({ etapa:"Cuarzo", ok, err, total: rows.length });
       }
@@ -214,9 +233,12 @@ export default function ImportarPage() {
 
     if (lote.length > 0) {
       const dedup = Object.values(lote.reduce((acc, row) => { acc[row.fecha_hora as string] = row; return acc; }, {} as Record<string, Record<string,unknown>>));
-      const { error } =       await supabase.from("registros_cuarzo").upsert(dedup as never[], { onConflict: "fecha_hora" });
-      if (error) { err += lote.length; addLog(`   Último lote cuarzo: ${error.message}`); }
-      else ok += dedup.length;
+      try {
+        await writeRegistro({ table: "registros_cuarzo", op: "upsert", records: dedup });
+        ok += dedup.length;
+      } catch (e) {
+        err += lote.length; addLog(`   Último lote cuarzo: ${(e as Error).message}`);
+      }
     }
     addLog(`   Cuarzo: ${ok} importados, ${err} errores`);
   }
@@ -270,20 +292,25 @@ export default function ImportarPage() {
       });
 
       if (lote.length >= 500) {
-        const { error } =       await supabase.from("despachos").insert(lote);
-        if (error) {
+        try {
+          await writeRegistro({ table: "despachos", op: "upsert", records: lote });
+          ok += lote.length;
+        } catch (e) {
           err += lote.length;
-          if (err <= 500) addLog(`   Error (lote): ${error.message}`);
-        } else ok += lote.length;
+          if (err <= 500) addLog(`   Error (lote): ${(e as Error).message}`);
+        }
         lote.length = 0;
         setProgreso({ etapa:"Despachos", ok, err, total: data.length });
       }
     }
 
     if (lote.length > 0) {
-      const { error } =       await supabase.from("despachos").insert(lote);
-      if (error) { err += lote.length; addLog(`   Error (último lote): ${error.message}`); }
-      else       ok  += lote.length;
+      try {
+        await writeRegistro({ table: "despachos", op: "upsert", records: lote });
+        ok += lote.length;
+      } catch (e) {
+        err += lote.length; addLog(`   Error (último lote): ${(e as Error).message}`);
+      }
     }
 
     // --- Diagnóstico: si todo falla, intenta insertar solo 1 fila ---
@@ -296,14 +323,20 @@ export default function ImportarPage() {
       const fecha0 = parseDate(rowObj["Fecha"]);
       const hora0  = parseTime(rowObj["Hora"]);
       addLog(`   Fecha: ${fecha0}, Hora: ${hora0}`);
-      const { error: e1 } =       await supabase.from("despachos").insert([{
-        fecha: fecha0,
-        hora: (hora0 ?? "00:00") + ":00",
-        fecha_hora: `${fecha0}T${hora0 ?? "00:00"}:00+00:00`,
-        tipo: String(rowObj["Tipo"] ?? ""),
-      }]);
-      if (e1) addLog(`   Error 1 fila: ${e1.message} | code: ${e1.code} | details: ${e1.details}`);
-      else addLog("   1 fila insertada OK");
+      try {
+        await writeRegistro({
+          table: "despachos", op: "upsert",
+          records: [{
+            fecha: fecha0,
+            hora: (hora0 ?? "00:00") + ":00",
+            fecha_hora: `${fecha0}T${hora0 ?? "00:00"}:00+00:00`,
+            tipo: String(rowObj["Tipo"] ?? ""),
+          }],
+        });
+        addLog("   1 fila insertada OK");
+      } catch (e1) {
+        addLog(`   Error 1 fila: ${(e1 as Error).message}`);
+      }
     }
 
     addLog(`   Despachos: ${ok} importados, ${err} errores`);

@@ -15,6 +15,19 @@ import {
 const PER_PAGE = 10;
 type Periodo = "mes" | "todo";
 
+// Escrituras a despachos pasan por API con sesión admin
+// (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
+async function writeRegistro(body: Record<string, unknown>) {
+  const res  = await fetch("/api/registros/write", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
+
 export default function DespachosPage() {
   const fileRef        = useRef<HTMLInputElement>(null);
   const [rows, setRows]       = useState<Despacho[]>([]);
@@ -161,10 +174,12 @@ export default function DespachosPage() {
 
       // Constraint UNIQUE confirmada en DB: despachos_doc_entry_articulo_unique
       // sobre (doc_entry, articulo). Upsert nativo — salta duplicados.
-      const { error } = await supabase
-        .from("despachos")
-        .upsert(lote, { onConflict: "doc_entry,articulo", ignoreDuplicates: true });
-      if (error) { errors += lote.length; } else { ok += lote.length; }
+      try {
+        await writeRegistro({ table: "despachos", op: "upsert", records: lote });
+        ok += lote.length;
+      } catch {
+        errors += lote.length;
+      }
       setMsg({ type: "info", text: `Procesando... ${i + lote.length}/${data.length}` });
     }
 

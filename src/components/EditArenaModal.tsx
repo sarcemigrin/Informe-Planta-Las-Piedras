@@ -1,8 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 import type { RegistroArena } from "@/types/database";
+
+// Escrituras a registros_arena/historial_cambios pasan por API con sesión admin
+// (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
+async function writeRegistro(body: Record<string, unknown>) {
+  const res  = await fetch("/api/registros/write", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
 
 interface Props {
   registro: RegistroArena;
@@ -87,13 +99,12 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
 
     update.updated_at = new Date().toISOString();
 
-    // Guardar en Supabase
-    const { error: updateErr } = await supabase
-      .from("registros_arena")
-      .update(update)
-      .eq("id", registro.id);
-
-    if (updateErr) { setError(updateErr.message); setSaving(false); return; }
+    // Guardar
+    try {
+      await writeRegistro({ table: "registros_arena", op: "update", id: registro.id, patch: update });
+    } catch (e) {
+      setError((e as Error).message); setSaving(false); return;
+    }
 
     // Registrar historial
     const historial = cambios.map(ch => ({
@@ -104,7 +115,11 @@ export function EditArenaModal({ registro, userEmail, onClose, onSaved }: Props)
       valor_nuevo:    ch.nuevo,
       usuario_email:  userEmail,
     }));
-    await supabase.from("historial_cambios").insert(historial);
+    try {
+      await writeRegistro({ table: "historial_cambios", op: "insert", records: historial });
+    } catch {
+      // No bloquear el guardado si falla el registro de historial
+    }
 
     // Si cambió algo que afecta el cálculo (no solo notas), recalcular este
     // registro y todos los posteriores — usan su inventario como punto de partida.
