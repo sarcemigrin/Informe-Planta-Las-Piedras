@@ -9,6 +9,7 @@ import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   META_PRODUCTIVIDAD_TON_H, META_PRODUCTIVIDAD_AMBAR,
   META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
+  addMinutes, VENTANA_DESPACHOS_MIN,
   type ArenaInput,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
@@ -21,17 +22,6 @@ const nowTime = () => format(new Date(), "HH:mm");
 
 // Tonelaje mínimo por viaje para incluir en cálculo
 const FORM_KEY = "arena-form-draft";
-
-// Suma minutos a un string de fecha/hora local (sin conversión UTC).
-// Los despachos en la DB están guardados en hora local de Chile,
-// por lo que NO se debe convertir a UTC al consultar.
-function addMinutes(localStr: string, minutes: number): string {
-  // Forzar parseo como UTC para que la aritmética no dependa del timezone del browser
-  const d = new Date(localStr.endsWith("Z") ? localStr : localStr + "Z");
-  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19);
-  d.setTime(d.getTime() + minutes * 60_000);
-  return d.toISOString().slice(0, 19); // "2026-06-18T09:34:00" — sin Z
-}
 
 // Escrituras a registros_arena/registros_cuarzo pasan por API con sesión admin
 // (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
@@ -439,8 +429,8 @@ export default function ArenaPage() {
       .from("despachos")
       .select("fecha, hora, articulo, toneladas, ton_final, folio")
       .in("articulo", ARTICULOS_ARENA_PROD)
-      .gte("fecha_hora", addMinutes(prevFH, 15))
-      .lte("fecha_hora", addMinutes(currFH, 15))
+      .gte("fecha_hora", addMinutes(prevFH, VENTANA_DESPACHOS_MIN))
+      .lte("fecha_hora", addMinutes(currFH, VENTANA_DESPACHOS_MIN))
       .order("fecha_hora", { ascending: true })
       .then(({ data }) => {
         if (data) {
@@ -507,8 +497,8 @@ export default function ArenaPage() {
           .from("despachos")
           .select("toneladas")
           .in("articulo", ARTICULOS_ARENA_PROD)
-          .gte("fecha_hora", addMinutes(prevFHLocal, 15))
-          .lte("fecha_hora", addMinutes(currFHLocal, 15));
+          .gte("fecha_hora", addMinutes(prevFHLocal, VENTANA_DESPACHOS_MIN))
+          .lte("fecha_hora", addMinutes(currFHLocal, VENTANA_DESPACHOS_MIN));
 
         if (dsps) {
           // Usar toneladas (romana) igual que Query1!O en el Excel

@@ -450,3 +450,18 @@ export const ARTICULO_CUARZO  = "A37LGC";
 export const ARTICULO_A39     = "A39LGC";
 // Para producción de arena se suman A36LGC + A39LGC (igual que columna M del Excel)
 export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A39];
+
+// Margen usado al buscar despachos entre el droneo anterior y el actual —
+// antes triplicado (arena/page.tsx, cuarzo/page.tsx, recalcular/route.ts).
+export const VENTANA_DESPACHOS_MIN = 15;
+
+// Suma minutos a un string de fecha/hora local (sin conversión UTC). Los
+// despachos en la DB están guardados en hora local de Chile, por lo que NO
+// se debe convertir a UTC al consultar.
+export function addMinutes(localStr: string, minutes: number): string {
+  // Forzar parseo como UTC para que la aritmética no dependa del timezone del browser
+  const d = new Date(localStr.endsWith("Z") ? localStr : localStr + "Z");
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19);
+  d.setTime(d.getTime() + minutes * 60_000);
+  return d.toISOString().slice(0, 19); // "2026-06-18T09:34:00" — sin Z
+}

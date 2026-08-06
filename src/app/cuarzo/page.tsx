@@ -8,6 +8,7 @@ import { EditCuarzoModal } from "@/components/EditCuarzoModal";
 import { supabase } from "@/lib/supabase";
 import {
   calcularCuarzo, fmt, ARTICULO_CUARZO,
+  addMinutes, VENTANA_DESPACHOS_MIN,
   type CuarzoInput,
 } from "@/lib/calculations";
 import type { RegistroCuarzo } from "@/types/database";
@@ -124,8 +125,8 @@ export default function CuarzoPage() {
           .from("despachos")
           .select("ton_final")
           .eq("articulo", ARTICULO_CUARZO)
-          .gte("fecha_hora", addMinutes(prevFH, 15))
-          .lte("fecha_hora", addMinutes(fechaHora, 15));
+          .gte("fecha_hora", addMinutes(prevFH, VENTANA_DESPACHOS_MIN))
+          .lte("fecha_hora", addMinutes(fechaHora, VENTANA_DESPACHOS_MIN));
         if (dsps) {
           despachosTon    = dsps.reduce((s, d) => s + (d.ton_final ?? 0), 0);
           despachosViajes = dsps.length;
@@ -342,6 +343,3 @@ function PreviewRow({ label, value, unit, highlight }: {
   );
 }
 
-function addMinutes(isoStr: string, min: number): string {
-  return new Date(new Date(isoStr).getTime() + min * 60000).toISOString();
-}

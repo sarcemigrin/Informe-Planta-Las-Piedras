@@ -17,6 +17,7 @@ import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import {
   calcularArena, calcularCuarzo, ARTICULOS_ARENA_PROD, ARTICULO_CUARZO,
+  addMinutes, VENTANA_DESPACHOS_MIN,
   type ArenaInput, type CuarzoInput,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo } from "@/types/database";
@@ -32,14 +33,6 @@ function getSupabaseServer() {
   );
 }
 
-// Igual que arena/page.tsx y cuarzo/page.tsx — despachos guardados en hora local, no convertir a UTC
-function addMinutes(localStr: string, minutes: number): string {
-  const d = new Date(localStr.endsWith("Z") ? localStr : localStr + "Z");
-  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19);
-  d.setTime(d.getTime() + minutes * 60_000);
-  return d.toISOString().slice(0, 19);
-}
-
 async function despachosEnVentana(
   sb: ReturnType<typeof getSupabaseServer>,
   tabla: Tabla,
@@ -53,8 +46,8 @@ async function despachosEnVentana(
       .from("despachos")
       .select("toneladas")
       .in("articulo", ARTICULOS_ARENA_PROD)
-      .gte("fecha_hora", addMinutes(previousFH, 15))
-      .lte("fecha_hora", addMinutes(currentFH, 15));
+      .gte("fecha_hora", addMinutes(previousFH, VENTANA_DESPACHOS_MIN))
+      .lte("fecha_hora", addMinutes(currentFH, VENTANA_DESPACHOS_MIN));
     const rows = (data ?? []) as { toneladas: number | null }[];
     return { ton: rows.reduce((s, d) => s + (d.toneladas ?? 0), 0), viajes: rows.length };
   }
@@ -63,8 +56,8 @@ async function despachosEnVentana(
     .from("despachos")
     .select("ton_final")
     .eq("articulo", ARTICULO_CUARZO)
-    .gte("fecha_hora", addMinutes(previousFH, 15))
-    .lte("fecha_hora", addMinutes(currentFH, 15));
+    .gte("fecha_hora", addMinutes(previousFH, VENTANA_DESPACHOS_MIN))
+    .lte("fecha_hora", addMinutes(currentFH, VENTANA_DESPACHOS_MIN));
   const rows = (data ?? []) as { ton_final: number | null }[];
   return { ton: rows.reduce((s, d) => s + (d.ton_final ?? 0), 0), viajes: rows.length };
 }
