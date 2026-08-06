@@ -15,7 +15,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
+import { requireJson, requireAdmin, fetchWithTimeout } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 import { generarInformePDF, type InformeData } from "@/lib/informe-pdf";
 import { generarImagenEmail } from "@/lib/email-image";
@@ -188,12 +188,8 @@ export async function POST(req: Request) {
     const token   = await getToken({ req: req as Parameters<typeof getToken>[0]["req"] });
     const accessToken = token?.accessToken as string | undefined;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    }
-    if (session.user.rol !== "admin") {
-      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
-    }
+    const authErr = requireAdmin(session);
+    if (authErr) return authErr;
     if (!accessToken) {
       return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesión." }, { status: 401 });
     }

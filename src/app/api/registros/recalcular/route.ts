@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdmin } from "@/lib/apiGuard";
 import {
   calcularArena, calcularCuarzo, ARTICULOS_ARENA_PROD, ARTICULO_CUARZO,
   addMinutes, VENTANA_DESPACHOS_MIN,
@@ -82,8 +83,8 @@ function buildCuarzoInput(r: RegistroCuarzo): CuarzoInput {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user)               return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },   { status: 403 });
+  const authErr = requireAdmin(session);
+  if (authErr) return authErr;
 
   let body: { tabla?: Tabla; registroId?: string };
   try {

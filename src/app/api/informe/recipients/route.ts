@@ -14,6 +14,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions }      from "@/lib/authOptions";
 import { createClient }     from "@supabase/supabase-js";
+import { requireAdmin }     from "@/lib/apiGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -107,8 +108,8 @@ async function loadDefaultEmails(planta: Planta): Promise<string[] | null> {
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user)               return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },   { status: 403 });
+  const err = requireAdmin(session);
+  if (err) return err;
 
   const url    = new URL(req.url);
   const planta = parsePlanta(url.searchParams.get("planta"));
@@ -132,10 +133,8 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user)
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    if (session.user.rol !== "admin")
-      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
+    const authErr = requireAdmin(session);
+    if (authErr) return authErr;
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey)

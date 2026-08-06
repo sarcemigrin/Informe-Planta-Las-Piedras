@@ -1,7 +1,7 @@
 import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson }      from "@/lib/apiGuard";
+import { requireJson, requireAdmin } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -39,12 +39,8 @@ export async function POST(req: Request) {
   if (ctErr) return ctErr;
 
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-  if (session.user.rol !== "admin") {
-    return NextResponse.json({ error: "Solo administradores pueden guardar anotaciones" }, { status: 403 });
-  }
+  const err = requireAdmin(session);
+  if (err) return err;
 
   const { fecha, motivo } = await req.json() as { fecha?: string; motivo?: string };
   if (!fecha || !motivo?.trim()) {

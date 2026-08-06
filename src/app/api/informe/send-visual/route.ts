@@ -8,7 +8,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
+import { requireJson, requireAdmin, fetchWithTimeout } from "@/lib/apiGuard";
 import { META_PRODUCTIVIDAD_TON_H } from "@/lib/calculations";
 import { createClient }     from "@supabase/supabase-js";
 
@@ -38,12 +38,8 @@ export async function POST(req: Request) {
     const token   = await getToken({ req: req as Parameters<typeof getToken>[0]["req"] });
     const accessToken = token?.accessToken as string | undefined;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    }
-    if (session.user.rol !== "admin") {
-      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
-    }
+    const authErr = requireAdmin(session);
+    if (authErr) return authErr;
     if (!accessToken) {
       return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesion." }, { status: 401 });
     }
@@ -148,7 +144,7 @@ export async function POST(req: Request) {
       '<p style="font-size:13px;margin:0">Adjunto encontrara el informe de produccion.</p>',
       driveUrl ? '<p style="margin:10px 0 0;font-size:13px">OneDrive: <a href="' + driveUrl + '" style="color:#16a34a">' + fileName + '</a></p>' : "",
       '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">',
-      '<p style="margin:0;font-size:11px;color:#9ca3af">Generado por: ' + (session.user?.email ?? "sistema") + '</p>',
+      '<p style="margin:0;font-size:11px;color:#9ca3af">Generado por: ' + (session?.user?.email ?? "sistema") + '</p>',
       "</div></div>",
     ].join("");
 

@@ -8,7 +8,7 @@ import { NextResponse }     from "next/server";
 import { getServerSession } from "next-auth/next";
 import { getToken }         from "next-auth/jwt";
 import { authOptions }      from "@/lib/authOptions";
-import { requireJson, fetchWithTimeout } from "@/lib/apiGuard";
+import { requireJson, requireAdmin, fetchWithTimeout } from "@/lib/apiGuard";
 import { createClient }     from "@supabase/supabase-js";
 import { type InformeData, type RegistroResumen, type SemanaStat } from "@/lib/informe-pdf";
 import { generarImagenEmail } from "@/lib/email-image";
@@ -41,12 +41,8 @@ export async function POST(req: Request) {
     const token   = await getToken({ req: req as Parameters<typeof getToken>[0]["req"] });
     const accessToken = token?.accessToken as string | undefined;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
-    }
-    if (session.user.rol !== "admin") {
-      return NextResponse.json({ error: "Sin permisos. Se requiere rol admin." }, { status: 403 });
-    }
+    const authErr = requireAdmin(session);
+    if (authErr) return authErr;
     if (!accessToken) {
       return NextResponse.json({ error: "Sin token de acceso. Vuelve a iniciar sesión." }, { status: 401 });
     }
@@ -120,7 +116,7 @@ export async function POST(req: Request) {
       cantidad_despachos:      reg.cantidad_despachos      ?? 0,
       inventario_ton:          reg.inventario_ton          ?? 0,
       inventario_cuarzo,
-      usuario_email:           session.user?.email ?? "sistema",
+      usuario_email:           session?.user?.email ?? "sistema",
       historial:               ((last10 ?? []) as RegistroResumen[]).reverse(),
       historialChart:          (yearRows ?? []) as RegistroResumen[],
       semanalStats,
@@ -158,7 +154,7 @@ export async function POST(req: Request) {
       horas_reales:            reg.horas_reales         ?? 0,
       detencion:               reg.detencion            ?? 0,
       inventario_cuarzo,
-      usuario_email:           session.user?.email ?? "sistema",
+      usuario_email:           session?.user?.email ?? "sistema",
       isReenvio:               true,
     });
     const cardBase64 = cardBuffer.toString("base64");

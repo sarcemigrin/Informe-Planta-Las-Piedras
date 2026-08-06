@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { authOptions } from "@/lib/authOptions";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
-import { fetchWithTimeout } from "@/lib/apiGuard";
+import { fetchWithTimeout, requireAdmin } from "@/lib/apiGuard";
 
 // Resync completo puede implicar muchos INSERT/UPDATE — dar margen sobre el default de 10-15s
 export const maxDuration = 60;
@@ -264,8 +264,8 @@ async function upsertDespachos(despachos: Record<string, unknown>[]) {
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const token   = await getToken({ req: request as Parameters<typeof getToken>[0]["req"] });
-  if (!session?.user)               return NextResponse.json({ error: "No autenticado" },  { status: 401 });
-  if (session.user.rol !== "admin") return NextResponse.json({ error: "Sin permisos" },    { status: 403 });
+  const err = requireAdmin(session);
+  if (err) return err;
 
   const accessToken = token?.accessToken as string | undefined;
   if (!accessToken) {
@@ -349,8 +349,8 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   const token   = await getToken({ req: request as Parameters<typeof getToken>[0]["req"] });
-  if (!session?.user || session.user.rol !== "admin")
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+  const err = requireAdmin(session);
+  if (err) return err;
 
   const accessToken = token?.accessToken as string | undefined;
   if (!accessToken) return NextResponse.json({ error: "Sin token" }, { status: 401 });
