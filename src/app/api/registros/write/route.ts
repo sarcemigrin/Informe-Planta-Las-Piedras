@@ -69,9 +69,16 @@ export async function POST(request: Request) {
     if (op !== "upsert" || !Array.isArray(body.records)) {
       return NextResponse.json({ error: "despachos solo admite upsert de records[]" }, { status: 400 });
     }
+    // Normalizar "articulo" — el cálculo de productividad filtra con .in("articulo", [...])
+    // exacto (A36LGC/A39LGC/A37LGC). Si llega en minúsculas o con espacios desde el Excel,
+    // el filtro lo descarta en silencio y el despacho nunca se suma a la producción.
+    const records = body.records.map((r) => ({
+      ...r,
+      articulo: typeof r.articulo === "string" ? r.articulo.trim().toUpperCase() : r.articulo,
+    }));
     const { data, error } = await sb
       .from("despachos")
-      .upsert(body.records, { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
+      .upsert(records, { onConflict: "doc_entry,articulo", ignoreDuplicates: true })
       .select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, count: data?.length ?? 0 });

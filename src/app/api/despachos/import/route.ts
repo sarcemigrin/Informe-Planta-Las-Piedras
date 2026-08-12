@@ -91,7 +91,7 @@ function mapRow(r: Record<string, unknown>): Record<string, unknown> | null {
     fecha_hora:   `${fecha}T${hora}:00`,
     cliente:      String(col(r,"Cliente","cliente","CLIENTE","Cód. Cliente","Cod. Cliente") ?? "").trim() || null,
     nombre:       String(col(r,"Nombre","nombre","NOMBRE","Nombre Cliente","Nombre BP") ?? "").trim() || null,
-    articulo:     String(col(r,"Artículo","Articulo","ARTICULO","articulo","Cód. Artículo","Cod. Articulo","Art.") ?? "").trim() || null,
+    articulo:     String(col(r,"Artículo","Articulo","ARTICULO","articulo","Cód. Artículo","Cod. Articulo","Art.") ?? "").trim().toUpperCase() || null,
     descripcion:  String(col(r,"Descripción","Descripcion","DESCRIPCION","Nombre Artículo","Desc. Artículo") ?? "").trim() || null,
     toneladas:    parseNum(col(r,"Toneladas","toneladas","TONELADAS","Cantidad","Cant.","Peso Neto","Ton.","Peso (Ton)","Cantidad (ton)")),
     toneladas_confirmadas: parseNum(col(r,"Toneladas Confirmadas","Ton. Confirmadas","Peso Confirmado")),
