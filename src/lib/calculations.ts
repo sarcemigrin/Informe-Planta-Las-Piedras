@@ -338,12 +338,13 @@ export function fmt(n: number | null | undefined, decimales = 1): string {
 }
 
 // ---- Consultar despachos para un período ----
-// Artículos: A36LGC = Arena, A37LGC = Cuarzo, A39LGC = A39
+// Artículos: A36LGC = Arena, A37LGC = Cuarzo, A38LGC = Arena, A39LGC = Arena
 export const ARTICULO_ARENA   = "A36LGC";
 export const ARTICULO_CUARZO  = "A37LGC";
+export const ARTICULO_A38     = "A38LGC";
 export const ARTICULO_A39     = "A39LGC";
-// Para producción de arena se suman A36LGC + A39LGC (igual que columna M del Excel)
-export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A39];
+// Para producción de arena se suman A36LGC + A38LGC + A39LGC
+export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A38, ARTICULO_A39];
 
 // Margen usado al buscar despachos entre el droneo anterior y el actual —
 // antes triplicado (arena/page.tsx, cuarzo/page.tsx, recalcular/route.ts).
