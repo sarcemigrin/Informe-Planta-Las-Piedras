@@ -77,11 +77,23 @@ const DENSIDAD_CENTRO = 1.6;
 const pfc = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
 const autoTon = (m3: string) => { const v = parseFloat(m3); return isNaN(v) ? "" : (v * DENSIDAD_CENTRO).toFixed(3); };
 
+const TLH_ACOPIOS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+
 const defaultTurcoForm = () => ({
   fecha: format(new Date(), "yyyy-MM-dd"), hora: format(new Date(), "HH:mm"),
-  arena_mina_m3:"", tlh_m3:"", esteril_m3:"", grancilla_m3:"",
+  arena_mina_m3:"",
+  tlh_acopio_1:"", tlh_acopio_2:"", tlh_acopio_3:"", tlh_acopio_4:"",
+  tlh_acopio_5:"", tlh_acopio_6:"", tlh_acopio_7:"", tlh_acopio_8:"",
+  tlh_patas:"",
+  esteril_m3:"", grancilla_m3:"",
   fierrillo_a_m3:"", fierrillo_b_m3:"", notas:"",
 });
+
+// Suma los 8 acopios + patas del acopio TLH
+function sumTlh(f: Record<string, string>): number {
+  const vals = [...TLH_ACOPIOS.map(n => f[`tlh_acopio_${n}`]), f.tlh_patas];
+  return vals.reduce((s, v) => s + (parseFloat(v) || 0), 0);
+}
 const defaultPeralForm = () => ({
   fecha: format(new Date(), "yyyy-MM-dd"), hora: format(new Date(), "HH:mm"),
   arena_mina_m3:"", a22_m3:"", a24_m3:"", a25_m3:"", a26_m3:"", dmh_m3:"", grancilla_m3:"", notas:"",
@@ -129,10 +141,17 @@ function CentroRegistroInlineForm() {
       ? (parseFloat(fa_ton) + parseFloat(fb_ton)).toFixed(3)
       : fa_ton || fb_ton || null;
 
+    const tlhTotal_m3 = sumTlh(f).toFixed(3);
+
     const record = {
       fecha: f.fecha, hora: f.hora, fecha_hora: `${f.fecha}T${f.hora}:00`,
       arena_mina_m3: pfc(f.arena_mina_m3), arena_mina_ton: pfc(autoTon(f.arena_mina_m3)),
-      tlh_m3: pfc(f.tlh_m3),     tlh_ton: pfc(autoTon(f.tlh_m3)),
+      tlh_m3: pfc(tlhTotal_m3), tlh_ton: pfc(autoTon(tlhTotal_m3)),
+      tlh_acopio_1: pfc(f.tlh_acopio_1), tlh_acopio_2: pfc(f.tlh_acopio_2),
+      tlh_acopio_3: pfc(f.tlh_acopio_3), tlh_acopio_4: pfc(f.tlh_acopio_4),
+      tlh_acopio_5: pfc(f.tlh_acopio_5), tlh_acopio_6: pfc(f.tlh_acopio_6),
+      tlh_acopio_7: pfc(f.tlh_acopio_7), tlh_acopio_8: pfc(f.tlh_acopio_8),
+      tlh_patas: pfc(f.tlh_patas),
       esteril_m3: pfc(f.esteril_m3), esteril_ton: pfc(autoTon(f.esteril_m3)),
       grancilla_m3: pfc(f.grancilla_m3), grancilla_ton: pfc(autoTon(f.grancilla_m3)),
       fierrillo_a_m3: pfc(f.fierrillo_a_m3), fierrillo_a_ton: pfc(fa_ton),
@@ -164,7 +183,16 @@ function CentroRegistroInlineForm() {
           fecha: f.fecha,
           hora: f.hora,
           kpis: {
-            tlh_ton:            pfc(autoTon(f.tlh_m3)),
+            tlh_ton:            pfc(autoTon(tlhTotal_m3)),
+            tlh_acopio_1_m3:    pfc(f.tlh_acopio_1),
+            tlh_acopio_2_m3:    pfc(f.tlh_acopio_2),
+            tlh_acopio_3_m3:    pfc(f.tlh_acopio_3),
+            tlh_acopio_4_m3:    pfc(f.tlh_acopio_4),
+            tlh_acopio_5_m3:    pfc(f.tlh_acopio_5),
+            tlh_acopio_6_m3:    pfc(f.tlh_acopio_6),
+            tlh_acopio_7_m3:    pfc(f.tlh_acopio_7),
+            tlh_acopio_8_m3:    pfc(f.tlh_acopio_8),
+            tlh_patas_m3:       pfc(f.tlh_patas),
             arena_mina_ton:     pfc(autoTon(f.arena_mina_m3)),
             esteril_ton:        pfc(autoTon(f.esteril_m3)),
             grancilla_ton:      pfc(autoTon(f.grancilla_m3)),
@@ -281,17 +309,38 @@ function CentroRegistroInlineForm() {
         </div>
 
         {ctab === "turco" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            <M3OnlyField label="Arena Mina"  keyM3="arena_mina_m3"  form={tForm} onChange={setT} />
-            <M3OnlyField label="TLH"         keyM3="tlh_m3"         form={tForm} onChange={setT} />
-            <M3OnlyField label="Estéril"     keyM3="esteril_m3"     form={tForm} onChange={setT} />
-            <M3OnlyField label="Grancilla"   keyM3="grancilla_m3"   form={tForm} onChange={setT} />
-            <M3OnlyField label="Fierrillo A" keyM3="fierrillo_a_m3" form={tForm} onChange={setT} />
-            <M3OnlyField label="Fierrillo B" keyM3="fierrillo_b_m3" form={tForm} onChange={setT} />
-            <label>
-              <span className="label">Notas</span>
-              <input type="text" className="input" value={tForm.notas} onChange={e => setT("notas",e.target.value)} />
-            </label>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <M3OnlyField label="Arena Mina"  keyM3="arena_mina_m3"  form={tForm} onChange={setT} />
+              <M3OnlyField label="Estéril"     keyM3="esteril_m3"     form={tForm} onChange={setT} />
+              <M3OnlyField label="Grancilla"   keyM3="grancilla_m3"   form={tForm} onChange={setT} />
+              <M3OnlyField label="Fierrillo A" keyM3="fierrillo_a_m3" form={tForm} onChange={setT} />
+              <M3OnlyField label="Fierrillo B" keyM3="fierrillo_b_m3" form={tForm} onChange={setT} />
+              <label>
+                <span className="label">Notas</span>
+                <input type="text" className="input" value={tForm.notas} onChange={e => setT("notas",e.target.value)} />
+              </label>
+            </div>
+
+            {/* Acopio TLH segmentado por cono */}
+            <div className="border border-gray-100 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Acopio TLH — por cono</span>
+                <span className="text-xs text-gray-400">Total: {sumTlh(tForm).toLocaleString("es-CL", { maximumFractionDigits: 3 })} m³</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {TLH_ACOPIOS.map(n => (
+                  <M3OnlyField
+                    key={n}
+                    label={n === 1 || n === 8 ? `Acopio ${n} (Emergencia)` : `Acopio ${n}`}
+                    keyM3={`tlh_acopio_${n}`}
+                    form={tForm}
+                    onChange={setT}
+                  />
+                ))}
+                <M3OnlyField label="Patas" keyM3="tlh_patas" form={tForm} onChange={setT} />
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

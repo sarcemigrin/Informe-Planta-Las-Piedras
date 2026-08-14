@@ -68,7 +68,35 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
     </tr>`
   ).join("");
 
-  return buildEmailShell("Turco", fecha, hora, rowsHtml, "#6BCF7F", "#14532d", appUrl);
+  // Desglose del acopio TLH por cono (1 y 8 son de emergencia) + Patas
+  const tlhDesglose = [
+    ["Acopio 1 (Emergencia)", kpis.tlh_acopio_1_m3],
+    ["Acopio 2",              kpis.tlh_acopio_2_m3],
+    ["Acopio 3",              kpis.tlh_acopio_3_m3],
+    ["Acopio 4",              kpis.tlh_acopio_4_m3],
+    ["Acopio 5",              kpis.tlh_acopio_5_m3],
+    ["Acopio 6",              kpis.tlh_acopio_6_m3],
+    ["Acopio 7",              kpis.tlh_acopio_7_m3],
+    ["Acopio 8 (Emergencia)", kpis.tlh_acopio_8_m3],
+    ["Patas",                 kpis.tlh_patas_m3],
+  ] as [string, number | null][];
+
+  const tieneDesglose = tlhDesglose.some(([, v]) => v != null);
+  const desgloseHtml = tieneDesglose ? `
+    <tr><td colspan="2" style="padding:14px 32px 4px">
+      <p style="margin:0;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Acopio TLH — detalle por cono</p>
+    </td></tr>
+    <tr><td colspan="2" style="padding:0 24px 8px">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+        ${tlhDesglose.map(([label, val], i) => `
+          <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"}">
+            <td style="padding:6px 8px;color:#6b7280;font-size:12px">${label}</td>
+            <td style="padding:6px 8px;color:#111827;text-align:right;font-size:13px">${fmtN(val)} m³</td>
+          </tr>`).join("")}
+      </table>
+    </td></tr>` : "";
+
+  return buildEmailShell("Turco", fecha, hora, rowsHtml, "#6BCF7F", "#14532d", appUrl, desgloseHtml);
 }
 
 function buildPeralHtml(fecha: string, hora: string, kpis: Record<string, number | null>, appUrl: string): string {
@@ -95,7 +123,7 @@ function buildPeralHtml(fecha: string, hora: string, kpis: Record<string, number
   return buildEmailShell("Peral", fecha, hora, rowsHtml, "#6BCF7F", "#14532d", appUrl);
 }
 
-function buildEmailShell(planta: string, fecha: string, hora: string, rowsHtml: string, accentHex: string, darkHex: string, appUrl: string): string {
+function buildEmailShell(planta: string, fecha: string, hora: string, rowsHtml: string, accentHex: string, darkHex: string, appUrl: string, extraHtml = ""): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
   <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
@@ -115,6 +143,7 @@ function buildEmailShell(planta: string, fecha: string, hora: string, rowsHtml: 
         ${rowsHtml}
       </table>
     </td></tr>
+    ${extraHtml}
     <!-- CTA -->
     <tr><td style="padding:24px 32px;text-align:center">
       <a href="${appUrl}" style="display:inline-block;background:${accentHex};color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:700;font-size:14px">Ver en la App →</a>

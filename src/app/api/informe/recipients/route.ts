@@ -63,6 +63,9 @@ const SEED: Record<Planta, Destinatario[]> = {
     { email: "cayala@migrin.cl",         nombre: "Cristian Ayala",          activo: true },
     { email: "jtorres@migrin.cl",        nombre: "Javier Torres",           activo: true },
     { email: "sarce@migrin.cl",          nombre: "Sebastián Arce González", activo: true },
+    { email: "scontreras@migrin.cl",     nombre: "Susan Contreras Cortés",  activo: true },
+    { email: "jhernandez@migrin.cl",     nombre: "Jorge Hernández",         activo: true },
+    { email: "calidadturco@migrin.cl",   nombre: "Calidad Turco",           activo: true },
   ],
   peral: [
     { email: "ajerez@migrin.cl",    nombre: "Aldo Jerez",               activo: true },
@@ -71,6 +74,9 @@ const SEED: Record<Planta, Destinatario[]> = {
     { email: "jtorres@migrin.cl",   nombre: "Javier Torres Salazar",    activo: true },
     { email: "cayala@migrin.cl",    nombre: "Cristian Ayala",           activo: true },
     { email: "sarce@migrin.cl",     nombre: "Sebastián Arce González",  activo: true },
+    { email: "scontreras@migrin.cl",nombre: "Susan Contreras Cortés",   activo: true },
+    { email: "jhernandez@migrin.cl",nombre: "Jorge Hernández",          activo: true },
+    { email: "calidadperal@migrin.cl", nombre: "Calidad Peral",         activo: true },
   ],
 };
 

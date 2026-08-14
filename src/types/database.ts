@@ -187,6 +187,15 @@ export interface RegistroTurco {
   arena_mina_ton: number | null;
   tlh_m3: number | null;
   tlh_ton: number | null;
+  tlh_acopio_1: number | null;
+  tlh_acopio_2: number | null;
+  tlh_acopio_3: number | null;
+  tlh_acopio_4: number | null;
+  tlh_acopio_5: number | null;
+  tlh_acopio_6: number | null;
+  tlh_acopio_7: number | null;
+  tlh_acopio_8: number | null;
+  tlh_patas: number | null;
   esteril_m3: number | null;
   esteril_ton: number | null;
   grancilla_m3: number | null;
