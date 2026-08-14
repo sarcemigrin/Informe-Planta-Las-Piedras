@@ -41,22 +41,53 @@ function bezierPoint(t: number, p0: [number, number], p1: [number, number], p2: 
   const y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t ** 2 * p2[1];
   return [x, y];
 }
+interface AcopioPunto extends AcopioDato { x: number; y: number; r: number; vacio: boolean }
+
+function AcopioPila({ p }: { p: AcopioPunto }) {
+  return (
+    <g>
+      <circle cx={p.x} cy={p.y} r={p.r}
+        fill={p.vacio ? "#f8fafc" : (p.emergencia ? "#fecaca" : "#bbf7d0")}
+        stroke={p.vacio ? "#cbd5e1" : (p.emergencia ? "#dc2626" : "#16a34a")}
+        strokeWidth={2}
+        strokeDasharray={p.vacio ? "4 3" : undefined} />
+      <text x={p.x} y={p.y - p.r - 8} textAnchor="middle" fontSize={11} fontWeight={600} fill="#374151">{p.label}</text>
+      {p.vacio ? (
+        <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={9} fill="#9ca3af">vacío</text>
+      ) : (
+        <>
+          <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize={12} fontWeight={700} fill="#111827">{fmt(p.ton, 0)}</text>
+          <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize={8} fill="#6b7280">ton</text>
+        </>
+      )}
+    </g>
+  );
+}
+
 function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
   if (data.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-10">Sin registro de Turco todavía.</p>;
   }
 
-  const W = 760, H = 230;
-  const P0: [number, number] = [50, 130];
-  const P1: [number, number] = [W / 2, 205];
-  const P2: [number, number] = [W - 50, 130];
+  // Los primeros 8 (Acopio 1-8) van en la cancha; Patas queda aparte, abajo a la izquierda
+  const acopios = data.slice(0, 8);
+  const patas   = data[8] as AcopioDato | undefined;
+
+  const W = 820, H = 250;
+  const P0: [number, number] = [70, 115];
+  const P1: [number, number] = [W / 2, 190];
+  const P2: [number, number] = [W - 70, 115];
 
   const maxTon = Math.max(...data.map(d => d.ton), 0);
-  const rMin = 20, rMax = 58, rVacio = 15;
+  const n = acopios.length;
+  // El radio máximo se acota al espacio disponible entre centros, para que nunca se toquen entre sí
+  const anchoUtil = P2[0] - P0[0];
+  const spacing = n > 1 ? anchoUtil / (n - 1) : anchoUtil;
+  const rMin = 16, rVacio = 13;
+  const rMax = Math.max(rMin + 6, spacing / 2 - 8);
   const radius = (ton: number) => maxTon > 0 ? rMin + (rMax - rMin) * Math.sqrt(ton / maxTon) : rMin;
 
-  const n = data.length;
-  const puntos = data.map((d, i) => {
+  const puntos: AcopioPunto[] = acopios.map((d, i) => {
     const t = n === 1 ? 0.5 : i / (n - 1);
     const [x, yCurva] = bezierPoint(t, P0, P1, P2);
     const vacio = !(d.ton > 0);
@@ -64,29 +95,20 @@ function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
     return { ...d, x, y: yCurva - r + 8, r, vacio };
   });
 
+  const patasVacio = !patas || !(patas.ton > 0);
+  const patasPunto: AcopioPunto | null = patas ? {
+    ...patas, x: 55, y: H - 45,
+    r: patasVacio ? rVacio : radius(patas.ton),
+    vacio: patasVacio,
+  } : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 260 }}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 280 }}>
       {/* Cancha — media luna */}
       <path d={`M${P0[0]},${P0[1]} Q${P1[0]},${P1[1]} ${P2[0]},${P2[1]}`}
         fill="none" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="6 5" />
-      {puntos.map(p => (
-        <g key={p.label}>
-          <circle cx={p.x} cy={p.y} r={p.r}
-            fill={p.vacio ? "#f8fafc" : (p.emergencia ? "#fecaca" : "#bbf7d0")}
-            stroke={p.vacio ? "#cbd5e1" : (p.emergencia ? "#dc2626" : "#16a34a")}
-            strokeWidth={2}
-            strokeDasharray={p.vacio ? "4 3" : undefined} />
-          <text x={p.x} y={p.y - p.r - 8} textAnchor="middle" fontSize={11} fontWeight={600} fill="#374151">{p.label}</text>
-          {p.vacio ? (
-            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={9} fill="#9ca3af">vacío</text>
-          ) : (
-            <>
-              <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize={12} fontWeight={700} fill="#111827">{fmt(p.ton, 0)}</text>
-              <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize={8} fill="#6b7280">ton</text>
-            </>
-          )}
-        </g>
-      ))}
+      {puntos.map(p => <AcopioPila key={p.label} p={p} />)}
+      {patasPunto && <AcopioPila key="patas" p={patasPunto} />}
     </svg>
   );
 }
