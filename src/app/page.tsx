@@ -7,13 +7,13 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useViewerMode } from "@/hooks/useViewerMode";
 import {
-  fmt, DENSIDAD_ARENA as DENSIDAD, DENSIDAD_CUARZO,
+  fmt, DENSIDAD_ARENA as DENSIDAD, DENSIDAD_CUARZO, DENSIDAD_CENTRO,
   META_PRODUCTIVIDAD_TON_H as PROD_TARGET, META_PRODUCTIVIDAD_AMBAR as PROD_CRIT,
   META_INVENTARIO_TON as INV_TARGET, META_INVENTARIO_AMBAR as INV_WARN,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import {
-  ComposedChart, LineChart, Line, Bar,
+  ComposedChart, BarChart, LineChart, Line, Bar, Cell, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
@@ -803,6 +803,20 @@ export default function Dashboard() {
             const tFierVar= (tLast?.fierrillo_total_ton ?? 0) - (tIniMes?.fierrillo_total_ton ?? 0);
             const tDias  = diasDesde(tLast?.fecha);
 
+            // Acopio TLH del último registro, segmentado por cono (1 y 8 son de emergencia)
+            const tlhAcopios = tLast ? [
+              { label: "Acopio 1", ton: (tLast.tlh_acopio_1 ?? 0) * DENSIDAD_CENTRO, emergencia: true  },
+              { label: "Acopio 2", ton: (tLast.tlh_acopio_2 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 3", ton: (tLast.tlh_acopio_3 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 4", ton: (tLast.tlh_acopio_4 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 5", ton: (tLast.tlh_acopio_5 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 6", ton: (tLast.tlh_acopio_6 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 7", ton: (tLast.tlh_acopio_7 ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+              { label: "Acopio 8", ton: (tLast.tlh_acopio_8 ?? 0) * DENSIDAD_CENTRO, emergencia: true  },
+              { label: "Patas",    ton: (tLast.tlh_patas   ?? 0) * DENSIDAD_CENTRO, emergencia: false },
+            ] : [];
+            const tlhAcopiosConDato = tlhAcopios.some(d => d.ton > 0);
+
             /* ── Peral calcs ── */
             const pLast  = peralRows[0];
             const pIniMes = iniMes(peralRows);
@@ -916,6 +930,40 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
+                    {/* Acopio TLH — detalle por cono del último registro */}
+                    {tlhAcopiosConDato && (
+                      <div className="card">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-700 text-sm">Acopio TLH — detalle por cono</h3>
+                            <p className="text-xs text-gray-400">Último registro · {tLast?.fecha}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#dc2626" }} />
+                            Emergencia
+                          </div>
+                        </div>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={tlhAcopios} layout="vertical" margin={{ top: 5, right: 48, left: 8, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => fmt(v, 0)} />
+                            <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={64} />
+                            <Tooltip formatter={(v: unknown) => [fmt(v as number, 1) + " ton", "Volumen"]} />
+                            <Bar dataKey="ton" radius={[0, 4, 4, 0]} barSize={18}>
+                              {tlhAcopios.map((d, i) => (
+                                <Cell key={i} fill={d.emergencia ? "#dc2626" : "#f59e0b"} />
+                              ))}
+                              <LabelList
+                                dataKey="ton"
+                                position="right"
+                                formatter={(v: unknown) => fmt(v as number, 1)}
+                                style={{ fontSize: 11, fill: "#374151", fontWeight: 600 }}
+                              />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                     {/* Gráficos Turco — dos paneles */}
                     {turcoChart.length > 0 && (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

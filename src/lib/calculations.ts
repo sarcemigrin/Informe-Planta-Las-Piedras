@@ -7,6 +7,7 @@
 // ---- Parámetros fijos ----
 export const DENSIDAD_ARENA   = 1.4;   // ton/m3
 export const DENSIDAD_CUARZO  = 1.65;  // ton/m3
+export const DENSIDAD_CENTRO  = 1.6;   // ton/m3 — Zona Centro (Turco/Peral)
 export const FACTOR_PESOMETRO = 0.85;  // Corrección pesómetro (col F = E × 0.85)
 export const FACTOR_CONOS     = 1.4;   // Densidad arena (usada también para conos)
 

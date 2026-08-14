@@ -9,7 +9,7 @@ import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   META_PRODUCTIVIDAD_TON_H, META_PRODUCTIVIDAD_AMBAR,
   META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
-  addMinutes, VENTANA_DESPACHOS_MIN,
+  addMinutes, VENTANA_DESPACHOS_MIN, DENSIDAD_CENTRO,
   type ArenaInput,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
@@ -72,8 +72,6 @@ function loadDraft(): Record<string, string> {
   } catch { return defaults; }
 }
 
-// ── Densidad Zona Centro ──────────────────────────────────────
-const DENSIDAD_CENTRO = 1.6;
 const pfc = (v: string) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
 const autoTon = (m3: string) => { const v = parseFloat(m3); return isNaN(v) ? "" : (v * DENSIDAD_CENTRO).toFixed(3); };
 
@@ -184,15 +182,15 @@ function CentroRegistroInlineForm() {
           hora: f.hora,
           kpis: {
             tlh_ton:            pfc(autoTon(tlhTotal_m3)),
-            tlh_acopio_1_m3:    pfc(f.tlh_acopio_1),
-            tlh_acopio_2_m3:    pfc(f.tlh_acopio_2),
-            tlh_acopio_3_m3:    pfc(f.tlh_acopio_3),
-            tlh_acopio_4_m3:    pfc(f.tlh_acopio_4),
-            tlh_acopio_5_m3:    pfc(f.tlh_acopio_5),
-            tlh_acopio_6_m3:    pfc(f.tlh_acopio_6),
-            tlh_acopio_7_m3:    pfc(f.tlh_acopio_7),
-            tlh_acopio_8_m3:    pfc(f.tlh_acopio_8),
-            tlh_patas_m3:       pfc(f.tlh_patas),
+            tlh_acopio_1_ton:   pfc(autoTon(f.tlh_acopio_1)),
+            tlh_acopio_2_ton:   pfc(autoTon(f.tlh_acopio_2)),
+            tlh_acopio_3_ton:   pfc(autoTon(f.tlh_acopio_3)),
+            tlh_acopio_4_ton:   pfc(autoTon(f.tlh_acopio_4)),
+            tlh_acopio_5_ton:   pfc(autoTon(f.tlh_acopio_5)),
+            tlh_acopio_6_ton:   pfc(autoTon(f.tlh_acopio_6)),
+            tlh_acopio_7_ton:   pfc(autoTon(f.tlh_acopio_7)),
+            tlh_acopio_8_ton:   pfc(autoTon(f.tlh_acopio_8)),
+            tlh_patas_ton:      pfc(autoTon(f.tlh_patas)),
             arena_mina_ton:     pfc(autoTon(f.arena_mina_m3)),
             esteril_ton:        pfc(autoTon(f.esteril_m3)),
             grancilla_ton:      pfc(autoTon(f.grancilla_m3)),

@@ -70,15 +70,15 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
 
   // Desglose del acopio TLH por cono (1 y 8 son de emergencia) + Patas
   const tlhDesglose = [
-    ["Acopio 1 (Emergencia)", kpis.tlh_acopio_1_m3],
-    ["Acopio 2",              kpis.tlh_acopio_2_m3],
-    ["Acopio 3",              kpis.tlh_acopio_3_m3],
-    ["Acopio 4",              kpis.tlh_acopio_4_m3],
-    ["Acopio 5",              kpis.tlh_acopio_5_m3],
-    ["Acopio 6",              kpis.tlh_acopio_6_m3],
-    ["Acopio 7",              kpis.tlh_acopio_7_m3],
-    ["Acopio 8 (Emergencia)", kpis.tlh_acopio_8_m3],
-    ["Patas",                 kpis.tlh_patas_m3],
+    ["Acopio 1 (Emergencia)", kpis.tlh_acopio_1_ton],
+    ["Acopio 2",              kpis.tlh_acopio_2_ton],
+    ["Acopio 3",              kpis.tlh_acopio_3_ton],
+    ["Acopio 4",              kpis.tlh_acopio_4_ton],
+    ["Acopio 5",              kpis.tlh_acopio_5_ton],
+    ["Acopio 6",              kpis.tlh_acopio_6_ton],
+    ["Acopio 7",              kpis.tlh_acopio_7_ton],
+    ["Acopio 8 (Emergencia)", kpis.tlh_acopio_8_ton],
+    ["Patas",                 kpis.tlh_patas_ton],
   ] as [string, number | null][];
 
   const tieneDesglose = tlhDesglose.some(([, v]) => v != null);
@@ -91,7 +91,7 @@ function buildTurcoHtml(fecha: string, hora: string, kpis: Record<string, number
         ${tlhDesglose.map(([label, val], i) => `
           <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"}">
             <td style="padding:6px 8px;color:#6b7280;font-size:12px">${label}</td>
-            <td style="padding:6px 8px;color:#111827;text-align:right;font-size:13px">${fmtN(val)} m³</td>
+            <td style="padding:6px 8px;color:#111827;text-align:right;font-size:13px">${fmtN(val)} ton</td>
           </tr>`).join("")}
       </table>
     </td></tr>` : "";
