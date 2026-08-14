@@ -13,7 +13,7 @@ import {
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import {
-  ComposedChart, BarChart, LineChart, Line, Bar, Cell, LabelList,
+  ComposedChart, LineChart, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
@@ -32,6 +32,56 @@ const YR_COLORS = ["#6BCF7F","#0ea5e9","#f59e0b","#8b5cf6","#f43f5e"];
 
 function pd(dateStr: string): Date {
   return new Date(dateStr + "T12:00:00");
+}
+
+// ── Cancha de acopios: círculos dentro de una media luna, tamaño según tonelaje ──
+interface AcopioDato { label: string; ton: number; emergencia: boolean }
+function bezierPoint(t: number, p0: [number, number], p1: [number, number], p2: [number, number]): [number, number] {
+  const x = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t ** 2 * p2[0];
+  const y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t ** 2 * p2[1];
+  return [x, y];
+}
+function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
+  const visibles = data.filter(d => d.ton > 0);
+  if (visibles.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-10">Sin acopio registrado en el último dato.</p>;
+  }
+
+  const W = 760, H = 230;
+  const P0: [number, number] = [50, 130];
+  const P1: [number, number] = [W / 2, 205];
+  const P2: [number, number] = [W - 50, 130];
+
+  const maxTon = Math.max(...visibles.map(d => d.ton));
+  const rMin = 20, rMax = 58;
+  const radius = (ton: number) => rMin + (rMax - rMin) * Math.sqrt(ton / maxTon);
+
+  const n = visibles.length;
+  const puntos = visibles.map((d, i) => {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    const [x, yCurva] = bezierPoint(t, P0, P1, P2);
+    const r = radius(d.ton);
+    return { ...d, x, y: yCurva - r + 8, r };
+  });
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: 260 }}>
+      {/* Cancha — media luna */}
+      <path d={`M${P0[0]},${P0[1]} Q${P1[0]},${P1[1]} ${P2[0]},${P2[1]}`}
+        fill="none" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="6 5" />
+      {puntos.map(p => (
+        <g key={p.label}>
+          <circle cx={p.x} cy={p.y} r={p.r}
+            fill={p.emergencia ? "#fecaca" : "#bbf7d0"}
+            stroke={p.emergencia ? "#dc2626" : "#16a34a"}
+            strokeWidth={2} />
+          <text x={p.x} y={p.y - p.r - 8} textAnchor="middle" fontSize={11} fontWeight={600} fill="#374151">{p.label}</text>
+          <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize={12} fontWeight={700} fill="#111827">{fmt(p.ton, 0)}</text>
+          <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize={8} fill="#6b7280">ton</text>
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 function prodText(v?: number | null) {
@@ -930,38 +980,14 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    {/* Acopio TLH — detalle por cono del último registro */}
+                    {/* Acopio TLH — cancha con acopios, tamaño según tonelaje */}
                     {tlhAcopiosConDato && (
                       <div className="card">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h3 className="font-semibold text-gray-700 text-sm">Acopio TLH — detalle por cono</h3>
-                            <p className="text-xs text-gray-400">Último registro · {tLast?.fecha}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#dc2626" }} />
-                            Emergencia
-                          </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-gray-700 text-sm">Acopio TLH — Cancha</h3>
+                          <p className="text-xs text-gray-400">Último registro · {tLast?.fecha}</p>
                         </div>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart data={tlhAcopios} layout="vertical" margin={{ top: 5, right: 48, left: 8, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => fmt(v, 0)} />
-                            <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={64} />
-                            <Tooltip formatter={(v: unknown) => [fmt(v as number, 1) + " ton", "Volumen"]} />
-                            <Bar dataKey="ton" radius={[0, 4, 4, 0]} barSize={18}>
-                              {tlhAcopios.map((d, i) => (
-                                <Cell key={i} fill={d.emergencia ? "#dc2626" : "#f59e0b"} />
-                              ))}
-                              <LabelList
-                                dataKey="ton"
-                                position="right"
-                                formatter={(v: unknown) => fmt(v as number, 1)}
-                                style={{ fontSize: 11, fill: "#374151", fontWeight: 600 }}
-                              />
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <AcopioCanchaDiagram data={tlhAcopios} />
                       </div>
                     )}
                     {/* Gráficos Turco — dos paneles */}

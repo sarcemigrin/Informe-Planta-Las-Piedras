@@ -97,6 +97,23 @@ const defaultPeralForm = () => ({
   arena_mina_m3:"", a22_m3:"", a24_m3:"", a25_m3:"", a26_m3:"", dmh_m3:"", grancilla_m3:"", notas:"",
 });
 
+// Campos obligatorios por planta — "notas" siempre queda fuera (opcional)
+const TURCO_CAMPOS_REQ: [string, string][] = [
+  ["arena_mina_m3", "Arena Mina"],
+  ["tlh_acopio_1", "Acopio 1"], ["tlh_acopio_2", "Acopio 2"], ["tlh_acopio_3", "Acopio 3"],
+  ["tlh_acopio_4", "Acopio 4"], ["tlh_acopio_5", "Acopio 5"], ["tlh_acopio_6", "Acopio 6"],
+  ["tlh_acopio_7", "Acopio 7"], ["tlh_acopio_8", "Acopio 8"], ["tlh_patas", "Patas"],
+  ["esteril_m3", "Estéril"], ["grancilla_m3", "Grancilla"],
+  ["fierrillo_a_m3", "Fierrillo A"], ["fierrillo_b_m3", "Fierrillo B"],
+];
+const PERAL_CAMPOS_REQ: [string, string][] = [
+  ["arena_mina_m3", "Arena Mina"], ["a22_m3", "A-22"], ["a24_m3", "A-24"],
+  ["a25_m3", "A-25"], ["a26_m3", "A-26"], ["dmh_m3", "DMH"], ["grancilla_m3", "Grancilla"],
+];
+function camposFaltantes(form: Record<string, string>, campos: [string, string][]): string[] {
+  return campos.filter(([k]) => form[k] === "" || form[k] == null).map(([, label]) => label);
+}
+
 // Solo m³ visible — ton se calcula pero no se muestra
 function M3OnlyField({ label, keyM3, form, onChange }: {
   label: string; keyM3: string;
@@ -131,6 +148,11 @@ function CentroRegistroInlineForm() {
   const setP = (k:string, v:string) => setPForm(f => ({...f, [k]:v}));
 
   async function saveTurco() {
+    const faltan = camposFaltantes(tForm, TURCO_CAMPOS_REQ);
+    if (faltan.length > 0) {
+      setMsg({ type: "err", text: `Faltan datos por completar: ${faltan.join(", ")}. Las notas son opcionales.` });
+      return;
+    }
     setSaving(true); setMsg(null);
     const f = tForm;
     const fa_ton = autoTon(f.fierrillo_a_m3);
@@ -210,6 +232,11 @@ function CentroRegistroInlineForm() {
   }
 
   async function savePeral() {
+    const faltan = camposFaltantes(pForm, PERAL_CAMPOS_REQ);
+    if (faltan.length > 0) {
+      setMsg({ type: "err", text: `Faltan datos por completar: ${faltan.join(", ")}. Las notas son opcionales.` });
+      return;
+    }
     setSaving(true); setMsg(null);
     const f = pForm;
     // Arena Húmeda = solo A-24 + A-25 + A-26 (A-22 y Grancilla son independientes)
@@ -1247,7 +1274,20 @@ function CentroInformPanel({ planta }: { planta: "turco" | "peral" }) {
       if (planta === "turco") {
         const { data } = await supabase.from("registros_turco").select("*").eq("id", selectedId).single();
         if (!data) throw new Error("no data");
-        fecha = data.fecha; hora = data.hora; kpis = data as Record<string, unknown>;
+        fecha = data.fecha; hora = data.hora;
+        const acopioTon = (m3: number | null) => (m3 != null ? m3 * DENSIDAD_CENTRO : null);
+        kpis = {
+          ...data,
+          tlh_acopio_1_ton: acopioTon(data.tlh_acopio_1),
+          tlh_acopio_2_ton: acopioTon(data.tlh_acopio_2),
+          tlh_acopio_3_ton: acopioTon(data.tlh_acopio_3),
+          tlh_acopio_4_ton: acopioTon(data.tlh_acopio_4),
+          tlh_acopio_5_ton: acopioTon(data.tlh_acopio_5),
+          tlh_acopio_6_ton: acopioTon(data.tlh_acopio_6),
+          tlh_acopio_7_ton: acopioTon(data.tlh_acopio_7),
+          tlh_acopio_8_ton: acopioTon(data.tlh_acopio_8),
+          tlh_patas_ton:    acopioTon(data.tlh_patas),
+        };
       } else {
         const { data } = await supabase.from("registros_peral").select("*").eq("id", selectedId).single();
         if (!data) throw new Error("no data");
