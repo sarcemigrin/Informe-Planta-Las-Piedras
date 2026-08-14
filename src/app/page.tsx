@@ -42,9 +42,8 @@ function bezierPoint(t: number, p0: [number, number], p1: [number, number], p2: 
   return [x, y];
 }
 function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
-  const visibles = data.filter(d => d.ton > 0);
-  if (visibles.length === 0) {
-    return <p className="text-sm text-gray-400 text-center py-10">Sin acopio registrado en el último dato.</p>;
+  if (data.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-10">Sin registro de Turco todavía.</p>;
   }
 
   const W = 760, H = 230;
@@ -52,16 +51,17 @@ function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
   const P1: [number, number] = [W / 2, 205];
   const P2: [number, number] = [W - 50, 130];
 
-  const maxTon = Math.max(...visibles.map(d => d.ton));
-  const rMin = 20, rMax = 58;
-  const radius = (ton: number) => rMin + (rMax - rMin) * Math.sqrt(ton / maxTon);
+  const maxTon = Math.max(...data.map(d => d.ton), 0);
+  const rMin = 20, rMax = 58, rVacio = 15;
+  const radius = (ton: number) => maxTon > 0 ? rMin + (rMax - rMin) * Math.sqrt(ton / maxTon) : rMin;
 
-  const n = visibles.length;
-  const puntos = visibles.map((d, i) => {
+  const n = data.length;
+  const puntos = data.map((d, i) => {
     const t = n === 1 ? 0.5 : i / (n - 1);
     const [x, yCurva] = bezierPoint(t, P0, P1, P2);
-    const r = radius(d.ton);
-    return { ...d, x, y: yCurva - r + 8, r };
+    const vacio = !(d.ton > 0);
+    const r = vacio ? rVacio : radius(d.ton);
+    return { ...d, x, y: yCurva - r + 8, r, vacio };
   });
 
   return (
@@ -72,12 +72,19 @@ function AcopioCanchaDiagram({ data }: { data: AcopioDato[] }) {
       {puntos.map(p => (
         <g key={p.label}>
           <circle cx={p.x} cy={p.y} r={p.r}
-            fill={p.emergencia ? "#fecaca" : "#bbf7d0"}
-            stroke={p.emergencia ? "#dc2626" : "#16a34a"}
-            strokeWidth={2} />
+            fill={p.vacio ? "#f8fafc" : (p.emergencia ? "#fecaca" : "#bbf7d0")}
+            stroke={p.vacio ? "#cbd5e1" : (p.emergencia ? "#dc2626" : "#16a34a")}
+            strokeWidth={2}
+            strokeDasharray={p.vacio ? "4 3" : undefined} />
           <text x={p.x} y={p.y - p.r - 8} textAnchor="middle" fontSize={11} fontWeight={600} fill="#374151">{p.label}</text>
-          <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize={12} fontWeight={700} fill="#111827">{fmt(p.ton, 0)}</text>
-          <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize={8} fill="#6b7280">ton</text>
+          {p.vacio ? (
+            <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={9} fill="#9ca3af">vacío</text>
+          ) : (
+            <>
+              <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize={12} fontWeight={700} fill="#111827">{fmt(p.ton, 0)}</text>
+              <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize={8} fill="#6b7280">ton</text>
+            </>
+          )}
         </g>
       ))}
     </svg>
@@ -865,7 +872,7 @@ export default function Dashboard() {
               { label: "Acopio 8", ton: (tLast.tlh_acopio_8 ?? 0) * DENSIDAD_CENTRO, emergencia: true  },
               { label: "Patas",    ton: (tLast.tlh_patas   ?? 0) * DENSIDAD_CENTRO, emergencia: false },
             ] : [];
-            const tlhAcopiosConDato = tlhAcopios.some(d => d.ton > 0);
+            const mostrarCanchaTlh = tlhAcopios.length > 0;
 
             /* ── Peral calcs ── */
             const pLast  = peralRows[0];
@@ -981,7 +988,7 @@ export default function Dashboard() {
                       ))}
                     </div>
                     {/* Acopio TLH — cancha con acopios, tamaño según tonelaje */}
-                    {tlhAcopiosConDato && (
+                    {mostrarCanchaTlh && (
                       <div className="card">
                         <div className="flex items-center justify-between mb-1">
                           <h3 className="font-semibold text-gray-700 text-sm">Acopio TLH — Cancha</h3>
