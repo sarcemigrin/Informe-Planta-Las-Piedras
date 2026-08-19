@@ -413,6 +413,7 @@ export default function ArenaPage() {
   const [prevCuarzoRow, setPrevCuarzoRow]   = useState<RegistroCuarzo | null>(null);
   const [preview, setPreview]               = useState<ReturnType<typeof calcularArena> | null>(null);
   const [saving, setSaving]                 = useState(false);
+  const [deletingId, setDeletingId]         = useState<string | null>(null);
   const [syncing, setSyncing]               = useState(false);
   const [msg, setMsg]                       = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [ultimosDespachos, setUltimosDespachos] = useState<{
@@ -561,28 +562,12 @@ export default function ArenaPage() {
     try {
       const input = formToInput(form);
 
-      // Usar hora local (sin conversión UTC) — despachos en DB están en hora local
-      const currFHLocal = `${input.fecha}T${input.hora}:00`;
-
-      // Consultar despachos Arena entre droneo anterior y este
-      const prevFHLocal = prevRow ? `${prevRow.fecha}T${prevRow.hora.slice(0, 5)}:00` : null;
-      let despachosTon = 0;
-      let despachosViajes = 0;
-
-      if (prevFHLocal) {
-        const { data: dsps } = await supabase
-          .from("despachos")
-          .select("toneladas")
-          .in("articulo", ARTICULOS_ARENA_PROD)
-          .gte("fecha_hora", addMinutes(prevFHLocal, VENTANA_DESPACHOS_MIN))
-          .lte("fecha_hora", addMinutes(currFHLocal, VENTANA_DESPACHOS_MIN));
-
-        if (dsps) {
-          // Usar toneladas (romana) igual que Query1!O en el Excel
-          despachosTon   = (dsps as { toneladas: number | null }[]).reduce((s, d) => s + (d.toneladas ?? 0), 0);
-          despachosViajes = dsps.length;
-        }
-      }
+      // Reutilizar los despachos ya mostrados en el Preview calculado — si se
+      // volviera a consultar acá, un despacho recién sincronizado en el lapso
+      // entre lo que el usuario vio y el clic en "Guardar" cambiaría el número
+      // guardado/enviado por correo respecto al que se mostró en pantalla.
+      const despachosTon    = previewDespachos.ton;
+      const despachosViajes = previewDespachos.viajes;
 
       const prevInput = prevRow
         ? {
@@ -714,6 +699,22 @@ export default function ArenaPage() {
       setMsg({ type: "err", text: `Error: ${(e as Error).message}` });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ---- Eliminar el último registro (solo admin, vía AdminGuard de la página) ----
+  async function handleDeleteRegistro(id: string, label: string) {
+    if (!confirm(`¿Eliminar el registro ${label}? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(id);
+    setMsg(null);
+    try {
+      await writeRegistro({ table: "registros_arena", op: "delete", id });
+      setMsg({ type: "ok", text: "Registro eliminado." });
+      await loadHistorial();
+    } catch (e: unknown) {
+      setMsg({ type: "err", text: `Error al eliminar: ${(e as Error).message}` });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -1196,10 +1197,11 @@ export default function ArenaPage() {
               <th className="table-th">Prod. Drone</th>
               <th className="table-th">Despachos</th>
               <th className="table-th">Prodvd</th>
+              <th className="table-th"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {historial.map((r) => (
+            {historial.map((r, i) => (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="table-td-left font-medium">{r.fecha} {r.hora?.slice(0,5)}</td>
                 <td className="table-td">{r.pesometro?.toLocaleString("es-CL")}</td>
@@ -1207,6 +1209,18 @@ export default function ArenaPage() {
                 <td className="table-td text-green-700 font-semibold">{fmt(r.produccion_drone)}</td>
                 <td className="table-td">{fmt(r.despachos_ton)}</td>
                 <td className="table-td">{fmt(r.productividad_drone)} t/h</td>
+                <td className="table-td">
+                  {i === 0 && (
+                    <button
+                      onClick={() => handleDeleteRegistro(r.id, `${r.fecha} ${r.hora?.slice(0,5)}`)}
+                      disabled={deletingId === r.id}
+                      className="text-xs text-red-500 hover:text-red-700 hover:underline disabled:opacity-40"
+                      title="Eliminar el último registro"
+                    >
+                      {deletingId === r.id ? "Eliminando…" : "Eliminar"}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

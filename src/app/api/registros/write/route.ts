@@ -12,6 +12,7 @@
  * body:
  *   { table: "registros_arena" | "registros_cuarzo", op: "insert", records: object[] }
  *   { table: "registros_arena" | "registros_cuarzo", op: "update", id: string, patch: object }
+ *   { table: "registros_arena" | "registros_cuarzo", op: "delete", id: string }
  *   { table: "despachos",       op: "upsert", records: object[] }   // onConflict fijo: doc_entry,articulo
  *   { table: "historial_cambios", op: "insert", records: object[] }
  */
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   let body: {
     table?:   string;
-    op?:      "insert" | "update" | "upsert";
+    op?:      "insert" | "update" | "upsert" | "delete";
     records?: Record<string, unknown>[];
     id?:      string;
     patch?:   Record<string, unknown>;
@@ -112,6 +113,13 @@ export async function POST(request: Request) {
       .select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, data });
+  }
+
+  if (op === "delete") {
+    if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    const { error } = await sb.from(tabla).delete().eq("id", body.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: `op no soportada: ${op}` }, { status: 400 });
