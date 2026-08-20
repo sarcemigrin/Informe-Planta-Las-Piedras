@@ -936,12 +936,16 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="card flex flex-col gap-1 border-amber-300 bg-amber-50">
                     <div className="stat-label text-amber-700 uppercase tracking-wide text-xs">Último vuelo · Turco</div>
-                    <div className="text-lg font-bold text-amber-800">{tLast?.fecha ?? "—"}</div>
+                    <div className="text-lg font-bold text-amber-800">
+                      {tLast?.fecha ?? "—"}{tLast?.hora && <span className="font-normal text-amber-600"> {tLast.hora.slice(0,5)}</span>}
+                    </div>
                     <div className="text-xs text-amber-600">{tDias >= 0 ? `Hace ${tDias} día${tDias===1?"":"s"}` : "—"}</div>
                   </div>
                   <div className="card flex flex-col gap-1 border-cyan-300 bg-cyan-50">
                     <div className="stat-label text-cyan-700 uppercase tracking-wide text-xs">Último vuelo · Peral</div>
-                    <div className="text-lg font-bold text-cyan-800">{pLast?.fecha ?? "—"}</div>
+                    <div className="text-lg font-bold text-cyan-800">
+                      {pLast?.fecha ?? "—"}{pLast?.hora && <span className="font-normal text-cyan-600"> {pLast.hora.slice(0,5)}</span>}
+                    </div>
                     <div className="text-xs text-cyan-600">{pDias >= 0 ? `Hace ${pDias} día${pDias===1?"":"s"}` : "—"}</div>
                   </div>
                 </div>
@@ -1014,7 +1018,7 @@ export default function Dashboard() {
                       <div className="card">
                         <div className="flex items-center justify-between mb-1">
                           <h3 className="font-semibold text-gray-700 text-sm">Acopio TLH — Cancha</h3>
-                          <p className="text-xs text-gray-400">Último registro · {tLast?.fecha}</p>
+                          <p className="text-xs text-gray-400">Último registro · {tLast?.fecha} {tLast?.hora?.slice(0,5)}</p>
                         </div>
                         <AcopioCanchaDiagram data={tlhAcopios} />
                       </div>
@@ -1071,6 +1075,7 @@ export default function Dashboard() {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="table-th text-left">Fecha</th>
+                              <th className="table-th text-left">Hora</th>
                               <th className="table-th">TLH ton</th>
                               <th className="table-th">Arena Mina ton</th>
                               <th className="table-th">Estéril ton</th>
@@ -1084,6 +1089,7 @@ export default function Dashboard() {
                             {turcoRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
+                                <td className="table-td-left text-gray-500">{r.hora?.slice(0,5)}</td>
                                 <td className="table-td font-semibold text-amber-700">{fmt(r.tlh_ton)}</td>
                                 <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.esteril_ton)}</td>
@@ -1193,6 +1199,7 @@ export default function Dashboard() {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="table-th text-left">Fecha</th>
+                              <th className="table-th text-left">Hora</th>
                               <th className="table-th">Arena Húmeda</th>
                               <th className="table-th">Arena Mina</th>
                               <th className="table-th">A-22</th>
@@ -1207,6 +1214,7 @@ export default function Dashboard() {
                             {peralRows.slice(0,5).map((r,i) => (
                               <tr key={r.id} className={i%2===0?"bg-white":"bg-gray-50/50"}>
                                 <td className="table-td-left font-medium">{r.fecha}</td>
+                                <td className="table-td-left text-gray-500">{r.hora?.slice(0,5)}</td>
                                 <td className="table-td font-semibold text-cyan-700">{fmt((r.a24_ton ?? 0) + (r.a25_ton ?? 0) + (r.a26_ton ?? 0))}</td>
                                 <td className="table-td font-semibold text-blue-700">{fmt(r.arena_mina_ton)}</td>
                                 <td className="table-td">{fmt(r.a22_ton)}</td>
