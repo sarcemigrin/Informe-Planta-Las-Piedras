@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AdminGuard } from "@/components/AdminGuard";
@@ -430,6 +430,13 @@ export default function ArenaPage() {
   }>({ ton: 0, viajes: 0, a36ton: 0, a36viajes: 0, a39ton: 0, a39viajes: 0, rows: [] });
   const [showDespDebug, setShowDespDebug] = useState(false);
   const [warnings, setWarnings] = useState<{ pesometro?: string; horometro?: string }>({});
+  // Se incrementa cada vez que se sincronizan despachos (auto al cargar o botón manual) para
+  // forzar el refetch del preview — antes sincronizar no actualizaba la previsualización.
+  const [despachosSyncTick, setDespachosSyncTick] = useState(0);
+  const [despachosLoading,  setDespachosLoading]  = useState(false);
+  // Descarta respuestas de consultas de despachos que quedaron obsoletas (p.ej. si
+  // el efecto se relanza por un nuevo tick antes de que la consulta anterior responda).
+  const despachosReqId = useRef(0);
 
   // ---- Persistir borrador en localStorage ----
   useEffect(() => {
@@ -451,7 +458,12 @@ export default function ArenaPage() {
         loadUltimosDespachos();
       })
       .catch(() => {}) // fallo silencioso
-      .finally(() => setSyncing(false));
+      .finally(() => {
+        setSyncing(false);
+        // Fuerza refetch del preview: los despachos recién sincronizados deben
+        // reflejarse en la previsualización, no solo en la lista de "Últimos despachos".
+        setDespachosSyncTick(t => t + 1);
+      });
   }, []);
 
   async function loadUltimosDespachos() {
@@ -495,14 +507,22 @@ export default function ArenaPage() {
   }
 
   // ---- Despachos del período para el preview ----
+  // Se recalcula cuando cambian fecha/hora/registro anterior, y también cuando
+  // se sincronizan despachos (despachosSyncTick) — de lo contrario, sincronizar
+  // despachos desde SharePoint no se reflejaba en esta previsualización, y por
+  // el fix anterior (guardar reutiliza el preview) ese número stale terminaba
+  // guardado y enviado por correo también.
   useEffect(() => {
+    const reqId = ++despachosReqId.current;
     if (!prevRow || !form.fecha || !form.hora) {
       setPreviewDespachos({ ton: 0, viajes: 0, a36ton: 0, a36viajes: 0, a39ton: 0, a39viajes: 0, rows: [] });
+      setDespachosLoading(false);
       return;
     }
     // Usar hora local (sin conversión UTC) — despachos en DB están en hora local
     const prevFH = `${prevRow.fecha}T${prevRow.hora.slice(0, 5)}:00`;
     const currFH = `${form.fecha}T${form.hora}:00`;
+    setDespachosLoading(true);
     supabase
       .from("despachos")
       .select("fecha, hora, articulo, toneladas, ton_final, folio")
@@ -511,6 +531,7 @@ export default function ArenaPage() {
       .lte("fecha_hora", addMinutes(currFH, VENTANA_DESPACHOS_MIN))
       .order("fecha_hora", { ascending: true })
       .then(({ data }) => {
+        if (reqId !== despachosReqId.current) return; // respuesta obsoleta — ya hay una consulta más reciente en curso
         if (data) {
           type D = { fecha: string; hora: string; articulo: string | null; toneladas: number | null; ton_final: number | null; folio: number | null };
           const rows = (data as D[]).map(d => ({ ...d, articulo: d.articulo ?? "" }));
@@ -527,8 +548,9 @@ export default function ArenaPage() {
             rows,
           });
         }
-      });
-  }, [form.fecha, form.hora, prevRow]);
+      })
+      .finally(() => { if (reqId === despachosReqId.current) setDespachosLoading(false); });
+  }, [form.fecha, form.hora, prevRow, despachosSyncTick]);
 
   // ---- Preview en tiempo real ----
   useEffect(() => {
@@ -555,6 +577,10 @@ export default function ArenaPage() {
   async function handleSave() {
     if (!form.pesometro || !form.horometro) {
       setMsg({ type: "err", text: "Pesómetro y horómetro son obligatorios." });
+      return;
+    }
+    if (despachosLoading) {
+      setMsg({ type: "err", text: "Espera a que termine de actualizar los despachos del período antes de guardar." });
       return;
     }
     setSaving(true);
@@ -732,6 +758,7 @@ export default function ArenaPage() {
         setMsg({ type: "ok", text: json.message });
         setNewDespachos(json.synced > 0 ? json.synced : null);
         await loadUltimosDespachos();
+        setDespachosSyncTick(t => t + 1); // refresca el preview con los despachos recién sincronizados
       }
     } catch (e: unknown) {
       setMsg({ type: "err", text: `Error: ${(e as Error).message}` });
@@ -942,8 +969,8 @@ export default function ArenaPage() {
           </div>
 
           {/* Botón guardar */}
-          <button className="btn-primary w-full py-3 text-base" onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando..." : " Guardar Registro"}
+          <button className="btn-primary w-full py-3 text-base" onClick={handleSave} disabled={saving || despachosLoading}>
+            {saving ? "Guardando..." : despachosLoading ? "Actualizando despachos…" : " Guardar Registro"}
           </button>
 
           {/* Destinatarios del informe */}
@@ -1048,7 +1075,10 @@ export default function ArenaPage() {
                 <div className="border-t-2 border-gray-300 my-1" />
 
                 {/*  Despachos del período  */}
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Despachos del período</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Despachos del período
+                  {despachosLoading && <span className="ml-1 font-normal text-amber-500 normal-case">— actualizando…</span>}
+                </p>
                 <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1.5">
                   {/* Totales */}
                   <div className="flex justify-between items-center">
