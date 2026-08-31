@@ -344,8 +344,9 @@ export const ARTICULO_ARENA   = "A36LGC";
 export const ARTICULO_CUARZO  = "A37LGC";
 export const ARTICULO_A38     = "A38LGC";
 export const ARTICULO_A39     = "A39LGC";
-// Para producción de arena se suman A36LGC + A38LGC + A39LGC
-export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A38, ARTICULO_A39];
+// Para producción de arena se suman solo A36LGC + A39LGC — A38LGC se excluye
+// a pedido explícito (no debe sumar tonelaje ni contar como despacho).
+export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A39];
 
 // Margen usado al buscar despachos entre el droneo anterior y el actual —
 // antes triplicado (arena/page.tsx, cuarzo/page.tsx, recalcular/route.ts).

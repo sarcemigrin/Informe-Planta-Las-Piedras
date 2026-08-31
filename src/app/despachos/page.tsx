@@ -5,7 +5,13 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import type { Despacho } from "@/types/database";
-import { format, parseISO, startOfMonth } from "date-fns";
+import {
+  format, parseISO,
+  startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+  startOfYear, endOfYear, addDays, addWeeks, addMonths, addYears,
+  differenceInCalendarDays,
+} from "date-fns";
+import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,7 +19,11 @@ import {
 } from "recharts";
 
 const PER_PAGE = 10;
-type Periodo = "mes" | "todo";
+type Periodo = "dia" | "semana" | "mes" | "anio" | "rango";
+
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 // Escrituras a despachos pasan por API con sesión admin
 // (antes iban directo por Supabase con la anon key — bloqueadas solo por la UI, no por RLS real).
@@ -36,43 +46,87 @@ export default function DespachosPage() {
   const [msg, setMsg]         = useState<{ type: "ok" | "err" | "info"; text: string } | null>(null);
   const [filtro, setFiltro]       = useState("");
   const [page, setPage]           = useState(1);
-  const [periodo, setPeriodo]     = useState<Periodo>("mes");
+  const [periodo, setPeriodo]     = useState<Periodo>("dia");
+  const [refDate, setRefDate]     = useState(() => new Date());
+  const [rangoDesde, setRangoDesde] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm"));
+  const [rangoHasta, setRangoHasta] = useState(() => format(new Date(), "yyyy-MM-dd'T'HH:mm"));
 
   const [material, setMaterial]   = useState<string>("A36LGC");
   const [importData, setImportData] = useState<Record<string, unknown>[]>([]);
+
+  // ---- Rango de fechas activo (según período elegido o rango personalizado) ----
+  const { rangeStart, rangeEnd } = useMemo(() => {
+    if (periodo === "rango") {
+      return {
+        rangeStart: rangoDesde ? parseISO(rangoDesde) : startOfDay(new Date()),
+        rangeEnd:   rangoHasta ? parseISO(rangoHasta) : new Date(),
+      };
+    }
+    switch (periodo) {
+      case "semana": return { rangeStart: startOfWeek(refDate, { weekStartsOn: 1 }), rangeEnd: endOfWeek(refDate, { weekStartsOn: 1 }) };
+      case "mes":    return { rangeStart: startOfMonth(refDate), rangeEnd: endOfMonth(refDate) };
+      case "anio":   return { rangeStart: startOfYear(refDate),  rangeEnd: endOfYear(refDate) };
+      default:       return { rangeStart: startOfDay(refDate),   rangeEnd: endOfDay(refDate) };
+    }
+  }, [periodo, refDate, rangoDesde, rangoHasta]);
+
+  const periodoLabel = useMemo(() => {
+    switch (periodo) {
+      case "semana": return `Semana del ${format(rangeStart, "dd MMM", { locale: es })} al ${format(rangeEnd, "dd MMM yyyy", { locale: es })}`;
+      case "mes":    return cap(format(refDate, "MMMM yyyy", { locale: es }));
+      case "anio":   return format(refDate, "yyyy");
+      case "rango":  return `${format(rangeStart, "dd-MM-yyyy HH:mm")} → ${format(rangeEnd, "dd-MM-yyyy HH:mm")}`;
+      default:       return cap(format(refDate, "EEEE dd 'de' MMMM yyyy", { locale: es }));
+    }
+  }, [periodo, refDate, rangeStart, rangeEnd]);
+
+  function cambiarPeriodo(p: Periodo) {
+    setPeriodo(p);
+    if (p !== "rango") setRefDate(new Date());
+    setPage(1);
+  }
+
+  function moverPeriodo(dir: 1 | -1) {
+    setRefDate((d) => {
+      switch (periodo) {
+        case "semana": return addWeeks(d, dir);
+        case "mes":    return addMonths(d, dir);
+        case "anio":   return addYears(d, dir);
+        default:       return addDays(d, dir);
+      }
+    });
+    setPage(1);
+  }
+
+  // ---- Cargar despachos del rango activo desde Supabase (no todo el historial) ----
+  async function loadDespachos() {
+    const { data } = await supabase
+      .from("despachos")
+      .select("*")
+      .gte("fecha_hora", format(rangeStart, "yyyy-MM-dd'T'HH:mm:ss"))
+      .lte("fecha_hora", format(rangeEnd,   "yyyy-MM-dd'T'HH:mm:ss"))
+      .order("fecha_hora", { ascending: false })
+      .limit(10_000);
+    setRows(data ?? []);
+  }
 
   useEffect(() => {
     loadDespachos();
     const interval = setInterval(loadDespachos, 60_000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeStart.getTime(), rangeEnd.getTime()]);
 
-  async function loadDespachos() {
-    const { data } = await supabase
-      .from("despachos")
-      .select("*")
-      .order("fecha_hora", { ascending: false })
-      .limit(2000);
-    setRows(data ?? []);
-  }
-
-  // ---- Materiales únicos ----
+  // ---- Materiales únicos (del rango cargado) ----
   const materiales = useMemo(() => {
     const s = new Set(rows.map((r) => r.articulo).filter(Boolean) as string[]);
     return Array.from(s).sort();
   }, [rows]);
 
-  // ---- Dashboard: filtro por período + material ----
+  // ---- Dashboard: filtro por material (el período ya se aplicó en la consulta) ----
   const rowsFiltrados = useMemo(() => {
-    const now    = new Date();
-    const cutoff = periodo === "mes" ? startOfMonth(now) : null;
-
-    return rows.filter((r) => {
-      const pasaPeriodo  = !cutoff || (r.fecha_hora && parseISO(r.fecha_hora) >= cutoff);
-      const pasaMaterial = material === "todos" || r.articulo === material;
-      return pasaPeriodo && pasaMaterial;
-    });
-  }, [rows, periodo, material]);
+    return rows.filter((r) => material === "todos" || r.articulo === material);
+  }, [rows, material]);
 
   const totalTon        = rowsFiltrados.reduce((s, r) => s + (r.ton_final ?? 0), 0);
   const totalViajes     = rowsFiltrados.length;
@@ -80,29 +134,38 @@ export default function DespachosPage() {
   const diasActivos     = new Set(rowsFiltrados.map((r) => r.fecha)).size;
   const viajesPorDia    = diasActivos > 0 ? totalViajes / diasActivos : 0;
 
+  // ---- Agrupación del gráfico: por día, salvo año (por mes) o rango largo (por semana) ----
+  const chartGroup: "dia" | "semana" | "mes" =
+    periodo === "anio" ? "mes" :
+    (periodo === "rango" && differenceInCalendarDays(rangeEnd, rangeStart) > 60) ? "semana" :
+    "dia";
+
   const chartData = useMemo(() => {
     const map = new Map<string, number>();
     rowsFiltrados.forEach((r) => {
       if (!r.fecha) return;
-      map.set(r.fecha, (map.get(r.fecha) ?? 0) + (r.ton_final ?? 0));
+      const d = parseISO(r.fecha);
+      const key =
+        chartGroup === "mes"    ? r.fecha.slice(0, 7) :
+        chartGroup === "semana" ? format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd") :
+        r.fecha;
+      map.set(key, (map.get(key) ?? 0) + (r.ton_final ?? 0));
     });
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-30)
-      .map(([fecha, ton]) => ({
-        fecha: format(parseISO(fecha), "dd/MM"),
+      .map(([key, ton]) => ({
+        fecha: chartGroup === "mes" ? format(parseISO(`${key}-01`), "MMM yy", { locale: es }) : format(parseISO(key), "dd/MM"),
         ton:   Math.round(ton),
       }));
-  }, [rowsFiltrados]);
+  }, [rowsFiltrados, chartGroup]);
 
-  // ---- Tabla: filtro texto + material + paginación ----
-  const filtered = rows.filter((r) => {
-    const pasaMaterial = material === "todos" || r.articulo === material;
-    const pasaTexto    = !filtro ||
+  // ---- Tabla: filtro texto (sobre el rango + material ya filtrados) + paginación ----
+  const filtered = rowsFiltrados.filter((r) => {
+    const pasaTexto = !filtro ||
       r.articulo?.toLowerCase().includes(filtro.toLowerCase()) ||
       r.nombre?.toLowerCase().includes(filtro.toLowerCase()) ||
       r.patente?.toLowerCase().includes(filtro.toLowerCase());
-    return pasaMaterial && pasaTexto;
+    return pasaTexto;
   });
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated  = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -210,17 +273,23 @@ export default function DespachosPage() {
           <div className="flex flex-wrap gap-2 items-center">
             {/* Filtro período */}
             <div className="flex gap-0.5 border border-gray-200 rounded-full p-0.5">
-              {(["mes", "todo"] as Periodo[]).map((p) => (
+              {([
+                { key: "dia",    label: "Día" },
+                { key: "semana", label: "Semana" },
+                { key: "mes",    label: "Mes" },
+                { key: "anio",   label: "Año" },
+                { key: "rango",  label: "Rango" },
+              ] as { key: Periodo; label: string }[]).map(({ key, label }) => (
                 <button
-                  key={p}
-                  onClick={() => setPeriodo(p)}
+                  key={key}
+                  onClick={() => cambiarPeriodo(key)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    periodo === p
+                    periodo === key
                       ? "bg-green-100 text-migrin-dark"
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  {p === "mes" ? "Mes" : "Todo"}
+                  {label}
                 </button>
               ))}
             </div>
@@ -242,6 +311,44 @@ export default function DespachosPage() {
             </div>
           </div>
         </div>
+
+        {/* Navegación de período: flechas + etiqueta, o rango de fecha/hora libre */}
+        {periodo === "rango" ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="text-xs text-gray-500">
+              Desde
+              <input
+                type="datetime-local"
+                className="input ml-1 text-xs py-1"
+                value={rangoDesde}
+                onChange={(e) => { setRangoDesde(e.target.value); setPage(1); }}
+              />
+            </label>
+            <label className="text-xs text-gray-500">
+              Hasta
+              <input
+                type="datetime-local"
+                className="input ml-1 text-xs py-1"
+                value={rangoHasta}
+                onChange={(e) => { setRangoHasta(e.target.value); setPage(1); }}
+              />
+            </label>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              className="btn-secondary text-xs py-1 px-2"
+              onClick={() => moverPeriodo(-1)}
+              aria-label="Período anterior"
+            >←</button>
+            <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">{periodoLabel}</span>
+            <button
+              className="btn-secondary text-xs py-1 px-2"
+              onClick={() => moverPeriodo(1)}
+              aria-label="Período siguiente"
+            >→</button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="stat-card text-center">
@@ -276,7 +383,9 @@ export default function DespachosPage() {
 
         {chartData.length > 0 && (
           <div>
-            <p className="text-xs text-gray-400 mb-2">Ton despachadas por día</p>
+            <p className="text-xs text-gray-400 mb-2">
+              Ton despachadas por {chartGroup === "mes" ? "mes" : chartGroup === "semana" ? "semana" : "día"}
+            </p>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
