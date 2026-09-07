@@ -523,13 +523,15 @@ export default function ArenaPage() {
     const prevFH = `${prevRow.fecha}T${prevRow.hora.slice(0, 5)}:00`;
     const currFH = `${form.fecha}T${form.hora}:00`;
     setDespachosLoading(true);
-    supabase
-      .from("despachos")
-      .select("fecha, hora, articulo, toneladas, ton_final, folio")
-      .in("articulo", ARTICULOS_ARENA_PROD)
-      .gte("fecha_hora", addMinutes(prevFH, VENTANA_DESPACHOS_MIN))
-      .lte("fecha_hora", addMinutes(currFH, VENTANA_DESPACHOS_MIN))
-      .order("fecha_hora", { ascending: true })
+    Promise.resolve(
+      supabase
+        .from("despachos")
+        .select("fecha, hora, articulo, toneladas, ton_final, folio")
+        .in("articulo", ARTICULOS_ARENA_PROD)
+        .gte("fecha_hora", addMinutes(prevFH, VENTANA_DESPACHOS_MIN))
+        .lte("fecha_hora", addMinutes(currFH, VENTANA_DESPACHOS_MIN))
+        .order("fecha_hora", { ascending: true })
+    )
       .then(({ data }) => {
         if (reqId !== despachosReqId.current) return; // respuesta obsoleta — ya hay una consulta más reciente en curso
         if (data) {
@@ -554,7 +556,7 @@ export default function ArenaPage() {
 
   // ---- Preview en tiempo real ----
   useEffect(() => {
-    if (!form.pesometro || !form.horometro) { setPreview(null); return; }
+    if (!form.pesometro || !form.horometro || !form.fecha || !form.hora) { setPreview(null); return; }
     const input = formToInput(form);
     const prevInput = prevRow
       ? {

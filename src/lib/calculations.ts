@@ -116,6 +116,13 @@ function toDate(fecha: string, hora: string): Date {
   return new Date(`${fecha}T${hora}:00`);
 }
 
+// ---- ISO seguro: nunca lanza, aunque la fecha sea inválida ----
+// Evita que un fecha/hora vacío o mal formado (p.ej. mientras el usuario
+// edita el input) tumbe la app entera con "RangeError: Invalid time value".
+function safeISOString(d: Date): string {
+  return isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
 // ====================================================
 // CÁLCULOS ARENA
 // ====================================================
@@ -135,7 +142,7 @@ export function calcularArena(
     const inv_m3  = conos + acopio + rinones;
     const inv_ton = inv_m3 * DENSIDAD_ARENA;
     return {
-      fecha_hora:              fechaHora.toISOString(),
+      fecha_hora:              safeISOString(fechaHora),
       diferencia_pesometro:    0,
       produccion_pesometro:    0,
       diferencia_horometro:    0,
@@ -266,7 +273,7 @@ export function calcularCuarzo(
 
   if (!previous) {
     return {
-      fecha_hora:              fechaHora.toISOString(),
+      fecha_hora:              safeISOString(fechaHora),
       diferencia_pesometro:    0,
       produccion_pesometro:    0,
       diferencia_horometro:    0,

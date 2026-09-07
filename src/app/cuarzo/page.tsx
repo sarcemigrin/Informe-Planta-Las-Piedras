@@ -97,7 +97,7 @@ export default function CuarzoPage() {
   }
 
   useEffect(() => {
-    if (!form.horometro) { setPreview(null); return; }
+    if (!form.horometro || !form.fecha || !form.hora) { setPreview(null); return; }
     const input = formToInput(form);
     const prevInput = prevRow
       ? {
