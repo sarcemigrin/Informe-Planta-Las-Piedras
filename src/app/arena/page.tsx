@@ -1222,7 +1222,7 @@ export default function ArenaPage() {
             {/* Indicador de período */}
             {prevRow ? (
               <div className={`text-xs rounded-md px-3 py-2 mb-3 leading-relaxed ${
-                preview && preview.horas_reales > 48
+                preview && preview.horas_reales + preview.horas_campana > 48
                   ? "bg-amber-50 text-amber-700"
                   : "bg-gray-50 text-gray-500"
               }`}>
@@ -1232,8 +1232,8 @@ export default function ArenaPage() {
                 {form.fecha} {form.hora}
                 {preview && (
                   <span className="ml-1">
-                    ({fmt(preview.horas_reales, 1)} h)
-                    {preview.horas_reales > 48 && (
+                    ({fmt(preview.horas_reales + preview.horas_campana, 1)} h)
+                    {preview.horas_reales + preview.horas_campana > 48 && (
                       <span className="ml-1"> Verifica la fecha del droneo</span>
                     )}
                   </span>
