@@ -56,6 +56,58 @@ function formToInput(f: Record<string, string>): ArenaInput {
   };
 }
 
+// ---- Campaña de otro material (sección opcional, apagada por defecto) ----
+const CAMPANA_VACIA = {
+  camp_activa: "", camp_material: "", camp_horo_ini: "", camp_horo_fin: "",
+  camp_peso_ini: "", camp_peso_fin: "", camp_volumen: "", camp_obs: "",
+};
+
+type CampanaForm = Campana & { material: string; volumen_m3: number | null; observacion: string };
+
+// Devuelve la campaña del formulario (null si la sección está apagada) o un error de validación.
+function campanaDesdeForm(f: Record<string, string>): { campana: CampanaForm | null; error?: string } {
+  if (f.camp_activa !== "1") return { campana: null };
+  const n = (k: string) => (f[k]?.trim() ? parseFloat(f[k]) : null);
+  const hIni = n("camp_horo_ini"), hFin = n("camp_horo_fin");
+  const pIni = n("camp_peso_ini"), pFin = n("camp_peso_fin");
+  const vol  = n("camp_volumen");
+  const horoDroneo = parseFloat(f.horometro), pesoDroneo = parseFloat(f.pesometro);
+
+  if (hIni == null || hFin == null || isNaN(hIni) || isNaN(hFin))
+    return { campana: null, error: "Campaña: ingresa horómetro inicial y final (o desactiva la campaña)." };
+  if (hFin <= hIni)
+    return { campana: null, error: "Campaña: el horómetro final debe ser mayor al inicial." };
+  if (!isNaN(horoDroneo) && hFin > horoDroneo)
+    return { campana: null, error: `Campaña: el horómetro final (${hFin}) no puede superar el horómetro del droneo (${horoDroneo}).` };
+  if ((pIni == null) !== (pFin == null))
+    return { campana: null, error: "Campaña: ingresa pesómetro inicial y final, o deja ambos vacíos." };
+  if (pIni != null && pFin != null) {
+    if (isNaN(pIni) || isNaN(pFin) || pFin <= pIni)
+      return { campana: null, error: "Campaña: el pesómetro final debe ser mayor al inicial." };
+    if (!isNaN(pesoDroneo) && pFin > pesoDroneo)
+      return { campana: null, error: `Campaña: el pesómetro final (${pFin}) no puede superar el pesómetro del droneo (${pesoDroneo}).` };
+  }
+  if (vol != null && (isNaN(vol) || vol < 0))
+    return { campana: null, error: "Campaña: el volumen debe ser un número mayor o igual a 0." };
+
+  return { campana: {
+    horometro_inicio: hIni, horometro_fin: hFin,
+    pesometro_inicio: pIni, pesometro_fin: pFin,
+    material: f.camp_material?.trim() || "Campaña",
+    volumen_m3: vol,
+    observacion: f.camp_obs?.trim() ?? "",
+  } };
+}
+
+// Campañas guardadas + la del formulario, sin duplicar si esa misma campaña
+// (mismo rango de horómetro) ya está en la tabla — el servidor tampoco la duplica.
+function conCampanaForm(guardadas: Campana[], campana: Campana | null): Campana[] {
+  if (!campana) return guardadas;
+  const yaExiste = guardadas.some((c) =>
+    c.horometro_inicio === campana.horometro_inicio && c.horometro_fin === campana.horometro_fin);
+  return yaExiste ? guardadas : [...guardadas, campana];
+}
+
 function loadDraft(): Record<string, string> {
   const defaults = {
     fecha: today(), hora: nowTime(), pesometro: "", horometro: "", fierrillo: "0",
@@ -64,6 +116,7 @@ function loadDraft(): Record<string, string> {
     pila_5: "", pila_6: "", pila_7: "",
     notas: "",
     volumen_cuarzo: "",
+    ...CAMPANA_VACIA,
   };
   try {
     const saved = typeof window !== "undefined" ? localStorage.getItem(FORM_KEY) : null;
@@ -484,7 +537,7 @@ export default function ArenaPage() {
     const [arenaRes, cuarzoRes, campRes] = await Promise.all([
       supabase.from("registros_arena").select("*").order("fecha_hora", { ascending: false }).limit(20),
       supabase.from("registros_cuarzo").select("*").order("fecha_hora", { ascending: false }).limit(1),
-      supabase.from("campanas").select("horometro_inicio, horometro_fin").eq("planta", "arena"),
+      supabase.from("campanas").select("horometro_inicio, horometro_fin, pesometro_inicio, pesometro_fin").eq("planta", "arena"),
     ]);
     if (campRes.data) setCampanas(campRes.data as Campana[]);
     if (arenaRes.data && arenaRes.data.length > 0) {
@@ -579,7 +632,10 @@ export default function ArenaPage() {
           inventario_ton: prevRow.inventario_ton ?? 0,
         }
       : null;
-    setPreview(calcularArena(input, prevInput, previewDespachos.ton, previewDespachos.viajes, campanas));
+    // La campaña que se está ingresando (si es válida) ya cuenta en el preview.
+    const { campana } = campanaDesdeForm(form);
+    const campanasCalc = conCampanaForm(campanas, campana);
+    setPreview(calcularArena(input, prevInput, previewDespachos.ton, previewDespachos.viajes, campanasCalc));
   }, [form, prevRow, previewDespachos, campanas]);
 
   // ---- Guardar ----
@@ -590,6 +646,11 @@ export default function ArenaPage() {
     }
     if (despachosLoading) {
       setMsg({ type: "err", text: "Espera a que termine de actualizar los despachos del período antes de guardar." });
+      return;
+    }
+    const { campana, error: campError } = campanaDesdeForm(form);
+    if (campError) {
+      setMsg({ type: "err", text: campError });
       return;
     }
     setSaving(true);
@@ -617,7 +678,27 @@ export default function ArenaPage() {
           }
         : null;
 
-      const calc = calcularArena(input, prevInput, despachosTon, despachosViajes, campanas);
+      const calc = calcularArena(input, prevInput, despachosTon, despachosViajes, conCampanaForm(campanas, campana));
+
+      // La campaña se guarda antes que el droneo: así cualquier recálculo
+      // posterior (edición, recalcular) ya la encuentra en la tabla.
+      if (campana) {
+        await writeRegistro({
+          table:   "campanas",
+          op:      "insert",
+          records: [{
+            planta:           "arena",
+            material:         campana.material,
+            horometro_inicio: campana.horometro_inicio,
+            horometro_fin:    campana.horometro_fin,
+            pesometro_inicio: campana.pesometro_inicio,
+            pesometro_fin:    campana.pesometro_fin,
+            volumen_m3:       campana.volumen_m3,
+            fecha_fin:        input.fecha,
+            observacion:      campana.observacion,
+          }],
+        });
+      }
 
       await writeRegistro({
         table:   "registros_arena",
@@ -636,6 +717,7 @@ export default function ArenaPage() {
           // Calculados
           diferencia_pesometro:    calc.diferencia_pesometro,
           produccion_pesometro:    calc.produccion_pesometro,
+          pesometro_campana:       calc.pesometro_campana,
           horas_campana:           calc.horas_campana,
           diferencia_horometro:    calc.diferencia_horometro,
           horas_reales:            calc.horas_reales,
@@ -656,6 +738,29 @@ export default function ArenaPage() {
           cancha_nueva_ton:        calc.cancha_nueva_ton,
         }],
       });
+
+      // Si la campaña empezó antes del droneo anterior, también afecta droneos ya
+      // guardados: recalcular desde el más antiguo cuyo tramo la contiene.
+      // (historial viene del más nuevo al más antiguo; se corta al primer droneo
+      // que ya no queda dentro, así un cambio de horómetro antiguo no interfiere.)
+      let avisoRecalc = "";
+      if (campana) {
+        let desde: RegistroArena | null = null;
+        for (const r of historial) {
+          const tocaHoro = r.horometro > campana.horometro_inicio;
+          const tocaPeso = campana.pesometro_inicio != null && r.pesometro > campana.pesometro_inicio;
+          if (!tocaHoro && !tocaPeso) break;
+          desde = r;
+        }
+        if (desde) {
+          const res = await fetch("/api/registros/recalcular", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ tabla: "arena", registroId: desde.id }),
+          });
+          if (!res.ok) avisoRecalc = `Registro guardado, pero falló el recálculo de droneos anteriores afectados por la campaña (desde ${desde.fecha}). Edita y guarda ese droneo para recalcular.`;
+        }
+      }
 
       // Guardar cuarzo si se ingresó volumen
       if (form.volumen_cuarzo) {
@@ -719,7 +824,7 @@ export default function ArenaPage() {
           setMsg({ type: "err", text: "Registro guardado, pero no se pudo confirmar el envío del informe (error de red)." });
         });
 
-      setMsg({ type: "ok", text: " Registro guardado correctamente." });
+      setMsg(avisoRecalc ? { type: "err", text: avisoRecalc } : { type: "ok", text: " Registro guardado correctamente." });
       // Resetear formulario y limpiar borrador
       const reset = {
         fecha: today(), hora: nowTime(), pesometro: "", horometro: "", fierrillo: "0",
@@ -727,6 +832,7 @@ export default function ArenaPage() {
         pila_1:"", pila_2:"", pila_3:"", pila_4:"",
         pila_5:"", pila_6:"", pila_7:"",
         notas:"", volumen_cuarzo:"",
+        ...CAMPANA_VACIA,
       };
       setForm(reset);
       try { localStorage.setItem(FORM_KEY, JSON.stringify(reset)); } catch {}
@@ -911,6 +1017,73 @@ export default function ArenaPage() {
             </div>
           </div>
 
+          {/* Campaña de otro material (opcional, apagada por defecto) */}
+          <div className="card">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-gray-700">Campaña de otro material</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Opcional. Actívala solo si en este período la planta procesó otro material (p. ej. fierrillo) que quedó en pila aparte.
+                  Sus horas y pesómetro se excluyen del cálculo de productividad.
+                </p>
+              </div>
+              <button
+                type="button" role="switch" aria-checked={form.camp_activa === "1"}
+                aria-label="Activar campaña de otro material"
+                onClick={() => setForm((f) => ({ ...f, camp_activa: f.camp_activa === "1" ? "" : "1" }))}
+                className={`relative shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.camp_activa === "1" ? "" : "bg-gray-300"}`}
+                style={form.camp_activa === "1" ? { backgroundColor: "#6BCF7F" } : {}}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.camp_activa === "1" ? "translate-x-5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+
+            {form.camp_activa === "1" && (
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Horómetro inicial *</label>
+                    <input type="number" className="input" step="0.01" value={form.camp_horo_ini} onChange={set("camp_horo_ini")}
+                      placeholder={prevRow ? String(prevRow.horometro) : ""} />
+                  </div>
+                  <div>
+                    <label className="label">Horómetro final *</label>
+                    <input type="number" className="input" step="0.01" value={form.camp_horo_fin} onChange={set("camp_horo_fin")} />
+                  </div>
+                  <div>
+                    <label className="label">Pesómetro inicial</label>
+                    <input type="number" className="input" step="0.01" value={form.camp_peso_ini} onChange={set("camp_peso_ini")}
+                      placeholder={prevRow ? String(prevRow.pesometro) : ""} />
+                  </div>
+                  <div>
+                    <label className="label">Pesómetro final</label>
+                    <input type="number" className="input" step="0.01" value={form.camp_peso_fin} onChange={set("camp_peso_fin")} />
+                  </div>
+                  <div>
+                    <label className="label">Volumen campaña (m³)</label>
+                    <input type="number" className="input" step="0.01" placeholder="0" value={form.camp_volumen} onChange={set("camp_volumen")} />
+                  </div>
+                  <div>
+                    <label className="label">Material</label>
+                    <input type="text" className="input" placeholder="Fierrillo" value={form.camp_material} onChange={set("camp_material")} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Observación</label>
+                  <input type="text" className="input" placeholder="Opcional" value={form.camp_obs} onChange={set("camp_obs")} />
+                </div>
+                <p className="text-xs text-gray-400">
+                  * Obligatorios con la campaña activa. Pesómetro: ambos o ninguno. El volumen queda como registro;
+                  no se descuenta de la producción drone porque el material está en pila aparte.
+                  No anotes este material en el campo &quot;Fierrillo&quot; de Instrumentos.
+                </p>
+                {(() => {
+                  const { error } = campanaDesdeForm(form);
+                  return error ? <p className="text-xs text-amber-700">{error}</p> : null;
+                })()}
+              </div>
+            )}
+          </div>
+
           {/* Cancha Vieja (drone) */}
           <div className="card">
             <h2 className="font-semibold text-gray-700 mb-1"> Cancha Vieja – Volumen drone (m³)</h2>
@@ -1078,6 +1251,9 @@ export default function ArenaPage() {
                 {/*  Bloque 1: Instrumentos  */}
                 <PreviewRow label="Diff Pesómetro"  value={fmt(preview.diferencia_pesometro)} unit="unid." />
                 <PreviewRow label="Prod. Pesómetro" value={fmt(preview.produccion_pesometro)} unit="ton" />
+                {preview.pesometro_campana > 0 && (
+                  <PreviewRow label="Excl. campaña" value={"−" + fmt(preview.pesometro_campana)} unit="unid." />
+                )}
                 {preview.horas_campana > 0 && (
                   <PreviewRow label="Excl. campaña" value={"−" + fmt(preview.horas_campana, 1)} unit="h" />
                 )}

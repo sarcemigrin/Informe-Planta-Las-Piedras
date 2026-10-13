@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     let previousFH: string | null = startIdx > 0 ? list[startIdx - 1].fecha_hora : null;
 
     const { data: campRows, error: campError } = await sb
-      .from("campanas").select("horometro_inicio, horometro_fin").eq("planta", "arena");
+      .from("campanas").select("horometro_inicio, horometro_fin, pesometro_inicio, pesometro_fin").eq("planta", "arena");
     if (campError) return NextResponse.json({ error: campError.message }, { status: 500 });
     const campanas = (campRows ?? []) as Campana[];
 
@@ -137,6 +137,7 @@ export async function POST(request: Request) {
         fecha_hora:               calc.fecha_hora,
         diferencia_pesometro:     calc.diferencia_pesometro,
         produccion_pesometro:     calc.produccion_pesometro,
+        pesometro_campana:        calc.pesometro_campana,
         horas_campana:            calc.horas_campana,
         diferencia_horometro:     calc.diferencia_horometro,
         horas_reales:             calc.horas_reales,

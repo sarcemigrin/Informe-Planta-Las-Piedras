@@ -15,6 +15,7 @@
  *   { table: "registros_arena" | "registros_cuarzo", op: "delete", id: string }
  *   { table: "despachos",       op: "upsert", records: object[] }   // onConflict fijo: doc_entry,articulo
  *   { table: "historial_cambios", op: "insert", records: object[] }
+ *   { table: "campanas",          op: "insert", records: object[] }   // columnas fijas en el servidor
  */
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -83,6 +84,34 @@ export async function POST(request: Request) {
       .select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, count: data?.length ?? 0 });
+  }
+
+  // ---- campanas: solo insert, columnas fijas ----
+  if (table === "campanas") {
+    if (op !== "insert" || !Array.isArray(body.records)) {
+      return NextResponse.json({ error: "campanas solo admite insert de records[]" }, { status: 400 });
+    }
+    const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : null);
+    const records = body.records.map((r) => ({
+      planta:           r.planta === "cuarzo" ? "cuarzo" : "arena",
+      material:         typeof r.material === "string" && r.material.trim() ? r.material.trim() : "Campaña",
+      horometro_inicio: num(r.horometro_inicio),
+      horometro_fin:    num(r.horometro_fin),
+      pesometro_inicio: num(r.pesometro_inicio),
+      pesometro_fin:    num(r.pesometro_fin),
+      volumen_m3:       num(r.volumen_m3),
+      fecha_inicio:     typeof r.fecha_inicio === "string" ? r.fecha_inicio : null,
+      fecha_fin:        typeof r.fecha_fin === "string" ? r.fecha_fin : null,
+      observacion:      typeof r.observacion === "string" && r.observacion.trim() ? r.observacion.trim() : null,
+    }));
+    // Si el guardado del droneo falla y el usuario reintenta, la misma campaña
+    // no se duplica (se descontaría dos veces): onConflict fijo, se ignora.
+    const { data, error } = await sb
+      .from("campanas")
+      .upsert(records, { onConflict: "planta,horometro_inicio,horometro_fin", ignoreDuplicates: true })
+      .select("id");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, data });
   }
 
   // ---- registros_arena / registros_cuarzo ----

@@ -38,6 +38,18 @@ create policy "no_anon_write_campanas"
   using (false)
   with check (false);
 
+-- ---- v2 (formulario de campañas en Nuevo Registro) ----
+-- Pesómetro de campaña (opcional) y unicidad para no duplicar una campaña
+-- si se reintenta el guardado del droneo.
+alter table campanas add column if not exists pesometro_inicio numeric;
+alter table campanas add column if not exists pesometro_fin    numeric;
+alter table campanas drop constraint if exists campanas_pesometro_ok;
+alter table campanas add constraint campanas_pesometro_ok
+  check ((pesometro_inicio is null and pesometro_fin is null) or pesometro_fin > pesometro_inicio);
+alter table campanas drop constraint if exists campanas_unica;
+alter table campanas add constraint campanas_unica unique (planta, horometro_inicio, horometro_fin);
+alter table registros_arena add column if not exists pesometro_campana numeric default 0;
+
 -- ---- Registrar la campaña (completar material y volumen) ----
 -- Campaña oct-2026: 18540.21 → 18556.93 = 16.72 h. Parte justo en el droneo
 -- del 2026-10-08 07:51 (horómetro 18540.21), así que solo afecta al droneo siguiente.

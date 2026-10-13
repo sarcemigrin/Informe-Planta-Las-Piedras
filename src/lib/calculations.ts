@@ -51,26 +51,41 @@ export interface CuarzoInput {
 
 // ---- Campañas de otro material (tabla `campanas`) ----
 // Horas de planta usadas para procesar un material distinto, que deben quedar
-// fuera de la productividad. Se identifican por rango de horómetro, así una
-// campaña que cruza varios droneos se reparte sola entre ellos.
+// fuera de la productividad. Se identifican por rango de horómetro (y, si se
+// registró, de pesómetro), así una campaña que cruza varios droneos se reparte
+// sola entre ellos. El material queda en pila aparte: no se ajusta producción drone.
 export interface Campana {
   horometro_inicio: number;
   horometro_fin:    number;
+  pesometro_inicio?: number | null;
+  pesometro_fin?:    number | null;
+}
+
+// Parte del rango [ini, fin] que cae dentro del tramo (ant, act].
+function solape(ini: number, fin: number, ant: number, act: number): number {
+  return Math.max(0, Math.min(fin, act) - Math.max(ini, ant));
 }
 
 // Horas de campaña que caen dentro del tramo de horómetro (horoAnt, horoAct].
 export function horasCampanaEnVentana(campanas: Campana[], horoAnt: number, horoAct: number): number {
-  return campanas.reduce((acc, c) => {
-    const solape = Math.min(c.horometro_fin, horoAct) - Math.max(c.horometro_inicio, horoAnt);
-    return acc + Math.max(0, solape);
-  }, 0);
+  return campanas.reduce((acc, c) => acc + solape(c.horometro_inicio, c.horometro_fin, horoAnt, horoAct), 0);
+}
+
+// Unidades de pesómetro de campaña que caen dentro del tramo (pesoAnt, pesoAct].
+// Campañas sin pesómetro registrado no descuentan nada.
+export function pesometroCampanaEnVentana(campanas: Campana[], pesoAnt: number, pesoAct: number): number {
+  return campanas.reduce((acc, c) =>
+    c.pesometro_inicio == null || c.pesometro_fin == null
+      ? acc
+      : acc + solape(c.pesometro_inicio, c.pesometro_fin, pesoAnt, pesoAct), 0);
 }
 
 export interface ArenaCalculated {
   fecha_hora:              string;
-  diferencia_pesometro:    number;
+  pesometro_campana:       number;   // unidades de pesómetro de campaña excluidas de E
+  diferencia_pesometro:    number;   // E (ya sin pesómetro de campaña)
   produccion_pesometro:    number;   // F = E × 0.85
-  horas_campana:           number;   // horas de campaña excluidas de H e I
+  horas_campana:          number;   // horas de campaña excluidas de H e I
   diferencia_horometro:    number;   // H (ya sin horas de campaña)
   horas_reales:            number;   // I = (FH_actual - FH_ant) × 24
   detencion:               number;   // J = I - H
@@ -162,6 +177,7 @@ export function calcularArena(
     const inv_ton = inv_m3 * DENSIDAD_ARENA;
     return {
       fecha_hora:              safeISOString(fechaHora),
+      pesometro_campana:       0,
       diferencia_pesometro:    0,
       produccion_pesometro:    0,
       horas_campana:           0,
@@ -199,8 +215,9 @@ export function calcularArena(
     };
   }
 
-  // ---- Col E: Diferencia Pesómetro ----
-  const difPeso = current.pesometro - previous.pesometro;
+  // ---- Col E: Diferencia Pesómetro (sin campaña) ----
+  const pesoCampana = pesometroCampanaEnVentana(campanas, previous.pesometro, current.pesometro);
+  const difPeso = current.pesometro - previous.pesometro - pesoCampana;
 
   // ---- Col F: Producción Pesómetro ----
   const prodPeso = difPeso * FACTOR_PESOMETRO;
@@ -244,6 +261,7 @@ export function calcularArena(
 
   return {
     fecha_hora:              fechaHora.toISOString(),
+    pesometro_campana:       pesoCampana,
     diferencia_pesometro:    difPeso,
     produccion_pesometro:    prodPeso,
     horas_campana:           horasCampana,
