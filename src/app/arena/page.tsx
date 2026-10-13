@@ -9,8 +9,8 @@ import {
   calcularArena, calcularCuarzo, fmt, ARTICULOS_ARENA_PROD,
   META_PRODUCTIVIDAD_TON_H, META_PRODUCTIVIDAD_AMBAR,
   META_INVENTARIO_TON, META_INVENTARIO_AMBAR,
-  addMinutes, VENTANA_DESPACHOS_MIN, DENSIDAD_CENTRO,
-  type ArenaInput,
+  addMinutes, VENTANA_DESPACHOS_MIN, DENSIDAD_CENTRO, TON_MIN_DESPACHO, aplicaTonMinDespacho,
+  type ArenaInput, type Campana,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroArenaInsert, RegistroCuarzo, RegistroTurco, RegistroPeral } from "@/types/database";
 import { format } from "date-fns";
@@ -411,7 +411,8 @@ export default function ArenaPage() {
   const [historial, setHistorial]           = useState<RegistroArena[]>([]);
   const [prevRow, setPrevRow]               = useState<(RegistroArena) | null>(null);
   const [prevCuarzoRow, setPrevCuarzoRow]   = useState<RegistroCuarzo | null>(null);
-  const [preview, setPreview]               = useState<ReturnType<typeof calcularArena> | null>(null);
+  const [campanas, setCampanas]             = useState<Campana[]>([]);
+  const [preview, setPreview]             = useState<ReturnType<typeof calcularArena> | null>(null);
   const [saving, setSaving]                 = useState(false);
   const [deletingId, setDeletingId]         = useState<string | null>(null);
   const [syncing, setSyncing]               = useState(false);
@@ -480,10 +481,12 @@ export default function ArenaPage() {
   }
 
   async function loadHistorial() {
-    const [arenaRes, cuarzoRes] = await Promise.all([
+    const [arenaRes, cuarzoRes, campRes] = await Promise.all([
       supabase.from("registros_arena").select("*").order("fecha_hora", { ascending: false }).limit(20),
       supabase.from("registros_cuarzo").select("*").order("fecha_hora", { ascending: false }).limit(1),
+      supabase.from("campanas").select("horometro_inicio, horometro_fin").eq("planta", "arena"),
     ]);
+    if (campRes.data) setCampanas(campRes.data as Campana[]);
     if (arenaRes.data && arenaRes.data.length > 0) {
       setHistorial(arenaRes.data);
       setPrevRow(arenaRes.data[0]);
@@ -536,7 +539,11 @@ export default function ArenaPage() {
         if (reqId !== despachosReqId.current) return; // respuesta obsoleta — ya hay una consulta más reciente en curso
         if (data) {
           type D = { fecha: string; hora: string; articulo: string | null; toneladas: number | null; ton_final: number | null; folio: number | null };
-          const rows = (data as D[]).map(d => ({ ...d, articulo: d.articulo ?? "" }));
+          // Desde FECHA_VIGENCIA_TON_MIN no cuentan despachos de 25 t o menos (romana).
+          const aplicaMin = aplicaTonMinDespacho(form.fecha);
+          const rows = (data as D[])
+            .filter(d => !aplicaMin || (d.toneladas ?? 0) > TON_MIN_DESPACHO)
+            .map(d => ({ ...d, articulo: d.articulo ?? "" }));
           const a36 = rows.filter(d => d.articulo === "A36LGC");
           const a39 = rows.filter(d => d.articulo === "A39LGC");
           // Usar toneladas (romana) igual que Query1!O en el Excel
@@ -572,8 +579,8 @@ export default function ArenaPage() {
           inventario_ton: prevRow.inventario_ton ?? 0,
         }
       : null;
-    setPreview(calcularArena(input, prevInput, previewDespachos.ton, previewDespachos.viajes));
-  }, [form, prevRow, previewDespachos]);
+    setPreview(calcularArena(input, prevInput, previewDespachos.ton, previewDespachos.viajes, campanas));
+  }, [form, prevRow, previewDespachos, campanas]);
 
   // ---- Guardar ----
   async function handleSave() {
@@ -610,7 +617,7 @@ export default function ArenaPage() {
           }
         : null;
 
-      const calc = calcularArena(input, prevInput, despachosTon, despachosViajes);
+      const calc = calcularArena(input, prevInput, despachosTon, despachosViajes, campanas);
 
       await writeRegistro({
         table:   "registros_arena",
@@ -629,6 +636,7 @@ export default function ArenaPage() {
           // Calculados
           diferencia_pesometro:    calc.diferencia_pesometro,
           produccion_pesometro:    calc.produccion_pesometro,
+          horas_campana:           calc.horas_campana,
           diferencia_horometro:    calc.diferencia_horometro,
           horas_reales:            calc.horas_reales,
           detencion:               calc.detencion,
@@ -1070,6 +1078,9 @@ export default function ArenaPage() {
                 {/*  Bloque 1: Instrumentos  */}
                 <PreviewRow label="Diff Pesómetro"  value={fmt(preview.diferencia_pesometro)} unit="unid." />
                 <PreviewRow label="Prod. Pesómetro" value={fmt(preview.produccion_pesometro)} unit="ton" />
+                {preview.horas_campana > 0 && (
+                  <PreviewRow label="Excl. campaña" value={"−" + fmt(preview.horas_campana, 1)} unit="h" />
+                )}
                 <PreviewRow label="Diff Horómetro"  value={fmt(preview.diferencia_horometro, 1)} unit="h" />
                 <PreviewRow label="Horas Reales"    value={fmt(preview.horas_reales, 1)} unit="h" />
                 <PreviewRow label="Detención"       value={fmt(preview.detencion, 1)} unit="h" />

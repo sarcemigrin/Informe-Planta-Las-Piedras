@@ -18,8 +18,8 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/apiGuard";
 import {
   calcularArena, calcularCuarzo, ARTICULOS_ARENA_PROD, ARTICULO_CUARZO,
-  addMinutes, VENTANA_DESPACHOS_MIN,
-  type ArenaInput, type CuarzoInput,
+  addMinutes, VENTANA_DESPACHOS_MIN, TON_MIN_DESPACHO, aplicaTonMinDespacho,
+  type ArenaInput, type CuarzoInput, type Campana,
 } from "@/lib/calculations";
 import type { RegistroArena, RegistroCuarzo } from "@/types/database";
 
@@ -39,8 +39,11 @@ async function despachosEnVentana(
   tabla: Tabla,
   previousFH: string | null,
   currentFH: string,
+  fechaRegistro: string,
 ): Promise<{ ton: number; viajes: number }> {
   if (!previousFH) return { ton: 0, viajes: 0 };
+  // Droneos anteriores a FECHA_VIGENCIA_TON_MIN se recalculan sin el umbral de 25 t.
+  const minTon = aplicaTonMinDespacho(fechaRegistro) ? TON_MIN_DESPACHO : -Infinity;
 
   if (tabla === "arena") {
     const { data } = await sb
@@ -49,7 +52,7 @@ async function despachosEnVentana(
       .in("articulo", ARTICULOS_ARENA_PROD)
       .gte("fecha_hora", addMinutes(previousFH, VENTANA_DESPACHOS_MIN))
       .lte("fecha_hora", addMinutes(currentFH, VENTANA_DESPACHOS_MIN));
-    const rows = (data ?? []) as { toneladas: number | null }[];
+    const rows = ((data ?? []) as { toneladas: number | null }[]).filter((d) => (d.toneladas ?? 0) > minTon);
     return { ton: rows.reduce((s, d) => s + (d.toneladas ?? 0), 0), viajes: rows.length };
   }
 
@@ -59,7 +62,7 @@ async function despachosEnVentana(
     .eq("articulo", ARTICULO_CUARZO)
     .gte("fecha_hora", addMinutes(previousFH, VENTANA_DESPACHOS_MIN))
     .lte("fecha_hora", addMinutes(currentFH, VENTANA_DESPACHOS_MIN));
-  const rows = (data ?? []) as { ton_final: number | null }[];
+  const rows = ((data ?? []) as { ton_final: number | null }[]).filter((d) => (d.ton_final ?? 0) > minTon);
   return { ton: rows.reduce((s, d) => s + (d.ton_final ?? 0), 0), viajes: rows.length };
 }
 
@@ -116,19 +119,25 @@ export async function POST(request: Request) {
       startIdx > 0 ? { ...buildArenaInput(list[startIdx - 1]), inventario_ton: list[startIdx - 1].inventario_ton ?? 0 } : null;
     let previousFH: string | null = startIdx > 0 ? list[startIdx - 1].fecha_hora : null;
 
+    const { data: campRows, error: campError } = await sb
+      .from("campanas").select("horometro_inicio, horometro_fin").eq("planta", "arena");
+    if (campError) return NextResponse.json({ error: campError.message }, { status: 500 });
+    const campanas = (campRows ?? []) as Campana[];
+
     let updated = 0;
     const errors: string[] = [];
 
     for (let i = startIdx; i < list.length; i++) {
       const row   = list[i];
       const input = buildArenaInput(row);
-      const { ton, viajes } = await despachosEnVentana(sb, "arena", previousFH, row.fecha_hora);
-      const calc = calcularArena(input, previous, ton, viajes);
+      const { ton, viajes } = await despachosEnVentana(sb, "arena", previousFH, row.fecha_hora, row.fecha);
+      const calc = calcularArena(input, previous, ton, viajes, campanas);
 
       const { error: updError } = await sb.from("registros_arena").update({
         fecha_hora:               calc.fecha_hora,
         diferencia_pesometro:     calc.diferencia_pesometro,
         produccion_pesometro:     calc.produccion_pesometro,
+        horas_campana:            calc.horas_campana,
         diferencia_horometro:     calc.diferencia_horometro,
         horas_reales:             calc.horas_reales,
         detencion:                calc.detencion,
@@ -177,7 +186,7 @@ export async function POST(request: Request) {
   for (let i = startIdx; i < list.length; i++) {
     const row   = list[i];
     const input = buildCuarzoInput(row);
-    const { ton, viajes } = await despachosEnVentana(sb, "cuarzo", previousFH, row.fecha_hora);
+    const { ton, viajes } = await despachosEnVentana(sb, "cuarzo", previousFH, row.fecha_hora, row.fecha);
     const calc = calcularCuarzo(input, previous, ton, viajes);
 
     const { error: updError } = await sb.from("registros_cuarzo").update({

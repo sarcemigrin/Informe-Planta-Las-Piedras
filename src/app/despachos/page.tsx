@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import type { Despacho } from "@/types/database";
+import { esDespachoValido } from "@/lib/calculations";
 import {
   format, parseISO,
   startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
@@ -124,8 +125,9 @@ export default function DespachosPage() {
   }, [rows]);
 
   // ---- Dashboard: filtro por material (el período ya se aplicó en la consulta) ----
+  // Despachos de 25 t o menos no cuentan como viaje ni suman tonelaje (esDespachoValido).
   const rowsFiltrados = useMemo(() => {
-    return rows.filter((r) => material === "todos" || r.articulo === material);
+    return rows.filter((r) => esDespachoValido(r) && (material === "todos" || r.articulo === material));
   }, [rows, material]);
 
   const totalTon        = rowsFiltrados.reduce((s, r) => s + (r.ton_final ?? 0), 0);

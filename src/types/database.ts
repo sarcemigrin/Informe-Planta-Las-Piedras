@@ -81,8 +81,9 @@ export interface RegistroArena {
   // Calculados
   diferencia_pesometro: number | null;
   produccion_pesometro: number | null;
-  diferencia_horometro: number | null;
-  horas_reales: number | null;
+  horas_campana: number | null;        // horas de campaña de otro material excluidas
+  diferencia_horometro: number | null; // ya sin horas_campana
+  horas_reales: number | null;         // ya sin horas_campana
   detencion: number | null;
   despachos_ton: number | null;
   cantidad_despachos: number | null;

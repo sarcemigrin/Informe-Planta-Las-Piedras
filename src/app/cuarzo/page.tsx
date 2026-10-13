@@ -8,7 +8,7 @@ import { EditCuarzoModal } from "@/components/EditCuarzoModal";
 import { supabase } from "@/lib/supabase";
 import {
   calcularCuarzo, fmt, ARTICULO_CUARZO,
-  addMinutes, VENTANA_DESPACHOS_MIN,
+  addMinutes, VENTANA_DESPACHOS_MIN, TON_MIN_DESPACHO, aplicaTonMinDespacho,
   type CuarzoInput,
 } from "@/lib/calculations";
 import type { RegistroCuarzo } from "@/types/database";
@@ -128,8 +128,10 @@ export default function CuarzoPage() {
           .gte("fecha_hora", addMinutes(prevFH, VENTANA_DESPACHOS_MIN))
           .lte("fecha_hora", addMinutes(fechaHora, VENTANA_DESPACHOS_MIN));
         if (dsps) {
-          despachosTon    = dsps.reduce((s, d) => s + (d.ton_final ?? 0), 0);
-          despachosViajes = dsps.length;
+          // Desde FECHA_VIGENCIA_TON_MIN no cuentan despachos de 25 t o menos.
+          const validos = aplicaTonMinDespacho(input.fecha) ? dsps.filter((d) => (d.ton_final ?? 0) > TON_MIN_DESPACHO) : dsps;
+          despachosTon    = validos.reduce((s, d) => s + (d.ton_final ?? 0), 0);
+          despachosViajes = validos.length;
         }
       }
 

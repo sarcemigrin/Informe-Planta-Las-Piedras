@@ -49,11 +49,29 @@ export interface CuarzoInput {
   cono_3: number;
 }
 
+// ---- Campañas de otro material (tabla `campanas`) ----
+// Horas de planta usadas para procesar un material distinto, que deben quedar
+// fuera de la productividad. Se identifican por rango de horómetro, así una
+// campaña que cruza varios droneos se reparte sola entre ellos.
+export interface Campana {
+  horometro_inicio: number;
+  horometro_fin:    number;
+}
+
+// Horas de campaña que caen dentro del tramo de horómetro (horoAnt, horoAct].
+export function horasCampanaEnVentana(campanas: Campana[], horoAnt: number, horoAct: number): number {
+  return campanas.reduce((acc, c) => {
+    const solape = Math.min(c.horometro_fin, horoAct) - Math.max(c.horometro_inicio, horoAnt);
+    return acc + Math.max(0, solape);
+  }, 0);
+}
+
 export interface ArenaCalculated {
   fecha_hora:              string;
   diferencia_pesometro:    number;
   produccion_pesometro:    number;   // F = E × 0.85
-  diferencia_horometro:    number;   // H
+  horas_campana:           number;   // horas de campaña excluidas de H e I
+  diferencia_horometro:    number;   // H (ya sin horas de campaña)
   horas_reales:            number;   // I = (FH_actual - FH_ant) × 24
   detencion:               number;   // J = I - H
   // Despachos (se calculan consultando la tabla despachos)
@@ -131,6 +149,7 @@ export function calcularArena(
   previous:          ArenaInput & { inventario_ton: number } | null,
   despachosTon:      number,
   despachosViajes:   number,
+  campanas:          Campana[] = [],
 ): ArenaCalculated {
   const fechaHora = toDate(current.fecha, current.hora);
 
@@ -145,6 +164,7 @@ export function calcularArena(
       fecha_hora:              safeISOString(fechaHora),
       diferencia_pesometro:    0,
       produccion_pesometro:    0,
+      horas_campana:           0,
       diferencia_horometro:    0,
       horas_reales:            0,
       detencion:               0,
@@ -185,12 +205,16 @@ export function calcularArena(
   // ---- Col F: Producción Pesómetro ----
   const prodPeso = difPeso * FACTOR_PESOMETRO;
 
-  // ---- Col H: Diferencia Horómetro ----
-  const difHoro = current.horometro - previous.horometro;
+  // ---- Horas de campaña (otro material) a excluir ----
+  const horasCampana = horasCampanaEnVentana(campanas, previous.horometro, current.horometro);
 
-  // ---- Col I: Horas Reales ----
+  // ---- Col H: Diferencia Horómetro (sin campaña) ----
+  const difHoro = current.horometro - previous.horometro - horasCampana;
+
+  // ---- Col I: Horas Reales (sin campaña) ----
+  // Se descuentan las mismas horas para que la campaña no aparezca como detención.
   const prevFH  = toDate(previous.fecha, previous.hora);
-  const horasReales = (fechaHora.getTime() - prevFH.getTime()) / (1000 * 60 * 60);
+  const horasReales = Math.max(0, (fechaHora.getTime() - prevFH.getTime()) / (1000 * 60 * 60) - horasCampana);
 
   // ---- Col J: Detención ----
   const detencion = Math.max(0, horasReales - difHoro);
@@ -222,6 +246,7 @@ export function calcularArena(
     fecha_hora:              fechaHora.toISOString(),
     diferencia_pesometro:    difPeso,
     produccion_pesometro:    prodPeso,
+    horas_campana:           horasCampana,
     diferencia_horometro:    difHoro,
     horas_reales:            horasReales,
     detencion,
@@ -354,6 +379,29 @@ export const ARTICULO_A39     = "A39LGC";
 // Para producción de arena se suman solo A36LGC + A39LGC — A38LGC se excluye
 // a pedido explícito (no debe sumar tonelaje ni contar como despacho).
 export const ARTICULOS_ARENA_PROD = [ARTICULO_ARENA, ARTICULO_A39];
+
+// Solo cuentan despachos de MÁS de 25 t: un despacho de 25 t o menos no suma
+// tonelaje ni cuenta como viaje. El umbral se aplica sobre el mismo campo que
+// entra al cálculo: Arena usa `toneladas` (romana) y Cuarzo usa `ton_final`.
+// Despachos con tonelaje null quedan fuera.
+// Rige solo desde FECHA_VIGENCIA_TON_MIN, a pedido explícito: lo anterior no se
+// toca — ni al recalcular un droneo antiguo ni al ver períodos pasados en Despachos.
+//   - Cálculo de droneos: se decide por la fecha del droneo (toda su ventana).
+//   - Panel de Despachos: se decide por la fecha de cada despacho.
+export const TON_MIN_DESPACHO      = 25;
+export const FECHA_VIGENCIA_TON_MIN = "2026-09-24"; // YYYY-MM-DD
+
+export function aplicaTonMinDespacho(fecha: string | null | undefined): boolean {
+  return !!fecha && fecha >= FECHA_VIGENCIA_TON_MIN;
+}
+
+export function tonCalculoDespacho(d: { articulo: string | null; toneladas: number | null; ton_final: number | null }): number {
+  return (d.articulo === ARTICULO_CUARZO ? d.ton_final : d.toneladas) ?? 0;
+}
+
+export function esDespachoValido(d: { fecha: string | null; articulo: string | null; toneladas: number | null; ton_final: number | null }): boolean {
+  return !aplicaTonMinDespacho(d.fecha) || tonCalculoDespacho(d) > TON_MIN_DESPACHO;
+}
 
 // Margen usado al buscar despachos entre el droneo anterior y el actual —
 // antes triplicado (arena/page.tsx, cuarzo/page.tsx, recalcular/route.ts).
